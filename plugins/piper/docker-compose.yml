@@ -1,0 +1,38 @@
+# Piper TTS Local Deployment
+# This compose file runs Piper TTS as a local HTTP service for text-to-speech.
+#
+# Usage:
+#   docker compose up -d                              # Start with default voice
+#   PIPER_VOICE=en_US-ryan-high docker compose up -d  # Start with specific voice
+#   docker compose logs -f                            # View logs
+#   docker compose down                               # Stop
+#   docker compose build                              # Rebuild after Dockerfile changes
+
+services:
+  piper-tts:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: piper-tts
+    restart: unless-stopped
+    ports:
+      # Using port 5847 to avoid conflicts with common dev ports
+      - "5847:5000"
+    environment:
+      # Voice model - change this to switch voices (no rebuild needed!)
+      # See https://rhasspy.github.io/piper-samples/ for options
+      - PIPER_VOICE=${PIPER_VOICE:-en_GB-alba-medium}
+    volumes:
+      # Persist downloaded voice models
+      - piper-models:/app/models
+    healthcheck:
+      # Service only accepts POST, so we send a minimal TTS request
+      test: ["CMD", "curl", "-sf", "-X", "POST", "-H", "Content-Type: application/json", "-d", "{\"text\":\"ok\"}", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  piper-models:
+
