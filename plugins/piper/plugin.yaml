@@ -1,0 +1,43 @@
+schema_version: "2026-01-23"
+name: Piper TTS
+description: Local text-to-speech using Piper neural voices with MCP integration
+
+vendor:
+  name: Rhasspy
+  url: https://github.com/rhasspy/piper
+  docs: https://rhasspy.github.io/piper-samples/
+
+service:
+  type: docker-compose
+  compose_file: docker-compose.yml
+
+ports:
+  - port: 5847
+    name: http
+    protocol: http
+    description: Piper TTS HTTP API endpoint
+
+env_vars:
+  - name: PIPER_VOICE
+    required: false
+    default: en_GB-alba-medium
+    description: Voice model to use (see https://rhasspy.github.io/piper-samples/)
+  - name: PIPER_TTS_URL
+    required: false
+    default: http://localhost:5847
+    description: URL for the Piper TTS service (used by MCP server)
+
+lifecycle:
+  install: ./install.sh
+  uninstall: ./uninstall.sh
+  start: docker compose up -d
+  stop: docker compose down
+  status: docker compose ps --filter "status=running" --services | grep -q piper-tts
+  logs: docker compose logs -f
+
+mcp:
+  transport: stdio
+  command: ./mcp-server.sh
+  env:
+    - PIPER_TTS_URL
+
