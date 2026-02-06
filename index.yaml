@@ -1,2 +1,5 @@
 schema_version: '2026-01-23'
-plugins: []
+plugins:
+- name: piper
+  path: plugins/piper
+  description: Local text-to-speech using Piper neural voices with MCP integration
