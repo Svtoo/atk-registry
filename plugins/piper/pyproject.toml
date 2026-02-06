@@ -1,0 +1,18 @@
+[project]
+name = "piper-tts-mcp"
+version = "1.0.0"
+description = "Piper TTS MCP server — text-to-speech via local Piper service"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp[cli]>=1.4.1",
+    "requests>=2.25.0",
+    "pygame>=2.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=64.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["server"]
+
