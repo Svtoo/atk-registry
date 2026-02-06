@@ -1,0 +1,216 @@
+# LangFuse Observability Stack
+# Ports: Web UI 13000, Worker 13030, Postgres 15433, Redis 16379, ClickHouse 18123/19000, MinIO 19090/19091
+#
+# Usage:
+#   docker compose up -d      # Start all services
+#   docker compose logs -f    # View logs
+#   docker compose down       # Stop all services
+#
+# Default login: admin@localhost / admin123
+
+services:
+  langfuse-postgres:
+    image: docker.io/postgres:15
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse
+      POSTGRES_DB: langfuse
+      POSTGRES_SHARED_BUFFERS: 256MB
+      POSTGRES_MAX_CONNECTIONS: 200
+    ports:
+      - "15433:5432"
+    volumes:
+      - langfuse_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  langfuse-redis:
+    image: docker.io/redis:7
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    command: >
+      --requirepass myredissecret
+      --maxmemory 400mb
+      --maxmemory-policy allkeys-lru
+    ports:
+      - "16379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "myredissecret", "ping"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+
+  langfuse-clickhouse:
+    image: docker.io/clickhouse/clickhouse-server
+    restart: always
+    user: "101:101"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+      - langfuse_clickhouse_config:/etc/clickhouse-server/config.d
+    ports:
+      - "18123:8123"
+      - "19000:9000"
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 1s
+
+  langfuse-minio:
+    image: docker.io/minio/minio
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: miniosecret
+    ports:
+      - "19090:9000"
+      - "19091:9001"
+    volumes:
+      - langfuse_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+      start_period: 1s
+
+  langfuse-worker:
+    image: docker.io/langfuse/langfuse-worker:3
+    restart: always
+    depends_on: &langfuse-depends-on
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-minio:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+    ports:
+      - "13030:3030"
+    environment: &langfuse-worker-env
+      NEXTAUTH_URL: http://localhost:13000
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-postgres:5432/langfuse
+      SALT: "langfuse-salt-change-in-production"
+      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      TELEMETRY_ENABLED: true
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: true
+      NODE_OPTIONS: "--max-old-space-size=1536"
+      LANGFUSE_S3_CONCURRENT_WRITES: "100"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+      CLICKHOUSE_CLUSTER_ENABLED: false
+      LANGFUSE_USE_AZURE_BLOB: false
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: true
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://localhost:19090
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: true
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+      LANGFUSE_S3_BATCH_EXPORT_ENABLED: false
+      LANGFUSE_S3_BATCH_EXPORT_BUCKET: langfuse
+      LANGFUSE_S3_BATCH_EXPORT_PREFIX: exports/
+      LANGFUSE_S3_BATCH_EXPORT_REGION: auto
+      LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT: http://localhost:19090
+      LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: miniosecret
+      LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: true
+      REDIS_HOST: langfuse-redis
+      REDIS_PORT: 6379
+      REDIS_AUTH: myredissecret
+      REDIS_TLS_ENABLED: false
+
+  langfuse-web:
+    image: docker.io/langfuse/langfuse:3
+    restart: always
+    depends_on: *langfuse-depends-on
+    ports:
+      - "13000:3000"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+    environment:
+      <<: *langfuse-worker-env
+      NEXTAUTH_SECRET: langfuse-nextauth-secret-change-in-production
+      # Organization and project initialization - override via .env file
+      LANGFUSE_INIT_ORG_ID: ${LANGFUSE_ORG_ID:-default}
+      LANGFUSE_INIT_ORG_NAME: ${LANGFUSE_ORG_NAME:-Default Organization}
+      LANGFUSE_INIT_PROJECT_ID: ${LANGFUSE_PROJECT_ID:-default}
+      LANGFUSE_INIT_PROJECT_NAME: ${LANGFUSE_PROJECT_NAME:-Default Project}
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-local-public}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-local-secret}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_USER_EMAIL:-admin@localhost}
+      LANGFUSE_INIT_USER_NAME: ${LANGFUSE_USER_NAME:-Admin}
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_USER_PASSWORD:-admin123}
+
+volumes:
+  langfuse_postgres_data:
+    name: langfuse_postgres_data
+  langfuse_clickhouse_data:
+    name: langfuse_clickhouse_data
+  langfuse_clickhouse_logs:
+    name: langfuse_clickhouse_logs
+  langfuse_clickhouse_config:
+    name: langfuse_clickhouse_config
+  langfuse_minio_data:
+    name: langfuse_minio_data
+

@@ -28,6 +28,8 @@ env_vars:
     description: URL for the Piper TTS service (used by MCP server)
 
 lifecycle:
+  install: docker compose pull && docker compose build && docker compose up -d
+  uninstall: docker compose down --rmi local
   start: docker compose up -d
   stop: docker compose down
   status: docker compose ps --filter "status=running" --services | grep -q piper-tts
