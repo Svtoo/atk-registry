@@ -1,0 +1,70 @@
+schema_version: "2026-01-23"
+name: LangFuse
+description: Open-source LLM observability and tracing platform
+
+vendor:
+  name: LangFuse
+  url: https://github.com/langfuse/langfuse
+  docs: https://langfuse.com/docs
+
+service:
+  type: docker-compose
+  compose_file: docker-compose.yml
+
+ports:
+  - port: 13000
+    name: web
+    protocol: http
+    description: LangFuse Web UI
+  - port: 13030
+    name: worker
+    protocol: http
+    description: LangFuse Worker API
+  - port: 18123
+    name: clickhouse
+    protocol: http
+    description: ClickHouse HTTP interface
+
+env_vars:
+  # SDK integration variables (use these in your application)
+  - name: LANGFUSE_PUBLIC_KEY
+    required: false
+    default: pk-lf-local-public
+    description: LangFuse project public key for SDK integration
+  - name: LANGFUSE_SECRET_KEY
+    required: false
+    default: sk-lf-local-secret
+    secret: true
+    description: LangFuse project secret key for SDK integration
+  - name: LANGFUSE_HOST
+    required: false
+    default: http://localhost:13000
+    description: LangFuse host URL for SDK integration
+  # Initialization variables (customize your LangFuse instance)
+  - name: LANGFUSE_ORG_NAME
+    required: false
+    default: Default Organization
+    description: Organization name shown in LangFuse UI
+  - name: LANGFUSE_PROJECT_NAME
+    required: false
+    default: Default Project
+    description: Project name shown in LangFuse UI
+  - name: LANGFUSE_USER_EMAIL
+    required: false
+    default: admin@localhost
+    description: Admin user email for login
+  - name: LANGFUSE_USER_PASSWORD
+    required: false
+    default: admin123
+    secret: true
+    description: Admin user password for login
+
+lifecycle:
+  install: docker compose pull && docker compose up -d
+  uninstall: docker compose down --rmi local
+  start: docker compose up -d
+  stop: docker compose down
+  status: docker compose ps --filter "status=running" --services | grep -q langfuse-web
+  logs: docker compose logs -f
+  health_endpoint: http://localhost:13000
+
