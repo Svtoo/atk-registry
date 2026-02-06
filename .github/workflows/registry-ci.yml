@@ -1,0 +1,97 @@
+name: Registry CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Prevent concurrent index generation on main
+concurrency:
+  group: registry-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate plugins & lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout registry
+        uses: actions/checkout@v4
+
+      # atk is a dependency via path = "../atk" in pyproject.toml
+      # Until atk is on PyPI, we checkout it as a sibling directory
+      - name: Checkout atk
+        uses: actions/checkout@v4
+        with:
+          repository: Svtoo/atk
+          path: ../atk
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Lint scripts
+        run: make check
+
+      - name: Validate all plugins
+        run: make validate
+
+  generate-index:
+    name: Generate & commit index.yaml
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout registry
+        uses: actions/checkout@v4
+
+      - name: Checkout atk
+        uses: actions/checkout@v4
+        with:
+          repository: Svtoo/atk
+          path: ../atk
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Generate index.yaml
+        run: make generate
+
+      - name: Verify index.yaml exists
+        run: |
+          if [ ! -f index.yaml ]; then
+            echo "ERROR: index.yaml was not generated"
+            exit 1
+          fi
+          echo "index.yaml contents:"
+          cat index.yaml
+
+      - name: Validate generated index
+        run: make validate
+
+      - name: Commit and push index.yaml
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.yaml
+          if git diff --cached --quiet; then
+            echo "index.yaml is up to date, no changes to commit"
+          else
+            git commit -m "chore: regenerate index.yaml [skip ci]"
+            git push
+          fi
+
