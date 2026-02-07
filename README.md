@@ -1,6 +1,6 @@
 # ATK Registry
 
-Curated plugin registry for [ATK](https://github.com/Svtoo/atk) (Agent Toolkit).
+Curated plugin registry for [ATK](https://github.com/Svtoo/atk) (AI Toolkit).
 
 ## Usage
 
