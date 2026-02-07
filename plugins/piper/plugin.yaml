@@ -1,6 +1,6 @@
 schema_version: "2026-01-23"
 name: Piper TTS
-description: Local text-to-speech using Piper neural voices with MCP integration
+description: Local text-to-speech using Piper neural voices with MCP integration.
 
 vendor:
   name: Rhasspy
