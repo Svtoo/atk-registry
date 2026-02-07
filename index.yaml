@@ -1,5 +1,8 @@
 schema_version: '2026-01-23'
 plugins:
+- name: langfuse
+  path: plugins/langfuse
+  description: Open-source LLM observability and tracing platform
 - name: piper
   path: plugins/piper
   description: Local text-to-speech using Piper neural voices with MCP integration
