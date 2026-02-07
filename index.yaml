@@ -5,4 +5,4 @@ plugins:
   description: Open-source LLM observability and tracing platform
 - name: piper
   path: plugins/piper
-  description: Local text-to-speech using Piper neural voices with MCP integration
+  description: Local text-to-speech using Piper neural voices with MCP integration.
