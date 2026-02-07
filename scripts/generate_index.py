@@ -20,8 +20,10 @@ import sys
 from pathlib import Path
 
 import yaml
+from atk.manifest_schema import SourceType
 from atk.plugin import load_plugin_schema
 from atk.registry_schema import RegistryIndexSchema, RegistryPluginEntry
+from atk.source import resolve_source
 
 REGISTRY_ROOT = Path(__file__).parent.parent
 PLUGINS_DIR = REGISTRY_ROOT / "plugins"
@@ -42,11 +44,20 @@ def validate_plugin(plugin_dir: Path) -> RegistryPluginEntry | str:
     Returns:
         RegistryPluginEntry on success, error message string on failure.
     """
+    name = plugin_dir.name
+
+    resolved = resolve_source(name)
+    if resolved.source_type != SourceType.REGISTRY:
+        return (
+            f"Plugin name '{name}' resolves as {resolved.source_type.value} instead of registry. "
+            f"Users running 'atk add {name}' would not reach the registry."
+        )
+
     try:
         schema = load_plugin_schema(plugin_dir)
         return RegistryPluginEntry(
-            name=plugin_dir.name,
-            path=f"plugins/{plugin_dir.name}",
+            name=name,
+            path=f"plugins/{name}",
             description=schema.description,
         )
     except (FileNotFoundError, ValueError) as e:
