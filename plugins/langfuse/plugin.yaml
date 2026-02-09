@@ -51,7 +51,7 @@ env_vars:
     description: Project name shown in LangFuse UI
   - name: LANGFUSE_USER_EMAIL
     required: false
-    default: admin@localhost
+    default: admin@localhost.com
     description: Admin user email for login
   - name: LANGFUSE_USER_PASSWORD
     required: false
