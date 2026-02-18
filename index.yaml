@@ -3,6 +3,10 @@ plugins:
 - name: langfuse
   path: plugins/langfuse
   description: Open-source LLM observability and tracing platform
+- name: openmemory
+  path: plugins/openmemory
+  description: Persistent memory layer for AI agents with semantic search and MCP
+    integration
 - name: piper
   path: plugins/piper
   description: Local text-to-speech using Piper neural voices with MCP integration.
