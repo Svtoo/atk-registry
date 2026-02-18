@@ -1,0 +1,56 @@
+# OpenMemory Local Deployment
+# Backend API on port 8787, Dashboard on port 3737
+# Uses Ollama for local embeddings (no cloud API needed)
+#
+# Prerequisites: Ollama running locally with mxbai-embed-large model
+#   ollama pull mxbai-embed-large
+
+services:
+  openmemory:
+    build:
+      context: ./vendor/OpenMemory/backend
+      dockerfile: Dockerfile
+    container_name: openmemory
+    restart: unless-stopped
+    ports:
+      - "8787:8080"
+    volumes:
+      - openmemory_data:/data
+      - ./models.yml:/models.yml:ro
+    environment:
+      OM_EMBEDDINGS: ollama
+      OLLAMA_URL: http://host.docker.internal:11434
+      OM_EMBEDDING_FALLBACK: synthetic
+      OM_VEC_DIM: "1024"
+      OM_TIER: deep
+      OM_DB_PATH: /data/openmemory.sqlite
+      OM_METADATA_BACKEND: sqlite
+      OM_API_KEY: ""
+      OM_RATE_LIMIT_ENABLED: "false"
+      OM_TELEMETRY: "false"
+      OM_USE_SUMMARY_ONLY: "false"
+      OM_IDE_MODE: "true"
+      OM_IDE_ALLOWED_ORIGINS: "http://localhost:3737,http://127.0.0.1:3737"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  dashboard:
+    build:
+      context: ./vendor/OpenMemory
+      dockerfile: ../../Dockerfile.dashboard
+    container_name: openmemory-dashboard
+    restart: unless-stopped
+    ports:
+      - "3737:3000"
+    depends_on:
+      openmemory:
+        condition: service_healthy
+
+volumes:
+  openmemory_data:
+    name: openmemory_data
+

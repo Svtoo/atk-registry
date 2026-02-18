@@ -8,7 +8,7 @@ validate:
 generate:
 	uv run python scripts/generate_index.py
 
-# Sync dependencies (installs ATK from sibling directory via uv.sources)
+# Sync dependencies
 sync:
 	uv sync
 

@@ -19,11 +19,6 @@ jobs:
       - name: Checkout registry
         uses: actions/checkout@v4
 
-      # atk is a dependency via path = "../atk" in pyproject.toml
-      # actions/checkout refuses paths outside $GITHUB_WORKSPACE, so we clone directly
-      - name: Clone atk dependency
-        run: git clone --depth 1 https://github.com/Svtoo/atk.git ../atk
-
       - name: Install uv
         uses: astral-sh/setup-uv@v4
 
@@ -49,9 +44,6 @@ jobs:
     steps:
       - name: Checkout registry
         uses: actions/checkout@v4
-
-      - name: Clone atk dependency
-        run: git clone --depth 1 https://github.com/Svtoo/atk.git ../atk
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4

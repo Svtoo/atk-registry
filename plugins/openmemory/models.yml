@@ -1,0 +1,18 @@
+# OpenMemory Embedding Models Configuration
+# Using mxbai-embed-large for all sectors (1024 dimensions)
+
+episodic:
+  ollama: mxbai-embed-large
+
+semantic:
+  ollama: mxbai-embed-large
+
+procedural:
+  ollama: mxbai-embed-large
+
+emotional:
+  ollama: mxbai-embed-large
+
+reflective:
+  ollama: mxbai-embed-large
+
