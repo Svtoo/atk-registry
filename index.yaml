@@ -10,3 +10,8 @@ plugins:
 - name: piper
   path: plugins/piper
   description: Local text-to-speech using Piper neural voices with MCP integration.
+- name: playwright
+  path: plugins/playwright
+  description: Browser automation using Microsoft Playwright's MCP server. Enables
+    LLMs to interact with web pages, take screenshots, and execute JavaScript via
+    structured accessibility snapshots.
