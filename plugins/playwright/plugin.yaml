@@ -1,0 +1,73 @@
+schema_version: "2026-01-23"
+name: Playwright
+description: Browser automation using Microsoft Playwright's MCP server. Enables LLMs to interact with web pages, take screenshots, and execute JavaScript via structured accessibility snapshots.
+
+vendor:
+  name: Microsoft
+  url: https://github.com/microsoft/playwright-mcp
+  docs: https://github.com/microsoft/playwright-mcp#readme
+
+env_vars:
+  - name: PLAYWRIGHT_BROWSER
+    required: false
+    default: "chromium"
+    description: Browser to use - chromium, firefox, or webkit
+  
+  - name: PLAYWRIGHT_HEADLESS
+    required: false
+    default: "false"
+    description: Run browser in headless mode (true/false)
+  
+  - name: PLAYWRIGHT_VIEWPORT
+    required: false
+    default: "1280x720"
+    description: Browser viewport size in pixels (WIDTHxHEIGHT format)
+  
+  - name: PLAYWRIGHT_TIMEOUT_ACTION
+    required: false
+    default: "5000"
+    description: Action timeout in milliseconds (default 5000ms)
+  
+  - name: PLAYWRIGHT_TIMEOUT_NAVIGATION
+    required: false
+    default: "60000"
+    description: Navigation timeout in milliseconds (default 60000ms)
+  
+  - name: PLAYWRIGHT_CAPABILITIES
+    required: false
+    default: ""
+    description: Additional capabilities - comma-separated list (vision, pdf, devtools)
+  
+  - name: PLAYWRIGHT_OUTPUT_DIR
+    required: false
+    default: "$ATK_PLUGIN_DIR/output"
+    description: Directory for screenshots, traces, and session files
+  
+  - name: PLAYWRIGHT_USER_DATA_DIR
+    required: false
+    default: ""
+    description: Path to browser profile directory for persistent sessions
+  
+  - name: PLAYWRIGHT_IGNORE_HTTPS_ERRORS
+    required: false
+    default: "false"
+    description: Ignore HTTPS certificate errors (true/false)
+  
+  - name: PLAYWRIGHT_PROXY_SERVER
+    required: false
+    default: ""
+    description: Proxy server URL (e.g., http://proxy:3128)
+
+mcp:
+  transport: stdio
+  command: bash
+  args:
+    - "$ATK_PLUGIN_DIR/mcp.sh"
+  env:
+    - PLAYWRIGHT_BROWSER
+    - PLAYWRIGHT_HEADLESS
+    - PLAYWRIGHT_VIEWPORT
+    - PLAYWRIGHT_TIMEOUT_ACTION
+    - PLAYWRIGHT_TIMEOUT_NAVIGATION
+    - PLAYWRIGHT_OUTPUT_DIR
+    - PLAYWRIGHT_IGNORE_HTTPS_ERRORS
