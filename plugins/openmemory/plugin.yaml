@@ -26,6 +26,14 @@ env_vars:
     required: false
     default: http://localhost:8787
     description: OpenMemory backend URL (used by MCP stdio proxy)
+  - name: OPENMEMORY_VOLUME_NAME
+    required: false
+    default: openmemory_data
+    description: Name of the Docker volume used to persist memory data. Override to isolate multiple OpenMemory instances on the same machine.
+  - name: OPENMEMORY_BACKUP_DIR
+    required: false
+    default: ""
+    description: Directory to store memory backups (e.g. a Google Drive sync folder). If not set, backup is skipped. Run 'atk run openmemory backup' to back up the memory volume to this directory.
 
 lifecycle:
   install: ./install.sh
@@ -34,6 +42,7 @@ lifecycle:
   stop: docker compose down
   status: docker compose ps --filter "status=running" --services | grep -q openmemory
   logs: docker compose logs -f
+  health_endpoint: http://localhost:8787/health
 
 mcp:
   transport: stdio
