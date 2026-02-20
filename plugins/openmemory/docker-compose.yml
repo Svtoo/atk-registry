@@ -52,5 +52,5 @@ services:
 
 volumes:
   openmemory_data:
-    name: openmemory_data
+    name: ${OPENMEMORY_VOLUME_NAME:-openmemory_data}
 
