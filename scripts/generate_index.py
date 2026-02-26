@@ -53,6 +53,9 @@ def validate_plugin(plugin_dir: Path) -> RegistryPluginEntry | str:
             f"Users running 'atk add {name}' would not reach the registry."
         )
 
+    if not (plugin_dir / "README.md").exists():
+        return "Missing README.md (required for all registry plugins)"
+
     try:
         schema = load_plugin_schema(plugin_dir)
         return RegistryPluginEntry(
