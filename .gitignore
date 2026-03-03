@@ -1,1 +1,6 @@
 .idea
+
+# Ralph Wiggum task list and its lock file — these are operator artefacts,
+# not part of the registry source tree.
+ralph-*.yaml
+ralph-*.lock
