@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ralph.py — Parallel ATK plugin factory using the Ralph Wiggum loop.
 
-Two roles, run in parallel, coordinating through ralph-tasks.yaml:
+Two roles, run in parallel, coordinating through the task YAML file:
   --role developer  Claims 'pending' tasks, builds plugins, marks ready_for_testing.
   --role tester     Claims 'ready_for_testing' tasks, breaks plugins, marks complete/pending.
 
@@ -83,7 +83,7 @@ def claim_task_for_role(
     """Atomically claim the next task appropriate for `role`. Returns task dict or None.
 
     Args:
-        tasks_file:     Path to ralph-tasks.yaml.
+        tasks_file:     Path to the task YAML file.
         worker_id:      Identifier written into the task when claimed.
         role:           'developer' or 'tester'.
         stale_timeout:  If set, also reclaim tasks stuck in the in-progress state
@@ -148,12 +148,64 @@ def update_task(tasks_file: Path, task_id: str, **kwargs) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Git worktree helpers
+# ---------------------------------------------------------------------------
+
+
+def create_worktree(
+    repo_root: Path,
+    branch: str,
+    worktree_dir: Path,
+) -> tuple[bool, str]:
+    """Create a git worktree for `branch` at `worktree_dir`.
+
+    If the branch does not exist, creates it from HEAD.
+    Returns (success, error_message).
+    """
+    # Try to add worktree on an existing branch first
+    result = subprocess.run(
+        ["git", "worktree", "add", str(worktree_dir), branch],
+        capture_output=True,
+        text=True,
+        cwd=repo_root,
+    )
+    if result.returncode == 0:
+        return True, ""
+
+    # Branch doesn't exist yet — create it
+    result = subprocess.run(
+        ["git", "worktree", "add", "-b", branch, str(worktree_dir)],
+        capture_output=True,
+        text=True,
+        cwd=repo_root,
+    )
+    if result.returncode == 0:
+        return True, ""
+
+    return False, (result.stdout + result.stderr).strip()
+
+
+def remove_worktree(repo_root: Path, worktree_dir: Path) -> None:
+    """Remove a git worktree and prune stale refs. Errors are logged but not raised."""
+    subprocess.run(
+        ["git", "worktree", "remove", "--force", str(worktree_dir)],
+        capture_output=True,
+        cwd=repo_root,
+    )
+    subprocess.run(
+        ["git", "worktree", "prune"],
+        capture_output=True,
+        cwd=repo_root,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Prompt construction — one builder per role
 # ---------------------------------------------------------------------------
 
 _SUGGESTION_FORMAT = """\
 MANDATORY SUGGESTIONS (minimum 3, every cycle, no exceptions):
-After your work, append to the suggestions list in ralph-tasks.yaml for task {task_id}:
+After your work, append to the suggestions list in {tasks_file} for task {task_id}:
 
   suggestions:
     - id: "s<N>"
@@ -192,7 +244,7 @@ def _format_open_bugs(bugs: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def build_developer_prompt(task: dict, skill_content: str) -> str:
+def build_developer_prompt(task: dict, skill_content: str, tasks_file: Path) -> str:
     name = task["name"]
     task_id = task["id"]
     description = task.get("description", "").strip()
@@ -217,7 +269,7 @@ def build_developer_prompt(task: dict, skill_content: str) -> str:
         f"## Your Task  (cycle {current_cycle})",
         "",
         f"**Task ID**: `{task_id}`  **Plugin name**: `{name}`",
-        f"**Tasks file**: `ralph-tasks.yaml`",
+        f"**Tasks file (absolute path — update this file directly)**: `{tasks_file}`",
         "",
         description,
         "",
@@ -237,22 +289,22 @@ def build_developer_prompt(task: dict, skill_content: str) -> str:
         f"3. Create `plugins/{name}/` with `plugin.yaml` and ALL required files.",
         "4. Implement fully — no `echo TODO`, no empty scripts, no stub health checks.",
         "5. `make validate` from the repo root. Fix every error. Repeat until it exits 0.",
-        f"6. Self-test: `atk add ./plugins/{name}` → status → stop → start → mcp → remove.",
+        f"6. Self-test: `atk add ./plugins/{name}` → status → stop → start → `atk mcp show {name}` → remove.",
         "7. Address each open bug above. Set `status: addressed` and `addressed_in_cycle` for each.",
         f"8. `git add plugins/{name}/ && git commit -m 'feat: add {name} plugin (cycle {current_cycle})'`",
-        "9. Update `ralph-tasks.yaml` task entry:",
+        f"9. Update the task file at `{tasks_file}`:",
         "   - `status: ready_for_testing`",
         f"  - `dev_cycles: {current_cycle}`",
         "",
         "DO NOT set ready_for_testing until make validate AND the lifecycle test both pass.",
         "DO NOT write placeholder lifecycle scripts.",
         "",
-        _SUGGESTION_FORMAT.format(task_id=task_id, cycle=current_cycle, role="developer"),
+        _SUGGESTION_FORMAT.format(task_id=task_id, cycle=current_cycle, role="developer", tasks_file=tasks_file),
     ]
     return "\n".join(lines)
 
 
-def build_tester_prompt(task: dict, testing_protocol: str) -> str:
+def build_tester_prompt(task: dict, testing_protocol: str, tasks_file: Path) -> str:
     name = task["name"]
     task_id = task["id"]
     description = task.get("description", "").strip()
@@ -279,7 +331,7 @@ def build_tester_prompt(task: dict, testing_protocol: str) -> str:
         f"## Plugin Specification  (cycle {dev_cycles} built by developer)",
         "",
         f"**Task ID**: `{task_id}`  **Plugin name**: `{name}`",
-        f"**Tasks file**: `ralph-tasks.yaml`",
+        f"**Tasks file (absolute path — update this file directly)**: `{tasks_file}`",
         "",
         "What this plugin is supposed to do:",
         "",
@@ -309,19 +361,20 @@ def build_tester_prompt(task: dict, testing_protocol: str) -> str:
         "## Required Steps (follow in order, do not skip any)",
         "",
         f"1. Run the full ATK lifecycle test against `plugins/{name}/`:",
-        f"   `atk add ./plugins/{name}` → status → stop → start → mcp → uninstall → install → remove`",
+        f"   `atk add ./plugins/{name}` → `atk status` → `atk stop {name}` → `atk start {name}`",
+        f"   → `atk mcp show {name}` → `atk uninstall {name} --force` → `atk install {name}` → `atk remove {name} --force`",
         "2. Verify every claim in the plugin's README.md.",
         "3. For each previously logged bug above: test it explicitly and record your finding.",
         "4. Log ALL issues found — even minor ones. Do not filter. Do not assume intent.",
-        "5. Update `ralph-tasks.yaml` task entry:",
+        f"5. Update the task file at `{tasks_file}`:",
         "   - If ALL tests pass AND all previously open bugs are fixed: `status: complete`",
         "   - If ANY test fails OR any bug still reproduces: `status: pending`",
-        "   - Add each issue as a structured entry in `bugs[]` (see YAML schema in ralph-tasks.yaml)",
+        "   - Add each issue as a structured entry in `bugs[]`",
         "",
         "DO NOT set status: complete if any test failed.",
         "DO NOT set status: complete if a previously logged bug is still reproducible.",
         "",
-        _SUGGESTION_FORMAT.format(task_id=task_id, cycle=dev_cycles, role="tester"),
+        _SUGGESTION_FORMAT.format(task_id=task_id, cycle=dev_cycles, role="tester", tasks_file=tasks_file),
     ]
     return "\n".join(lines)
 
@@ -356,13 +409,18 @@ def run_agent(
         prompt_file = tf.name
 
     try:
-        # --workspace-root is mandatory for auggie to index the right repo.
-        # We inject it here so the task file only needs the other flags.
-        extra: list[str] = []
-        if "--workspace-root" not in agent_flags:
-            extra = ["--workspace-root", str(workspace_root)]
+        # --workspace-root must point at the worktree directory, NOT the main repo.
+        # The worktree is a full git checkout; passing the main repo root here would
+        # cause auggie to write files into the main tree instead of the branch.
+        # We always override whatever is in agent_flags with the actual worktree path.
+        flags = list(agent_flags)
+        if "--workspace-root" in flags:
+            idx = flags.index("--workspace-root")
+            flags[idx + 1] = str(cwd)   # replace value with worktree path
+        else:
+            flags += ["--workspace-root", str(cwd)]
 
-        cmd = [agent_cmd] + agent_flags + extra + ["--instruction-file", prompt_file]
+        cmd = [agent_cmd] + flags + ["--instruction-file", prompt_file]
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
         return result.returncode, (result.stdout + result.stderr)
     finally:
@@ -410,7 +468,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
     parser.add_argument(
         "--tasks",
         default=str(DEFAULT_TASKS_FILE),
-        help="Path to ralph-tasks.yaml",
+        help="Path to task YAML file (default: ralph-tasks.yaml in registry root)",
     )
     parser.add_argument(
         "--worker-id",
@@ -431,8 +489,8 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
     )
     parser.add_argument(
         "--worktree-base",
-        default="/tmp/ralph-worktrees",
-        help="Base directory for git worktrees (default: /tmp/ralph-worktrees)",
+        default=None,
+        help="Base directory for git worktrees (overrides process config; default: /tmp/ralph-worktrees)",
     )
     args = parser.parse_args(argv)
 
@@ -445,16 +503,21 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
         print(f"[ralph] ERROR: skill file not found: {CREATE_PLUGIN_SKILL}", file=sys.stderr)
         return 1
 
-    # Load process config from task file (agent cmd + flags)
+    # Load process config from task file (agent cmd + flags + worktree settings)
     tasks_data = _load(tasks_file)
     process_cfg = tasks_data.get("process", {})
     role = args.role
     agent_cmd = process_cfg.get(f"{role}_agent", "auggie")
     agent_flags: list[str] = process_cfg.get(f"{role}_flags", ["--print"])
 
+    # CLI arg takes priority; fall back to process config; then to built-in default
+    worktree_base_str = args.worktree_base or process_cfg.get("worktree_base", "/tmp/ralph-worktrees")
+    branch_prefix: str = process_cfg.get("branch_prefix", "plugin/")
+    max_cycles: int = int(process_cfg.get("max_cycles", 0))   # 0 = unlimited
+
     worker_id = args.worker_id or _worker_id()
-    repo_root = tasks_file.parent
-    worktree_base = Path(args.worktree_base)
+    repo_root = tasks_file.parent   # tasks file must live at the registry root
+    worktree_base = Path(worktree_base_str)
     worktree_base.mkdir(parents=True, exist_ok=True)
     skill_content = CREATE_PLUGIN_SKILL.read_text()
     testing_protocol = _extract_testing_protocol(skill_content)
@@ -474,8 +537,16 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
 
         task_id: str = task["id"]
         task_name: str = task["name"]
-        branch = f"plugin/{task_name}"
+        branch = f"{branch_prefix}{task_name}"
         worktree_dir = worktree_base / f"{task_name}--{worker_id}"
+
+        # Enforce max_cycles: skip tasks that have exceeded the developer cycle limit
+        if role == "developer" and max_cycles and task.get("dev_cycles", 0) >= max_cycles:
+            print(f"[ralph] task {task_id} ({task_name}) has reached max_cycles ({max_cycles}) — marking skipped")
+            update_task(tasks_file, task_id, status="skipped")
+            if args.once:
+                break
+            continue
 
         print(f"[ralph] claimed  id={task_id}  name={task_name}  branch={branch}")
 
@@ -505,10 +576,10 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
 
         # ── Build role-appropriate prompt ────────────────────────────────────
         if role == "developer":
-            prompt = build_developer_prompt(task, skill_content)
+            prompt = build_developer_prompt(task, skill_content, tasks_file)
             update_task(tasks_file, task_id, branch=branch)
         else:
-            prompt = build_tester_prompt(task, testing_protocol)
+            prompt = build_tester_prompt(task, testing_protocol, tasks_file)
 
         # ── Invoke agent ─────────────────────────────────────────────────────
         print(f"[ralph] invoking {agent_cmd} ({role}) for '{task_name}'...")

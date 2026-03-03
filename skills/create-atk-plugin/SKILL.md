@@ -25,7 +25,7 @@ plugins with `atk add`, configure with `atk setup`, and manage lifecycle with `a
 | `atk restart [plugin]`      | Stop then start (no separate restart lifecycle)   |
 | `atk status [plugin]`       | Show plugin status                                |
 | `atk logs <plugin>`         | View service logs                                 |
-| `atk mcp <plugin>`          | Output MCP configuration JSON                     |
+| `atk mcp show <plugin>`     | Show MCP configuration (use `--json` for raw JSON)|
 | `atk run <plugin> <script>` | Run a custom script from the plugin directory     |
 | `atk remove <plugin>`       | Stop + uninstall + delete plugin entirely         |
 | `atk upgrade [plugin]`      | Update to latest version                          |
@@ -195,7 +195,7 @@ mcp:
   endpoint: http://localhost:8080/mcp
 ```
 
-`atk mcp <plugin>` outputs JSON for MCP client configuration:
+`atk mcp show <plugin> --json` outputs raw JSON for MCP client configuration:
 ```json
 {
   "my-plugin": {
@@ -282,7 +282,7 @@ A good plugin README includes:
 2. **Overview** — brief explanation of the upstream tool and why it's useful
 3. **Installation** — the exact `atk add` command and any prerequisites (e.g., "requires Docker")
 4. **Environment variables** — a table with names, defaults, and descriptions
-5. **Usage** — how to interact with the plugin after install (e.g., `atk mcp`, `atk logs`, web UI URL)
+5. **Usage** — how to interact with the plugin after install (e.g., `atk mcp show <plugin>`, `atk logs`, web UI URL)
 6. **MCP tools** — if the plugin exposes MCP tools, list them with brief descriptions
 7. **Links** — upstream documentation, repository
 
@@ -309,7 +309,7 @@ atk add my-plugin
 
 ## Usage
 After install: http://localhost:8080
-MCP config: `atk mcp my-plugin`
+MCP config: `atk mcp show my-plugin`
 
 ## Links
 - [Upstream repository](https://github.com/org/repo)
@@ -374,7 +374,7 @@ mcp:
     - GITHUB_TOKEN
 ```
 
-No `service`, no lifecycle — just `atk setup` then `atk mcp`.
+No `service`, no lifecycle — just `atk setup` then `atk mcp show <name>`.
 
 ### Pattern: Docker service with MCP bridge
 
@@ -468,7 +468,7 @@ atk start <name>
 atk status                # should show running, ports healthy
 
 # 4. Test MCP output
-atk mcp <name>            # verify JSON is correct
+atk mcp show <name>       # verify JSON is correct
 
 # 5. Test idempotency
 atk uninstall <name> --force
@@ -480,6 +480,10 @@ atk status                # should show running again
 atk remove <name> --force
 ```
 
+> **Note:** If `atk add` fails mid-install (files copied but manifest not written), the directory
+> `~/.atk/plugins/<name>/` becomes an orphan. A subsequent `atk add` will fail with
+> "Plugin directory already exists" even though `atk remove` reports success. Fix: `rm -rf ~/.atk/plugins/<name>`.
+
 ### What to verify at each step
 
 | Command         | Check                                                               |
@@ -488,7 +492,7 @@ atk remove <name> --force
 | `atk status`    | Shows `running`, all ports marked `✓`, ENV `✓`                      |
 | `atk stop`      | Exit 0, service actually stopped                                    |
 | `atk start`     | Exit 0, service restarts cleanly                                    |
-| `atk mcp`       | Correct JSON: transport, command, args, env all match plugin.yaml   |
+| `atk mcp show`  | Correct JSON: transport, command, args, env all match plugin.yaml   |
 | `atk uninstall` | Exit 0, all resources cleaned up (containers, volumes, vendor)      |
 | `atk install`   | Exit 0, full re-setup from scratch works (idempotency)              |
 
@@ -555,6 +559,22 @@ atk remove <name> --force
 atk add ./.atk
 ```
 
+> **Troubleshooting — "Plugin directory already exists" after `atk remove`**
+>
+> **Symptom:** `atk add` fails with exit 5: `Plugin directory '<name>' already exists`, even though
+> `atk remove` completed successfully (or reported nothing to remove).
+>
+> **Cause:** `atk remove` only cleans up plugins that are tracked in the manifest
+> (`~/.atk/manifest.yaml`). If a previous `atk add` failed after copying files but before writing
+> the manifest entry, the directory `~/.atk/plugins/<name>/` remains as a stale orphan — invisible
+> to `atk remove`, but still blocking the next `atk add`.
+>
+> **Fix:** Manually remove the orphaned directory:
+> ```bash
+> rm -rf ~/.atk/plugins/<name>
+> ```
+> Then re-run `atk add` normally.
+
 ---
 
 # Part 3: Installation Type — Registry Plugin
@@ -599,7 +619,7 @@ atk add ./plugins/<name>
 atk status
 atk stop <name>
 atk start <name>
-atk mcp <name>
+atk mcp show <name>
 atk uninstall <name> --force
 atk install <name>
 atk remove <name> --force

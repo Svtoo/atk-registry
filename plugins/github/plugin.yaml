@@ -1,0 +1,27 @@
+schema_version: "2026-01-23"
+name: GitHub
+description: Work with repos, code, PRs, and issues from chat — search, read, file issues, open PRs, and review changes via GitHub's official MCP server.
+
+vendor:
+  name: GitHub
+  url: https://github.com/github/github-mcp-server
+  docs: https://github.com/github/github-mcp-server#readme
+
+env_vars:
+  - name: GITHUB_TOKEN
+    required: true
+    secret: true
+    description: Personal access token or GitHub App token with repo, issues, and pull_requests scopes.
+  - name: GITHUB_HOST
+    required: false
+    default: "github.com"
+    description: GitHub host for GitHub Enterprise Server instances (e.g. github.mycompany.com). Leave as default for github.com.
+
+mcp:
+  transport: stdio
+  command: npx
+  args: ["-y", "@github/mcp-server"]
+  env:
+    - GITHUB_TOKEN
+    - GITHUB_HOST
+

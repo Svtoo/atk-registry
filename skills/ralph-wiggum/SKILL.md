@@ -1,9 +1,10 @@
 ---
 name: ralph-wiggum
 description: >
-  Orchestrates parallel ATK registry plugin development using a developer/tester
-  ping-pong loop. Developer agents build; independent tester agents break. Both run
-  autonomously via auggie. Coordinated through ralph-tasks.yaml.
+  Skill for driving the Ralph Wiggum parallel plugin factory: create task files,
+  run developer/tester ping-pong loops, monitor progress, and merge results. Use
+  when asked to build ATK plugins via Ralph, create a task file, or run/monitor
+  the ralph.py orchestrator.
 ---
 
 # Ralph Wiggum — Developer/Tester Ping-Pong Loop
@@ -17,6 +18,43 @@ Applied here with **two specialized roles** to eliminate confirmation bias:
 
 A developer who tests their own work wants to *prove* it works.
 A separate tester wants to *find* what doesn't. Same code, opposite mindsets.
+
+---
+
+## Project Context
+
+**`atk-registry`** is a Git repository containing ATK (AI Toolkit) plugin definitions.
+ATK is a CLI (`uv tool install atk-cli`) that lets developers install, configure, and
+manage AI development tools (MCP servers, databases, observability stacks) through a
+declarative YAML manifest at `~/.atk/manifest.yaml`.
+
+**Repository layout:**
+
+```
+atk-registry/
+  plugins/              ← one directory per completed plugin
+    <name>/
+      plugin.yaml       ← machine-readable spec (required)
+      README.md         ← human-readable guide (required)
+      SKILL.md          ← agent guide for using the plugin (optional)
+      install.sh / start.sh / stop.sh / uninstall.sh  ← lifecycle scripts (if needed)
+  skills/
+    ralph-wiggum/
+      ralph.py          ← the loop orchestrator (this skill's engine)
+      SKILL.md          ← this file
+    create-atk-plugin/
+      SKILL.md          ← authoritative guide for building any ATK plugin
+  Makefile              ← `make validate` validates all plugins
+  index.yaml            ← registry index (auto-generated, do not edit)
+```
+
+The **authoritative plugin spec** is `skills/create-atk-plugin/SKILL.md`. Developer
+agents receive it in full. Tester agents receive only its Testing Protocol section
+(so they probe the plugin against the spec, not the implementation).
+
+**Task files** (`ralph-tasks.yaml`, `ralph-batch-2.yaml`, etc.) live at the registry
+root and are **gitignored** (`ralph-*.yaml`, `ralph-*.lock`) — operator artefacts,
+not source. Split large batches into multiple files (10–15 tasks each).
 
 ---
 
@@ -71,7 +109,7 @@ pending ──► developing ──► ready_for_testing ──► testing ─�
 | `testing`           | ralph.py (test) | A tester is actively running the test suite    |
 | `complete`          | tester agent    | All tests passed; plugin is production-ready   |
 | `failed`            | ralph.py        | Meta-failure (worktree error, stale lock, etc) |
-| `skipped`           | human           | Intentionally excluded from this batch         |
+| `skipped`           | human / ralph.py (max_cycles) | Intentionally excluded, or cycle limit reached |
 
 **`developing` vs `pending`**: `developing` is set the instant ralph.py claims a task.
 The agent then does all its work. Only when the **agent itself** writes `ready_for_testing`
@@ -80,9 +118,10 @@ mid-session, ralph.py can detect the stale state via `--stale-timeout` and recla
 
 ---
 
-## YAML Task File: `ralph-tasks.yaml`
+## YAML Task File Schema
 
-Place at the root of `atk-registry/`.
+Place task files at the root of `atk-registry/`. Name them `ralph-*.yaml`
+(e.g. `ralph-tasks.yaml`, `ralph-batch-2.yaml`) — the wildcard pattern is gitignored.
 
 ```yaml
 schema_version: "2.0"
@@ -161,47 +200,169 @@ tasks:
     #       "None" is not an acceptable proposed_fix.
 ```
 
+**Process config field reference:**
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `developer_agent` | `auggie` | CLI command to invoke for developer role |
+| `developer_flags` | `["--print"]` | Extra flags passed to the developer agent |
+| `tester_agent` | `auggie` | CLI command to invoke for tester role |
+| `tester_flags` | `["--print"]` | Extra flags passed to the tester agent |
+| `worktree_base` | `/tmp/ralph-worktrees` | Base dir where git worktrees are created |
+| `branch_prefix` | `plugin/` | Branch name = `{branch_prefix}{task-name}` |
+| `max_cycles` | `0` (unlimited) | Auto-skips a task when `dev_cycles` reaches this |
+
+> **Note**: ralph.py always appends `--workspace-root <worktree-dir>` when invoking
+> the agent, overriding any `--workspace-root` you include in the flags list. The
+> `--workspace-root` in the flags template is a placeholder; ralph.py replaces it.
+
 ---
 
-## Auggie Command for Autonomous Operation
+## Creating a Task File
+
+When asked to create a Ralph task file, generate a YAML file at the registry root:
 
 ```bash
-auggie \
-  --print \
-  --model sonnet4.6 \
-  --rules /Users/oleksandrantoshchenko/ws/public/ai-engineer-toolset/ai-assistant/AGENTS.md \
-  --workspace-root /path/to/atk-registry \
-  --permission "bash:allow" \
-  --dont-save-session \
-  --instruction-file /tmp/ralph-prompt-<task-id>.md
+# From atk-registry/
+cat > ralph-<batch-name>.yaml << 'EOF'
+# ... (YAML content below)
+EOF
 ```
 
-Key flags for non-interactive operation:
-- `--print`: one-shot mode — no interactive prompts, exits when done
-- `--model sonnet4.6`: Claude Sonnet 4.6 via Augment
-- `--rules`: your engineering standards injected into every session
-- `--workspace-root`: the repo auggie will index and operate on
-- `--permission "bash:allow"`: approve shell commands without pausing to ask
-- `--dont-save-session`: keeps session history clean across many parallel agents
-- `--instruction-file`: ralph.py writes the prompt to a temp file and passes it here
+**Task description template** — descriptions are the shared specification between
+developer and tester. Both roles receive only the task `description`; neither receives
+extra context. A good description answers:
+- What tool/service is this plugin for? (link to upstream project)
+- What type of plugin is it? (MCP-only stdio | MCP-only SSE | service + MCP)
+- What is the exact install command or Docker image?
+- Which environment variables are required? Which are optional?
+- What MCP capabilities must be verified? (name specific tools, not just "GitHub operations")
+- Any known gotchas or configuration quirks from the upstream docs?
 
-**Running ralph.py (developer + tester in parallel):**
+```yaml
+tasks:
+  - id: "001"
+    name: my-plugin
+    description: |
+      Create an ATK plugin for <Tool Name> (<upstream-url>).
 
+      Plugin type: <mcp-stdio | mcp-sse | service>
+      Install: <exact install command or Docker image>
+
+      Required env vars:
+        MY_TOKEN   — API token from https://...
+        MY_HOST    — host to connect to (e.g. localhost)
+
+      Optional env vars:
+        MY_PORT    — default 8080
+        MY_DEBUG   — set "true" to enable verbose logging
+
+      MCP capabilities to verify:
+        - tool: create_item — creates a new item; verify it returns item ID
+        - tool: list_items  — lists items; verify pagination param works
+        - resource: item:///<id> — verify it returns item JSON
+
+      Known gotchas:
+        - The server takes ~5 seconds to initialize; health check must retry.
+    status: pending
+    worker_id: null
+    branch: null
+    dev_cycles: 0
+    started_at: null
+    completed_at: null
+    bugs: []
+    suggestions: []
+```
+
+---
+
+## Running the Loop
+
+All commands run from `atk-registry/`. Use `uv run python` (not bare `python`):
+
+**Basic — one developer worker, one tester worker:**
 ```bash
-# Developer workers — each claims 'pending' tasks and builds
-python skills/ralph-wiggum/ralph.py \
-  --role developer --tasks ralph-tasks.yaml --worker-id dev-a &
-python skills/ralph-wiggum/ralph.py \
-  --role developer --tasks ralph-tasks.yaml --worker-id dev-b &
-
-# Tester workers — each claims 'ready_for_testing' tasks and breaks things
-python skills/ralph-wiggum/ralph.py \
-  --role tester --tasks ralph-tasks.yaml --worker-id test-a &
-python skills/ralph-wiggum/ralph.py \
-  --role tester --tasks ralph-tasks.yaml --worker-id test-b &
+uv run python skills/ralph-wiggum/ralph.py --role developer --tasks ralph-tasks.yaml &
+uv run python skills/ralph-wiggum/ralph.py --role tester    --tasks ralph-tasks.yaml &
 ```
 
+**Parallel — multiple workers per role (use distinct `--worker-id`):**
+```bash
+uv run python skills/ralph-wiggum/ralph.py --role developer --tasks ralph-tasks.yaml --worker-id dev-a &
+uv run python skills/ralph-wiggum/ralph.py --role developer --tasks ralph-tasks.yaml --worker-id dev-b &
+uv run python skills/ralph-wiggum/ralph.py --role tester    --tasks ralph-tasks.yaml --worker-id test-a &
+```
 
+**Multiple task files — run workers against each file:**
+```bash
+uv run python skills/ralph-wiggum/ralph.py --role developer --tasks ralph-tasks.yaml        --worker-id dev-a &
+uv run python skills/ralph-wiggum/ralph.py --role developer --tasks ralph-batch-2.yaml      --worker-id dev-b &
+```
+
+**One-shot — process exactly one task then exit (useful for debugging):**
+```bash
+uv run python skills/ralph-wiggum/ralph.py --role developer --tasks ralph-tasks.yaml --once
+```
+
+**Recovery — reclaim stale tasks (agent crashed mid-run):**
+```bash
+uv run python skills/ralph-wiggum/ralph.py --role developer --tasks ralph-tasks.yaml --stale-timeout 3600
+```
+
+**All CLI options:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--role ROLE` | (required) | `developer` or `tester` |
+| `--tasks FILE` | `ralph-tasks.yaml` | Path to task YAML file |
+| `--worker-id ID` | `hostname-pid` | Unique worker label; used in worktree dir names |
+| `--once` | false | Process exactly one task then exit |
+| `--stale-timeout N` | none | Reclaim tasks stuck in `developing`/`testing` for >N seconds |
+| `--worktree-base DIR` | from process config | Override worktree base directory |
+
+**How ralph.py works internally (per task):**
+
+1. Acquire exclusive file lock on `{tasks_file}.lock` (via `fcntl.flock`)
+2. Scan tasks for the next eligible task (developer → `pending`; tester → `ready_for_testing`)
+3. Claim the task: set `status: developing` / `testing`, `worker_id`, `started_at`
+4. Create a git worktree on branch `{branch_prefix}{task-name}` in `worktree_base/`
+5. Build a role-specific prompt (injecting the full task file path, skill content, and task data)
+6. Write the prompt to a temp file; invoke the agent with `--workspace-root <worktree-dir>`
+   (ralph.py always overrides `--workspace-root` to the worktree, not the main repo)
+7. When the agent exits, remove the worktree; loop to the next task
+8. If `max_cycles` is set and `dev_cycles >= max_cycles`, auto-mark the task `skipped`
+
+**Monitoring:**
+```bash
+# Task status summary
+grep "status:" ralph-tasks.yaml | sort | uniq -c
+
+# Open bugs
+grep -A3 "severity:" ralph-tasks.yaml | grep -v "^--"
+
+# Active worktrees
+git worktree list
+
+# Active branches
+git branch | grep plugin/
+```
+
+---
+
+## Agent Flags Reference
+
+ralph.py passes `{role}_flags` from the task file directly to the agent binary.
+Key flags for auggie (non-interactive operation):
+
+| Flag | Purpose |
+|------|---------|
+| `--print` | One-shot mode — no interactive prompts, exits when done |
+| `--model sonnet4.6` | Claude Sonnet 4.6 via Augment |
+| `--rules /path/to/AGENTS.md` | Engineering standards injected into every session |
+| `--workspace-root` | **Set by ralph.py automatically** to the worktree dir |
+| `--permission "bash:allow"` | Approve shell commands without pausing to ask |
+| `--dont-save-session` | Keeps session history clean across many parallel agents |
+| `--instruction-file` | ralph.py writes the role prompt to a temp file and passes it here |
 
 ---
 
@@ -211,6 +372,12 @@ You are the DEVELOPER. Your job is to build one ATK registry plugin and hand it 
 an independent tester. Read the `create-atk-plugin` SKILL.md carefully — it defines
 every requirement. Then implement, self-test, commit, and update the task file.
 
+**The task `description` is a starting point, not a ceiling.** If you discover that
+the upstream server accepts additional environment variables, supports optional
+configuration, or has behaviors the description didn't mention — document them.
+Update `plugin.yaml`, the README, and write an `implementation_note` suggestion.
+Expanding beyond the spec is correct behaviour, not scope creep.
+
 **Steps (in order):**
 
 1. Read `create-atk-plugin/SKILL.md` in full before writing a single file.
@@ -218,10 +385,18 @@ every requirement. Then implement, self-test, commit, and update the task file.
 3. Create `plugins/<name>/` with `plugin.yaml` and all files required by the SKILL.
 4. Full implementations only — no stub scripts, no `echo "TODO"`, no placeholder configs.
 5. Run `make validate` from the repo root. Fix every error. Repeat until it passes.
-6. Self-test the lifecycle: `atk add ./plugins/<name>` → status → stop → start → mcp → remove.
+6. Self-test the full lifecycle:
+   ```bash
+   atk add ./plugins/<name>
+   atk status
+   atk stop <name> && atk start <name>
+   atk mcp show <name>      # verify JSON output
+   atk uninstall <name> --force && atk install <name>
+   atk remove <name> --force
+   ```
 7. If there were open bugs: address each one, then set `status: addressed` on each.
 8. Commit: `git add plugins/<name>/ && git commit -m "feat: add <name> plugin (cycle N)"`
-9. Update `ralph-tasks.yaml` for this task:
+9. Update the task file (path given in your prompt) for this task:
    - `status: ready_for_testing`
    - Increment `dev_cycles`
    - Write your mandatory suggestions (see format below)
@@ -250,11 +425,11 @@ yours. A tester who reports "all tests passed" in the first cycle is being lazy.
    - `atk add ./plugins/<name>` — does install complete cleanly?
    - `atk status` — does it show running? Are all ports healthy?
    - `atk stop <name>` then `atk start <name>` — does stop/start cycle work?
-   - `atk mcp <name>` — is the JSON correct?
+   - `atk mcp show <name>` — is the JSON correct? Are all expected tools listed?
    - `atk uninstall <name> --force` then `atk install <name>` — is it idempotent?
    - `atk remove <name> --force` — is cleanup complete?
 4. For each previously logged bug: explicitly test whether it is fixed. Note the result.
-5. Update `ralph-tasks.yaml` for this task:
+5. Update the task file (path given in your prompt) for this task:
    - If **all tests pass**: set `status: complete`, `completed_at: <now>`
    - If **any bugs found**: set `status: pending` (sends back to developer)
    - Write each bug as a structured entry in `bugs[]`
@@ -283,6 +458,12 @@ What to write suggestions about:
 - A pattern that tripped you up and would trip up a future agent
 - A test that should be required but isn't mentioned anywhere
 - A process step in this ralph-wiggum loop that should be improved
+- Something you discovered during implementation that the task spec didn't mention
+
+**`implementation_note` suggestions are first-class.** If you found an undocumented
+env var, chose a deliberate default, or noticed an upstream quirk that users will hit —
+write it up. Do not suppress discoveries just because they weren't explicitly asked for.
+These notes are exactly how the task descriptions and SKILL improve across batches.
 
 **Suggestion YAML format:**
 ```yaml
@@ -312,13 +493,16 @@ agents make fewer mistakes, and cycles get shorter.
 
 ## Merging Completed Plugins
 
-After `status: complete`, each plugin lives on branch `plugin/<name>`:
+After `status: complete`, each plugin lives on its own branch
+(`{branch_prefix}{task-name}`, e.g. `plugin/my-plugin` with the default prefix):
 
 ```bash
 # Review before merging
 git checkout plugin/my-plugin
 make validate
 atk add ./plugins/my-plugin   # one final lifecycle test
+atk mcp show my-plugin        # verify MCP output
+atk remove my-plugin --force  # clean up after review
 
 # Merge
 git checkout main
