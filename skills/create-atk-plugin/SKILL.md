@@ -293,6 +293,25 @@ consumption is a phantom var that silently wastes user configuration time.
 
 ---
 
+## OAuth and Interactive Auth
+
+When a plugin cannot hand the user a static token to paste, `install.sh` is the right place to
+walk them through the auth flow and cache the result in `.env`. Tokens written there are picked
+up by ATK on every subsequent command — no special handling needed downstream.
+
+Three approaches, in order of preference: (1) static credential — user pastes an existing token
+at `atk add`, nothing special in install; (2) Device Authorization Flow (RFC 8628) — script shows
+the user a URL + code, polls for approval, writes the token to `.env`; (3) browser redirect relay
+(e.g. `mcp-remote`) — handled at MCP connect time, install does nothing for auth.
+
+For tokens that install obtains on the user's behalf, declare them `required: false` in
+`plugin.yaml` so the user can also paste an existing token to skip the flow.
+
+**`ATK_NONINTERACTIVE=1`**: any install.sh that prompts or opens a browser must exit 0 immediately
+when this var is set. Agents use it during testing. Hanging instead of respecting it is a bug.
+
+---
+
 ## Plugin Documentation Conventions
 
 ATK uses two documentation files by convention. Neither is declared in `plugin.yaml` — they
@@ -310,7 +329,10 @@ A good plugin README includes:
 3. **Installation** — the exact `atk add` command and any prerequisites (e.g., "requires Docker")
 4. **Environment variables** — a table with names, defaults, and descriptions
 5. **Usage** — how to interact with the plugin after install (e.g., `atk mcp show <plugin>`, `atk logs`, web UI URL)
-6. **MCP tools** — if the plugin exposes MCP tools, list them with brief descriptions
+6. **MCP tools** — if the plugin exposes MCP tools, list them with brief descriptions.
+   **REQUIRED**: dump the live server's tool list and compare it against your README before committing.
+   For stdio servers: start the server, send `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, record the output.
+   Never copy tool names from upstream docs alone — the running server is the ground truth.
 7. **Links** — upstream documentation, repository
 
 Example structure:
@@ -678,8 +700,9 @@ atk remove <name> --force
 
 ## Pre-Publish Validation Checklist
 
-- [ ] For npx-based MCP servers: `npm view <package-name>` returns metadata (not 404) — confirms the package exists
-  before users try to install
+- [ ] Install command verified: `npm view <package>` (npx), `uvx <package> --help` (uvx), or `docker pull <image>` (Docker)
+  returns successfully — package/image exists before users try to install
+- [ ] MCP tool list in README.md verified against live `tools/list` response — no hallucinated or missing tools
 - [ ] `plugin.yaml` has `schema_version`, `name`, `description`
 - [ ] If `lifecycle.install` is defined, `lifecycle.uninstall` is also defined
 - [ ] Port numbers match between `plugin.yaml` and `docker-compose.yml`
