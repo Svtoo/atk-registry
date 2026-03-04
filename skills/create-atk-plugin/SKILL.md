@@ -261,6 +261,8 @@ Before finalizing your plugin, verify every env var:
 | Is this var read by the MCP server from `os.environ`? | Remove from `mcp.env`                    |
 | Does the var have a concrete consumer?                | Remove it — phantom vars waste user time |
 
+**To verify "Is this var read by the MCP server from `os.environ`?"**: Check the upstream README or source code. For npx-based packages: find the source with `npm view @scope/package repository.url`, then search for `process.env.VAR_NAME` (Node.js) or `os.environ` (Python). Do not assume — a var absent from the server's runtime consumption is a phantom var that silently wastes user configuration time.
+
 **Common mistake**: Vars used only during install (e.g., to write config files) belong in `env_vars` but NOT in
 `mcp.env`. Only vars the MCP server reads at runtime belong in `mcp.env`.
 
@@ -502,6 +504,7 @@ atk remove <name> --force
 - **Health checks take time**: Docker Compose health checks may need 5–30 seconds. Use `--retry` loops.
 - **`set -e` in scripts**: Use in `install.sh`. Do NOT use in `stop.sh` or `uninstall.sh`.
 - **Lifecycle one-liners**: For simple commands, put them inline in `plugin.yaml` instead of creating scripts.
+- **Unverified plugin prompt**: Local and non-registry plugins show a `⚠ Unverified plugin` confirmation on `atk add`. Pass `-y` to skip it non-interactively. Env var prompts follow: `printf "VAR1\nVAR2\n" | atk add -y ./plugins/<name>`.
 
 ---
 # Part 2: Installation Type — Local Path
@@ -556,7 +559,7 @@ Local source is ideal for iterating on a plugin:
 # Edit files in .atk/ or my-plugin/
 # Re-add to pick up changes
 atk remove <name> --force
-atk add ./.atk
+atk add -y ./.atk    # -y bypasses the unverified-plugin confirmation for local plugins
 ```
 
 > **Troubleshooting — "Plugin directory already exists" after `atk remove`**
