@@ -10,41 +10,44 @@ Server instances.
 
 ## Installation
 
-Requires: Node.js (for `npx`)
+Requires: [Docker](https://docs.docker.com/get-docker/) (installed and running)
 
 ```bash
 atk add github
 ```
 
-You will be prompted for your `GITHUB_TOKEN`. For GitHub Enterprise, also set `GITHUB_HOST`.
+You will be prompted for your `GITHUB_PERSONAL_ACCESS_TOKEN`. For GitHub Enterprise, also set `GITHUB_HOST`.
 
 ## Environment Variables
 
-| Variable       | Default | Description                                                                              |
-|----------------|---------|------------------------------------------------------------------------------------------|
-| `GITHUB_TOKEN` | —       | **Required.** Personal access token or GitHub App token with `repo`, `issues`, and `pull_requests` scopes. |
-| `GITHUB_HOST`  | `github.com` | Optional. GitHub Enterprise Server hostname (e.g. `github.mycompany.com`). Omit for github.com. |
+| Variable                       | Default        | Description                                                                                              |
+|--------------------------------|----------------|----------------------------------------------------------------------------------------------------------|
+| `GITHUB_PERSONAL_ACCESS_TOKEN` | —              | **Required.** Personal access token or GitHub App token with `repo`, `issues`, and `pull_requests` scopes. |
+| `GITHUB_HOST`                  | —              | Optional. GitHub Enterprise Server base URL **including scheme** (e.g. `https://github.mycompany.com`). Leave unset for public github.com. |
 
-> **GitHub Enterprise users:** Set `GITHUB_HOST` when prompted during `atk add github`. ATK stores it
-> in `.env` and automatically includes it in the MCP configuration — no manual client configuration
-> required. Leave it empty (press Enter) to use github.com.
+> **GitHub Enterprise users:** Set `GITHUB_HOST` to the full URL including `https://` when prompted
+> during `atk add github`. Leave it empty (press Enter) to use public github.com.
 
 ### Generating a token
 
 1. Go to **Settings → Developer settings → Personal access tokens → Tokens (classic)**
 2. Create a token with scopes: `repo`, `read:org`, `read:user`
-3. Set it as `GITHUB_TOKEN`
+3. Set it as `GITHUB_PERSONAL_ACCESS_TOKEN`
 
 ## Usage
 
-After setup, get the MCP configuration for your client:
+`atk add github` pulls the Docker image automatically. To update to the latest image:
+
+```bash
+atk install github
+```
+
+Get the MCP configuration for your client:
 
 ```bash
 atk mcp show github
 atk mcp show github --json
 ```
-
-No `atk start` or `atk install` needed — this is an MCP-only plugin.
 
 ## MCP Tools
 

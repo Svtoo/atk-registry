@@ -1,6 +1,7 @@
 schema_version: "2026-01-23"
 name: github
 description: GitHub integration via MCP — search repos, read code, file issues, open PRs, and review changes from chat.
+maturity: verified
 
 vendor:
   name: GitHub
@@ -8,23 +9,33 @@ vendor:
   docs: https://github.com/github/github-mcp-server#readme
 
 env_vars:
-  - name: GITHUB_TOKEN
+  - name: GITHUB_PERSONAL_ACCESS_TOKEN
     required: true
     secret: true
     description: Personal access token or GitHub App token with repo, issues, and pull_requests scopes.
 
   - name: GITHUB_HOST
     required: false
-    default: "github.com"
-    description: GitHub hostname. Use the default (github.com) for public GitHub, or set to your GitHub Enterprise Server hostname (e.g. github.mycompany.com).
+    description: "GitHub Enterprise Server base URL including scheme (e.g. https://github.mycompany.com). Leave unset for public github.com."
+
+lifecycle:
+  install: ./install.sh
+  uninstall: ./uninstall.sh
+  status: docker image inspect ghcr.io/github/github-mcp-server > /dev/null 2>&1
 
 mcp:
   transport: stdio
-  command: npx
+  command: docker
   args:
-    - "-y"
-    - "@github/mcp-server"
+    - "run"
+    - "-i"
+    - "--rm"
+    - "-e"
+    - "GITHUB_PERSONAL_ACCESS_TOKEN"
+    - "-e"
+    - "GITHUB_HOST"
+    - "ghcr.io/github/github-mcp-server"
   env:
-    - GITHUB_TOKEN
+    - GITHUB_PERSONAL_ACCESS_TOKEN
     - GITHUB_HOST
 
