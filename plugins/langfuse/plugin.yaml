@@ -1,6 +1,7 @@
 schema_version: "2026-01-23"
 name: LangFuse
 description: Open-source LLM observability and tracing platform
+maturity: verified
 
 vendor:
   name: LangFuse

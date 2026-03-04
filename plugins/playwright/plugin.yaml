@@ -1,6 +1,7 @@
 schema_version: "2026-01-23"
 name: Playwright
 description: Browser automation using Microsoft Playwright's MCP server. Enables LLMs to interact with web pages, take screenshots, and execute JavaScript via structured accessibility snapshots.
+maturity: verified
 
 vendor:
   name: Microsoft
