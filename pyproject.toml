@@ -5,6 +5,7 @@ description = "ATK plugin registry tooling"
 requires-python = ">=3.11"
 dependencies = [
     "atk-cli",
+    "pydantic>=2.12.5",
 ]
 
 [dependency-groups]
