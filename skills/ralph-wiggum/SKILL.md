@@ -129,24 +129,28 @@ project: my-plugin-batch
 description: Build a set of ATK registry plugins
 
 process:
-  developer_agent: auggie
-  developer_flags:
-    - "--print"
-    - "--model"
-    - "sonnet4.6"
-    - "--rules"
-    - "/path/to/ai-assistant/AGENTS.md"
-    - "--permission"
-    - "bash:allow"
-  tester_agent: auggie
-  tester_flags:                         # can differ from developer_flags
-    - "--print"
-    - "--model"
-    - "sonnet4.6"
-    - "--rules"
-    - "/path/to/ai-assistant/AGENTS.md"
-    - "--permission"
-    - "bash:allow"
+  developer:
+    cmd: auggie                         # any CLI command — auggie, claude, custom script
+    flags:
+      - "--print"
+      - "--model"
+      - "sonnet4.6"
+      - "--rules"
+      - "/path/to/ai-assistant/AGENTS.md"
+      - "--permission"
+      - "bash:allow"
+    instruction_flag: "--instruction-file"   # flag for passing the prompt file; null → stdin
+    workspace_flag: "--workspace-root"       # flag for passing worktree path; null → skip
+  tester:                               # can differ from developer
+    cmd: auggie
+    flags:
+      - "--print"
+      - "--model"
+      - "sonnet4.6"
+      - "--rules"
+      - "/path/to/ai-assistant/AGENTS.md"
+      - "--permission"
+      - "bash:allow"
   worktree_base: /tmp/ralph-worktrees   # base dir for git worktrees
   branch_prefix: "plugin/"              # branch = plugin/<task-name>
   max_cycles: 5                         # max dev→test cycles before escalating
@@ -198,13 +202,19 @@ tasks:
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `developer_agent` | `auggie` | CLI command to invoke for developer role |
-| `developer_flags` | `["--print"]` | Extra flags passed to the developer agent |
-| `tester_agent` | `auggie` | CLI command to invoke for tester role |
-| `tester_flags` | `["--print"]` | Extra flags passed to the tester agent |
+| `developer.cmd` | `auggie` | CLI command for the developer role |
+| `developer.flags` | `["--print"]` | Flags passed to the developer agent |
+| `developer.instruction_flag` | `"--instruction-file"` | Flag to pass the prompt file; `null` → pipe via stdin |
+| `developer.workspace_flag` | `"--workspace-root"` | Flag to pass worktree path; `null` → skip (agent uses cwd) |
+| `tester.cmd` | `auggie` | CLI command for the tester role |
+| `tester.flags` | `["--print"]` | Flags passed to the tester agent |
+| `tester.instruction_flag` | `"--instruction-file"` | Same as developer |
+| `tester.workspace_flag` | `"--workspace-root"` | Same as developer |
 | `worktree_base` | `/tmp/ralph-worktrees` | Base dir where git worktrees are created |
 | `branch_prefix` | `plugin/` | Branch name = `{branch_prefix}{task-name}` |
 | `max_cycles` | `0` (unlimited) | Auto-skips a task when `dev_cycles` reaches this |
+
+The old flat format (`developer_agent`, `developer_flags`, `tester_agent`, `tester_flags`) is still accepted for backward compatibility but deprecated. New task files should use the nested format above.
 
 ---
 
@@ -339,10 +349,13 @@ git branch | grep plugin/
 
 ---
 
-## Agent Flags Reference
+## Agent Configuration Reference
 
-ralph.py passes `{role}_flags` from the task file directly to the agent binary.
-Key flags for auggie (non-interactive operation):
+ralph.py works with any CLI agent — auggie, claude, a custom shell script, etc. The
+`instruction_flag` and `workspace_flag` fields in `AgentConfig` control how the prompt
+and worktree path are delivered. Set either to `null` to skip that delivery mechanism.
+
+Key flags for **auggie** (non-interactive operation):
 
 | Flag | Purpose |
 |------|---------|
@@ -350,7 +363,9 @@ Key flags for auggie (non-interactive operation):
 | `--model sonnet4.6` | Claude Sonnet 4.6 via Augment |
 | `--rules /path/to/AGENTS.md` | Engineering standards injected into every session |
 | `--permission "bash:allow"` | Approve shell commands without pausing to ask |
-| `--instruction-file` | ralph.py writes the role prompt to a temp file and passes it here |
+
+For agents that read from stdin (e.g. `claude --print`), set `instruction_flag: null`.
+For agents that use the subprocess working directory naturally, set `workspace_flag: null`.
 
 ---
 
