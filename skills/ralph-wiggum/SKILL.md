@@ -280,50 +280,50 @@ tasks:
 
 All commands run from `atk-registry/`. Use `uv run python` (not bare `python`):
 
-**Basic — one developer worker, one tester worker:**
+**Default — one combined worker, tester-first:**
 ```bash
-uv run python skills/ralph-wiggum/ralph.py --role developer --tasks ralph-tasks.yaml &
-uv run python skills/ralph-wiggum/ralph.py --role tester    --tasks ralph-tasks.yaml &
+uv run python skills/ralph-wiggum/ralph.py --tasks ralph-tasks.yaml
+```
+Each iteration checks for `ready_for_testing` tasks first; if none, falls back to `pending`.
+Developer and tester work happens sequentially in one thread — no coordination needed.
+
+**Bounded run — process exactly N tasks then exit:**
+```bash
+uv run python skills/ralph-wiggum/ralph.py --tasks ralph-tasks.yaml --count 3
 ```
 
-**Parallel — multiple workers per role (use distinct `--worker-id`):**
+**Parallel workers (multiple files or higher throughput):**
 ```bash
-uv run python skills/ralph-wiggum/ralph.py --role developer --tasks ralph-tasks.yaml --worker-id dev-a &
-uv run python skills/ralph-wiggum/ralph.py --role developer --tasks ralph-tasks.yaml --worker-id dev-b &
-uv run python skills/ralph-wiggum/ralph.py --role tester    --tasks ralph-tasks.yaml --worker-id test-a &
+uv run python skills/ralph-wiggum/ralph.py --tasks ralph-tasks.yaml --worker-id worker-a &
+uv run python skills/ralph-wiggum/ralph.py --tasks ralph-tasks.yaml --worker-id worker-b &
 ```
 
-**Multiple task files — run workers against each file:**
+**Debug / single-role mode — lock a worker to one role:**
 ```bash
-uv run python skills/ralph-wiggum/ralph.py --role developer --tasks ralph-tasks.yaml        --worker-id dev-a &
-uv run python skills/ralph-wiggum/ralph.py --role developer --tasks ralph-batch-2.yaml      --worker-id dev-b &
-```
-
-**One-shot — process exactly one task then exit (useful for debugging):**
-```bash
-uv run python skills/ralph-wiggum/ralph.py --role developer --tasks ralph-tasks.yaml --once
+uv run python skills/ralph-wiggum/ralph.py --role developer --tasks ralph-tasks.yaml
+uv run python skills/ralph-wiggum/ralph.py --role tester    --tasks ralph-tasks.yaml
 ```
 
 **Recovery — reclaim stale tasks (agent crashed mid-run):**
 ```bash
-uv run python skills/ralph-wiggum/ralph.py --role developer --tasks ralph-tasks.yaml --stale-timeout 3600
+uv run python skills/ralph-wiggum/ralph.py --tasks ralph-tasks.yaml --stale-timeout 3600
 ```
 
 **All CLI options:**
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--role ROLE` | (required) | `developer` or `tester` |
+| `--role ROLE` | none (combined) | Lock to `developer` or `tester` only (debug/parallel) |
 | `--tasks FILE` | `ralph-tasks.yaml` | Path to task YAML file |
 | `--worker-id ID` | `hostname-pid` | Unique worker label; used in worktree dir names |
-| `--once` | false | Process exactly one task then exit |
+| `--count N` | none (run until exhausted) | Stop after processing N tasks |
 | `--stale-timeout N` | none | Reclaim tasks stuck in `developing`/`testing` for >N seconds |
 | `--worktree-base DIR` | from process config | Override worktree base directory |
 
 **How ralph.py works internally (per task):**
 
 1. Acquire exclusive file lock on `{tasks_file}.lock` (via `fcntl.flock`)
-2. Scan tasks for the next eligible task (developer → `pending`; tester → `ready_for_testing`)
+2. Scan tasks for the next eligible task (combined mode: `ready_for_testing` first, then `pending`)
 3. Claim the task: set `status: developing` / `testing`, `worker_id`, `started_at`
 4. Create a git worktree on branch `{branch_prefix}{task-name}` in `worktree_base/`
 5. Build a role-specific prompt (injecting the full task file path, skill content, and task data)
