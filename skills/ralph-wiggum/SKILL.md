@@ -393,7 +393,7 @@ Expanding beyond the spec is correct behaviour, not scope creep.
    atk add ./plugins/<name>
    atk status
    atk stop <name> && atk start <name>
-   atk mcp show <name>      # verify JSON output
+   atk mcp show <name>      # verify MCP config (command, env vars)
    atk uninstall <name> --force && atk install <name>
    atk remove <name> --force
    ```
@@ -430,7 +430,7 @@ yours. A tester who reports "all tests passed" in the first cycle is being lazy.
    - `atk add ./plugins/<name>` — does install complete cleanly?
    - `atk status` — does it show running? Are all ports healthy?
    - `atk stop <name>` then `atk start <name>` — does stop/start cycle work?
-   - `atk mcp show <name>` — is the JSON correct? Are all expected tools listed?
+   - `atk mcp show <name>` — is the command correct? Are all configured env vars shown?
    - `atk uninstall <name> --force` then `atk install <name>` — is it idempotent?
    - `atk remove <name> --force` — is cleanup complete?
 4. For each previously logged bug: explicitly test whether it is fixed. Note the result.
