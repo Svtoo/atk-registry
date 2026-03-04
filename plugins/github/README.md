@@ -25,10 +25,9 @@ You will be prompted for your `GITHUB_TOKEN`. For GitHub Enterprise, also set `G
 | `GITHUB_TOKEN` | —       | **Required.** Personal access token or GitHub App token with `repo`, `issues`, and `pull_requests` scopes. |
 | `GITHUB_HOST`  | —       | Optional. GitHub Enterprise Server hostname (e.g. `github.mycompany.com`). Omit for github.com. |
 
-> **GitHub Enterprise users:** `GITHUB_HOST` is stored in `.env` via `atk setup github`, but must be
-> added manually to your MCP client configuration (e.g. Claude Desktop's `claude_desktop_config.json`)
-> because ATK currently injects `<NOT_SET>` for unset optional vars in the MCP JSON output. Add
-> `"GITHUB_HOST": "github.mycompany.com"` to the `env` block of the `github` entry.
+> **GitHub Enterprise users:** Set `GITHUB_HOST` when prompted during `atk add github`. ATK stores it
+> in `.env` and automatically includes it in the MCP configuration — no manual client configuration
+> required. Leave it empty (press Enter) to use github.com.
 
 ### Generating a token
 
