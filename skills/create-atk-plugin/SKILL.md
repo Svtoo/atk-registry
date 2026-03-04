@@ -374,7 +374,7 @@ mcp:
     - GITHUB_TOKEN
 ```
 
-No `service`, no lifecycle — just `atk setup` then `atk mcp show <name>`.
+No `service`, no lifecycle — just `atk setup` then `atk mcp show <name>`. Warnings from `atk start/stop` are expected and harmless for MCP-only plugins.
 
 ### Pattern: Docker service with MCP bridge
 

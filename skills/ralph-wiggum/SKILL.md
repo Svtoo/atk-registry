@@ -136,11 +136,8 @@ process:
     - "sonnet4.6"
     - "--rules"
     - "/path/to/ai-assistant/AGENTS.md"
-    - "--workspace-root"
-    - "/path/to/atk-registry"
     - "--permission"
     - "bash:allow"
-    - "--dont-save-session"
   tester_agent: auggie
   tester_flags:                         # can differ from developer_flags
     - "--print"
@@ -148,11 +145,8 @@ process:
     - "sonnet4.6"
     - "--rules"
     - "/path/to/ai-assistant/AGENTS.md"
-    - "--workspace-root"
-    - "/path/to/atk-registry"
     - "--permission"
     - "bash:allow"
-    - "--dont-save-session"
   worktree_base: /tmp/ralph-worktrees   # base dir for git worktrees
   branch_prefix: "plugin/"              # branch = plugin/<task-name>
   max_cycles: 5                         # max dev→test cycles before escalating
@@ -211,10 +205,6 @@ tasks:
 | `worktree_base` | `/tmp/ralph-worktrees` | Base dir where git worktrees are created |
 | `branch_prefix` | `plugin/` | Branch name = `{branch_prefix}{task-name}` |
 | `max_cycles` | `0` (unlimited) | Auto-skips a task when `dev_cycles` reaches this |
-
-> **Note**: ralph.py always appends `--workspace-root <worktree-dir>` when invoking
-> the agent, overriding any `--workspace-root` you include in the flags list. The
-> `--workspace-root` in the flags template is a placeholder; ralph.py replaces it.
 
 ---
 
@@ -359,9 +349,7 @@ Key flags for auggie (non-interactive operation):
 | `--print` | One-shot mode — no interactive prompts, exits when done |
 | `--model sonnet4.6` | Claude Sonnet 4.6 via Augment |
 | `--rules /path/to/AGENTS.md` | Engineering standards injected into every session |
-| `--workspace-root` | **Set by ralph.py automatically** to the worktree dir |
 | `--permission "bash:allow"` | Approve shell commands without pausing to ask |
-| `--dont-save-session` | Keeps session history clean across many parallel agents |
 | `--instruction-file` | ralph.py writes the role prompt to a temp file and passes it here |
 
 ---
@@ -394,12 +382,14 @@ Expanding beyond the spec is correct behaviour, not scope creep.
    atk uninstall <name> --force && atk install <name>
    atk remove <name> --force
    ```
-7. If there were open bugs: address each one, then set `status: addressed` on each.
+7. If there were open bugs: address each one, then mark each fixed via the CLI shown in your prompt.
 8. Commit: `git add plugins/<name>/ && git commit -m "feat: add <name> plugin (cycle N)"`
-9. Update the task file (path given in your prompt) for this task:
-   - `status: ready_for_testing`
-   - Increment `dev_cycles`
-   - Write your mandatory suggestions (see format below)
+9. Mark the task ready for testing via the ralph CLI (command shown in your prompt):
+   ```bash
+   uv run skills/ralph-wiggum/ralph.py task update \
+       --tasks TASKS_FILE --id TASK_ID --status ready_for_testing --dev-cycles N
+   ```
+   Do NOT edit the tasks YAML directly — the CLI validates the input. (see format below)
 
 **DO NOT** mark `ready_for_testing` until `make validate` passes and the lifecycle test
 completes without errors.
@@ -429,11 +419,13 @@ yours. A tester who reports "all tests passed" in the first cycle is being lazy.
    - `atk uninstall <name> --force` then `atk install <name>` — is it idempotent?
    - `atk remove <name> --force` — is cleanup complete?
 4. For each previously logged bug: explicitly test whether it is fixed. Note the result.
-5. Update the task file (path given in your prompt) for this task:
-   - If **all tests pass**: set `status: complete`, `completed_at: <now>`
-   - If **any bugs found**: set `status: pending` (sends back to developer)
-   - Write each bug as a structured entry in `bugs[]`
-   - Write your mandatory suggestions
+5. Update the task via the ralph CLI (exact commands shown in your prompt):
+   - Log each bug: `ralph.py task add-bug --tasks FILE --id ID --severity S --description D --steps S`
+   - Mark fixed bugs: `ralph.py task update-bug --tasks FILE --id ID --bug-id BID --status addressed ...`
+   - If **all tests pass**: `ralph.py task update --tasks FILE --id ID --status complete`
+   - If **any bugs found**: `ralph.py task update --tasks FILE --id ID --status pending`
+
+   Do NOT edit the tasks YAML directly — the CLI validates statuses and rejects invalid values.
 
 **DO NOT** set `status: complete` if any test failed or any previously logged bug
 is still reproducible.
@@ -465,25 +457,22 @@ env var, chose a deliberate default, or noticed an upstream quirk that users wil
 write it up. Do not suppress discoveries just because they weren't explicitly asked for.
 These notes are exactly how the task descriptions and SKILL improve across batches.
 
-**Suggestion YAML format:**
-```yaml
-suggestions:
-  - id: "s001"
-    cycle: 1
-    author_role: developer              # or: tester
-    type: skill_bug                     # skill_bug | atk_bug | process_improvement | implementation_note
-    status: open
-    description: |
-      The SKILL.md says to use 'docker compose up -d' in the start lifecycle, but
-      on macOS Sequoia (Docker Desktop 4.x) this fails silently when the compose
-      file uses the 'platform: linux/amd64' key without a matching buildx context.
-      The SKILL does not mention this restriction at all.
-    proposed_fix: |
-      Add a note to the "start" lifecycle section of create-atk-plugin/SKILL.md:
-      "If using platform: linux/amd64, ensure Docker Desktop has Rosetta enabled
-      (Settings → General → Use Rosetta). Without it, 'docker compose up' exits 0
-      but no container starts."
+**Suggestion CLI format** (agents use the CLI — do NOT edit the YAML directly):
+```bash
+uv run skills/ralph-wiggum/ralph.py task add-suggestion \
+    --tasks TASKS_FILE --id TASK_ID \
+    --author-role developer \   # or: tester
+    --cycle 1 \
+    --type skill_bug \          # skill_bug | atk_bug | process_improvement | implementation_note
+    --description "The SKILL.md says to use 'docker compose up -d' in the start lifecycle,
+but on macOS Sequoia (Docker Desktop 4.x) this fails silently when the compose file uses
+'platform: linux/amd64' without a matching buildx context. The SKILL does not mention this." \
+    --proposed-fix "Add a note to create-atk-plugin/SKILL.md start section: 'If using
+platform: linux/amd64, ensure Rosetta is enabled in Docker Desktop. Without it, compose
+exits 0 but no container starts.'"
 ```
+
+The CLI validates `--type` and rejects the command if `--proposed-fix` is absent.
 
 The human running ralph reviews suggestions between batches and updates
 `create-atk-plugin/SKILL.md` accordingly. Over iterations, the SKILL gets sharper,
