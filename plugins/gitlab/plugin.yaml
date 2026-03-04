@@ -1,0 +1,24 @@
+schema_version: "2026-01-23"
+name: GitLab
+description: Search projects, issues and MRs, read files, and automate common GitLab workflows via the official GitLab Duo MCP server.
+maturity: verified
+
+vendor:
+  name: GitLab
+  url: https://gitlab.com/gitlab-org/gitlab
+  docs: https://docs.gitlab.com/user/gitlab_duo/model_context_protocol/mcp_server/
+
+env_vars:
+  - name: GITLAB_URL
+    required: false
+    default: "https://gitlab.com"
+    description: Base URL for your GitLab instance (leave default for gitlab.com; set to your instance URL if self-hosted)
+
+mcp:
+  transport: stdio
+  command: bash
+  args:
+    - "$ATK_PLUGIN_DIR/mcp.sh"
+  env:
+    - GITLAB_URL
+
