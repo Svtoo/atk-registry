@@ -24,7 +24,9 @@ atk-registry/
 
 ## Contributing
 
-TBD
+- Use skill `create-atk-plugin` to create a new plugin.
+- You have to review and test the plugin manually before create a pull request.
+- Create a PR.
 
 ### Plugin Requirements
 
