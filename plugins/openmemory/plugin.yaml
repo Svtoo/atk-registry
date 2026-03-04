@@ -1,6 +1,7 @@
 schema_version: "2026-01-23"
 name: OpenMemory
 description: Persistent memory layer for AI agents with semantic search and MCP integration
+maturity: verified
 
 vendor:
   name: CaviraOSS
