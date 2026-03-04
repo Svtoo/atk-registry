@@ -15,8 +15,8 @@ env_vars:
 
   - name: GITHUB_HOST
     required: false
-    default: ""
-    description: GitHub Enterprise Server hostname (e.g. github.mycompany.com). Leave empty for github.com.
+    default: "github.com"
+    description: GitHub hostname. Use the default (github.com) for public GitHub, or set to your GitHub Enterprise Server hostname (e.g. github.mycompany.com).
 
 mcp:
   transport: stdio
