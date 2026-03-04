@@ -1,5 +1,9 @@
 schema_version: '2026-01-23'
 plugins:
+- name: github
+  path: plugins/github
+  description: GitHub integration via MCP — search repos, read code, file issues,
+    open PRs, and review changes from chat.
 - name: langfuse
   path: plugins/langfuse
   description: Open-source LLM observability and tracing platform
