@@ -442,18 +442,25 @@ yours. A tester who reports "all tests passed" in the first cycle is being lazy.
 
    Do NOT edit the tasks YAML directly — the CLI validates statuses and rejects invalid values.
 
-**DO NOT** set `status: complete` if any test failed or any previously logged bug
-is still reproducible.
+**DO NOT** set `status: complete` if any functional test failed or any previously
+logged bug with severity `high` or above is still reproducible.
+
+Low-severity documentation inaccuracies (e.g., a wrong default value in a README
+table) do not block completion if the plugin installs, runs, and its MCP output is
+correct. Log them as `open` bugs, but mark the task `complete` and note the doc fix
+in a suggestion so the next human review catches it.
 
 ---
 
 ## Mandatory Suggestions — The Law
 
-Both roles **must** write suggestions every cycle. No exceptions. This is how the
-process learns and improves across batches.
+Both roles **must** write suggestions every cycle for genuine gaps found. This is how
+the process learns and improves across batches.
 
-**Minimum: 3 suggestions per agent per cycle.** If you can only find 2 things, look
-harder. A passing cycle still has process gaps — you just haven't named them yet.
+**Write suggestions for real gaps only.** Do not manufacture suggestions to meet a
+count — a thin suggestion wastes reviewer time and trains agents to prioritize
+commentary over finishing. If you found nothing worth flagging, write one honest
+"nothing new to flag" note and move on. Quality over quantity.
 
 **A suggestion with no `proposed_fix` is incomplete.** If you can describe a problem,
 you can propose a fix — even if it is "add a warning note to section X of SKILL.md."
