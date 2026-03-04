@@ -23,7 +23,7 @@ You will be prompted for your `GITHUB_TOKEN`. For GitHub Enterprise, also set `G
 | Variable       | Default | Description                                                                              |
 |----------------|---------|------------------------------------------------------------------------------------------|
 | `GITHUB_TOKEN` | —       | **Required.** Personal access token or GitHub App token with `repo`, `issues`, and `pull_requests` scopes. |
-| `GITHUB_HOST`  | —       | Optional. GitHub Enterprise Server hostname (e.g. `github.mycompany.com`). Omit for github.com. |
+| `GITHUB_HOST`  | `github.com` | Optional. GitHub Enterprise Server hostname (e.g. `github.mycompany.com`). Omit for github.com. |
 
 > **GitHub Enterprise users:** Set `GITHUB_HOST` when prompted during `atk add github`. ATK stores it
 > in `.env` and automatically includes it in the MCP configuration — no manual client configuration
