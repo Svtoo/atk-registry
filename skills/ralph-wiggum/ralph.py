@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""ralph.py — Parallel ATK plugin factory using the Ralph Wiggum loop.
+"""ralph.py — ATK plugin factory using the Ralph Wiggum loop.
 
-Two roles, run in parallel, coordinating through the task YAML file:
-  --role developer  Claims 'pending' tasks, builds plugins, marks ready_for_testing.
-  --role tester     Claims 'ready_for_testing' tasks, breaks plugins, marks complete/pending.
+Default (no --role): combined tester-first loop in one thread.
+  Each iteration claims a ready_for_testing task first; falls back to pending.
+  Use --count N to stop after N tasks (developer + tester combined).
+
+Debug / parallel modes — pass --role to lock the worker to one role:
+  --role developer  Only claims 'pending' tasks, builds plugins.
+  --role tester     Only claims 'ready_for_testing' tasks, validates plugins.
 
 Usage:
-  python ralph.py --role developer [--tasks FILE] [--worker-id ID] [--once]
-  python ralph.py --role tester   [--tasks FILE] [--worker-id ID] [--once]
-                                  [--stale-timeout SECONDS]
+  python ralph.py [--tasks FILE] [--count N]
+  python ralph.py --role developer [--tasks FILE] [--count N]
+  python ralph.py --role tester   [--tasks FILE] [--count N] [--stale-timeout SECONDS]
 """
 
 from __future__ import annotations
@@ -711,10 +715,12 @@ def main(argv: list[str] | None = None) -> int:
         description="Parallel ATK plugin factory (developer/tester roles)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--role", required=True, choices=["developer", "tester"])
+    parser.add_argument("--role", default=None, choices=["developer", "tester"],
+                        help="Lock to one role (debug/parallel). Omit for combined tester-first loop.")
     parser.add_argument("--tasks", default=str(DEFAULT_TASKS_FILE))
     parser.add_argument("--worker-id", default=None)
-    parser.add_argument("--once", action="store_true")
+    parser.add_argument("--count", type=int, default=None, metavar="N",
+                        help="Stop after processing N tasks (across both roles).")
     parser.add_argument("--stale-timeout", type=int, default=None, metavar="SECONDS")
     parser.add_argument("--worktree-base", default=None)
     args = parser.parse_args(argv)
@@ -728,8 +734,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     config = TasksFile.model_validate(yaml.safe_load(tasks_file.read_text()) or {}).process
-    role = args.role
-    agent: AgentConfig = getattr(config, role)
+    # When --role is given, lock to that role. Otherwise: tester first, then developer.
+    role_order = [args.role] if args.role else ["tester", "developer"]
     worktree_base = Path(args.worktree_base) if args.worktree_base else config.worktree_base
     worker_id = args.worker_id or _worker_id()
     repo_root = tasks_file.parent
@@ -737,19 +743,32 @@ def main(argv: list[str] | None = None) -> int:
     skill_content = CREATE_PLUGIN_SKILL.read_text()
     testing_protocol = _extract_testing_protocol(skill_content)
 
-    print(f"[ralph] role={role}  worker={worker_id}  agent={agent.cmd}")
+    mode_label = args.role or "auto (tester→developer)"
+    count_label = str(args.count) if args.count else "∞"
+    print(f"[ralph] mode={mode_label}  worker={worker_id}  count={count_label}")
     print(f"[ralph] tasks={tasks_file}  worktree_base={worktree_base}\n")
 
+    completed = 0
     loop = 0
     while True:
         loop += 1
-        print(f"[ralph] ── loop {loop} ({role}): scanning for tasks...")
+        print(f"[ralph] ── loop {loop}: scanning for tasks...")
 
-        task = claim_task(tasks_file, worker_id, role, stale_timeout=args.stale_timeout)
+        # Claim the next task — try roles in priority order
+        task = None
+        role = None
+        for r in role_order:
+            t = claim_task(tasks_file, worker_id, r, stale_timeout=args.stale_timeout)
+            if t is not None:
+                task = t
+                role = r
+                break
+
         if task is None:
-            print(f"[ralph] No claimable tasks for role '{role}' — exiting.")
+            print(f"[ralph] No claimable tasks — exiting.")
             break
 
+        agent: AgentConfig = getattr(config, role)
         task_name = task.name
         branch = f"{config.branch_prefix}{task_name}"
         worktree_dir = worktree_base / f"{task_name}--{worker_id}"
@@ -761,11 +780,9 @@ def main(argv: list[str] | None = None) -> int:
                 t = _find_task(data, task.id)
                 if t:
                     t.status = TaskStatus.SKIPPED
-            if args.once:
-                break
             continue
 
-        print(f"[ralph] claimed  id={task.id}  name={task_name}  branch={branch}")
+        print(f"[ralph] claimed  role={role}  id={task.id}  name={task_name}  branch={branch}")
 
         # Set up git worktree — tester checks out the developer's branch
         if worktree_dir.exists():
@@ -782,8 +799,6 @@ def main(argv: list[str] | None = None) -> int:
                     t.failures.append(TaskFailure(
                         timestamp=_now(), error=f"git worktree creation failed: {err}",
                     ))
-            if args.once:
-                break
             time.sleep(2)
             continue
 
@@ -816,8 +831,6 @@ def main(argv: list[str] | None = None) -> int:
                             detail=validate_output[-2000:],
                         ))
                 remove_worktree(repo_root, worktree_dir)
-                if args.once:
-                    break
                 time.sleep(1)
                 continue
 
@@ -849,7 +862,9 @@ def main(argv: list[str] | None = None) -> int:
 
         remove_worktree(repo_root, worktree_dir)
 
-        if args.once:
+        completed += 1
+        if args.count is not None and completed >= args.count:
+            print(f"[ralph] reached --count {args.count} — exiting.")
             break
 
         time.sleep(1)
