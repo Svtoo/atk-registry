@@ -389,6 +389,10 @@ def build_developer_prompt(task: Task, skill_content: str, tasks_file: Path) -> 
         "",
         task.description.strip(),
         "",
+        "> **Env var note**: 'Required env vars: none' means no secrets/credentials — NOT zero configuration.",
+        "> The server may still require non-secret arguments (e.g. a path or URL). Check upstream docs.",
+        "> If a non-secret config value is needed, declare an env var with a sensible default and document it.",
+        "",
     ]
 
     if bug_section:
@@ -477,6 +481,43 @@ def build_tester_prompt(task: Task, testing_protocol: str, tasks_file: Path) -> 
             ]
 
     sections += [
+        "---",
+        "",
+        "## Upstream Requirements Validation (do this FIRST, before lifecycle testing)",
+        "",
+        "The task description may contain incorrect upstream information — wrong package name,",
+        "wrong auth model, or a package that does not exist. Only the tester can catch this",
+        "before more developer cycles are wasted.",
+        "",
+        "**Step 0: Verify the install command**",
+        "- npx package: `npm view <package-name>` must return metadata, not a 404.",
+        "- uvx package: `uvx <package> --help` or `pip index versions <package>` must succeed.",
+        "- Docker image: `docker pull <image>` must succeed.",
+        "",
+        "**Step 0b: Verify the auth model**",
+        "Check the upstream docs for the auth mechanism. If the task description says",
+        "'Required env vars: SOME_TOKEN' but the real server uses OAuth or a different mechanism,",
+        "that is a critical task description error.",
+        "",
+        "**Step 0c: OAuth / interactive auth plugins**",
+        "If the plugin requires OAuth or any browser-based auth flow, set `ATK_NONINTERACTIVE=1`",
+        "in your shell before running the lifecycle test:",
+        f"  `ATK_NONINTERACTIVE=1 atk add -y ./plugins/{task.name}`",
+        "A correct install.sh will skip the browser flow and exit 0.",
+        "If it hangs waiting for input instead — that is a bug: file it as high severity.",
+        "With non-interactive install, test what you CAN: lifecycle commands, MCP command",
+        "construction (`atk mcp show`), and that missing-credential errors are clear and actionable.",
+        "You cannot fully test MCP tool execution without real credentials — state this explicitly",
+        "in a suggestion (type: implementation_note) so it is on record.",
+        "",
+        "**If upstream requirements are invalid** (package 404, wrong auth, wrong package name):",
+        "1. File a critical bug via the ralph CLI.",
+        "2. Create a suggestion (type: `atk_bug`) with the correct install command / auth model.",
+        "3. Update the `description:` field of this task directly in the tasks YAML file",
+        f"   (`{tasks_file}`) to reflect the corrected requirement. You may edit the YAML",
+        "   description field directly — this does not go through the CLI.",
+        "4. Set status to `pending` so the developer rebuilds against the corrected spec.",
+        "",
         "---",
         "",
         "## Required Steps (follow in order, do not skip any)",
@@ -780,6 +821,7 @@ def main(argv: list[str] | None = None) -> int:
                 t = _find_task(data, task.id)
                 if t:
                     t.status = TaskStatus.SKIPPED
+                    t.completed_at = _now()
             continue
 
         print(f"[ralph] claimed  role={role}  id={task.id}  name={task_name}  branch={branch}")
