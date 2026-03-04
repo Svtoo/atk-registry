@@ -26,4 +26,5 @@ mcp:
     - "@github/mcp-server"
   env:
     - GITHUB_TOKEN
+    - GITHUB_HOST
 
