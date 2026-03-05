@@ -19,6 +19,10 @@ plugins:
 - name: langfuse
   path: plugins/langfuse
   description: Open-source LLM observability and tracing platform
+- name: notion
+  path: plugins/notion
+  description: Notion integration via MCP — search pages, read and write content,
+    manage databases, and keep docs in sync.
 - name: openmemory
   path: plugins/openmemory
   description: Persistent memory layer for AI agents with semantic search and MCP
