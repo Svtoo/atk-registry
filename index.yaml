@@ -16,6 +16,10 @@ plugins:
   path: plugins/gitlab
   description: Search projects, issues and MRs, read files, and automate common GitLab
     workflows via the official GitLab Duo MCP server.
+- name: google-workspace
+  path: plugins/google-workspace
+  description: Google Workspace MCP — search Gmail, read Drive files, manage Calendar
+    events, edit Docs and Sheets from any AI assistant.
 - name: langfuse
   path: plugins/langfuse
   description: Open-source LLM observability and tracing platform
