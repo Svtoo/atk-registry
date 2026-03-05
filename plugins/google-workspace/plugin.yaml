@@ -1,0 +1,37 @@
+schema_version: "2026-01-23"
+name: google-workspace
+description: Google Workspace MCP — search Gmail, read Drive files, manage Calendar events, edit Docs and Sheets from any AI assistant.
+maturity: verified
+
+vendor:
+  name: taylorwilsdon
+  url: https://github.com/taylorwilsdon/google_workspace_mcp
+  docs: https://github.com/taylorwilsdon/google_workspace_mcp#readme
+
+env_vars:
+  - name: GOOGLE_OAUTH_CLIENT_ID
+    required: true
+    secret: true
+    description: OAuth 2.0 client ID from Google Cloud Console (create a Desktop Application credential).
+
+  - name: GOOGLE_OAUTH_CLIENT_SECRET
+    required: true
+    secret: true
+    description: OAuth 2.0 client secret from Google Cloud Console.
+
+  - name: OAUTHLIB_INSECURE_TRANSPORT
+    required: false
+    default: "1"
+    description: Allow HTTP OAuth callbacks on localhost (required for local use; set to 1).
+
+mcp:
+  transport: stdio
+  command: uvx
+  args:
+    - "workspace-mcp"
+    - "--single-user"
+  env:
+    - GOOGLE_OAUTH_CLIENT_ID
+    - GOOGLE_OAUTH_CLIENT_SECRET
+    - OAUTHLIB_INSECURE_TRANSPORT
+
