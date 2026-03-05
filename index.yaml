@@ -31,3 +31,7 @@ plugins:
   description: Browser automation using Microsoft Playwright's MCP server. Enables
     LLMs to interact with web pages, take screenshots, and execute JavaScript via
     structured accessibility snapshots.
+- name: slack
+  path: plugins/slack
+  description: Slack integration via MCP — list channels, read history, post messages,
+    manage threads, and look up users.
