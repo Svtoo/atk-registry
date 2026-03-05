@@ -1,6 +1,7 @@
 schema_version: "2026-01-23"
 name: git-local
 description: Inspect and perform safe Git operations on local repositories via MCP — no remote auth required.
+maturity: verified
 
 vendor:
   name: Model Context Protocol
