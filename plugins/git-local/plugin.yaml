@@ -1,0 +1,23 @@
+schema_version: "2026-01-23"
+name: git-local
+description: Inspect and perform safe Git operations on local repositories via MCP — no remote auth required.
+
+vendor:
+  name: Model Context Protocol
+  url: https://github.com/modelcontextprotocol/servers/tree/main/src/git
+  docs: https://github.com/modelcontextprotocol/servers/tree/main/src/git#readme
+
+env_vars:
+  - name: GIT_REPO_PATH
+    required: false
+    default: "."
+    description: Path to the Git repository to operate on (absolute or relative to the working directory)
+
+mcp:
+  transport: stdio
+  command: bash
+  args:
+    - "$ATK_PLUGIN_DIR/mcp.sh"
+  env:
+    - GIT_REPO_PATH
+
