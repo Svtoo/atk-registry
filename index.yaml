@@ -1,9 +1,21 @@
 schema_version: '2026-01-23'
 plugins:
+- name: fetch
+  path: plugins/fetch
+  description: Web content fetching via MCP — retrieve any URL and receive clean Markdown
+    output optimised for LLM analysis and quoting.
+- name: git-local
+  path: plugins/git-local
+  description: Inspect and perform safe Git operations on local repositories via MCP
+    — no remote auth required.
 - name: github
   path: plugins/github
   description: GitHub integration via MCP — search repos, read code, file issues,
     open PRs, and review changes from chat.
+- name: gitlab
+  path: plugins/gitlab
+  description: Search projects, issues and MRs, read files, and automate common GitLab
+    workflows via the official GitLab Duo MCP server.
 - name: langfuse
   path: plugins/langfuse
   description: Open-source LLM observability and tracing platform
