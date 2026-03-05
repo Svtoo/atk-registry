@@ -1,0 +1,25 @@
+schema_version: "2026-01-23"
+name: notion
+description: Notion integration via MCP — search pages, read and write content, manage databases, and keep docs in sync.
+maturity: verified
+
+vendor:
+  name: Notion
+  url: https://github.com/makenotion/notion-mcp-server
+  docs: https://developers.notion.com/docs/mcp
+
+env_vars:
+  - name: NOTION_TOKEN
+    required: true
+    secret: true
+    description: Notion internal integration token (starts with ntn_). Create one at https://www.notion.so/profile/integrations with read_content and update_content capabilities.
+
+mcp:
+  transport: stdio
+  command: npx
+  args:
+    - "-y"
+    - "@notionhq/notion-mcp-server"
+  env:
+    - NOTION_TOKEN
+
