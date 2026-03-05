@@ -1,0 +1,23 @@
+schema_version: "2026-01-23"
+name: fetch
+description: Web content fetching via MCP — retrieve any URL and receive clean Markdown output optimised for LLM analysis and quoting.
+maturity: verified
+
+vendor:
+  name: Model Context Protocol
+  url: https://github.com/modelcontextprotocol/servers/tree/main/src/fetch
+  docs: https://github.com/modelcontextprotocol/servers/tree/main/src/fetch#readme
+
+env_vars:
+  - name: USER_AGENT
+    required: false
+    description: "Custom User-Agent string sent with every request. Leave unset to use the default MCP user-agent."
+
+mcp:
+  transport: stdio
+  command: bash
+  args:
+    - "$ATK_PLUGIN_DIR/mcp.sh"
+  env:
+    - USER_AGENT
+
