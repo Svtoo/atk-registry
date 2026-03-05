@@ -1,0 +1,35 @@
+schema_version: "2026-01-23"
+name: slack
+description: Slack integration via MCP — list channels, read history, post messages, manage threads, and look up users.
+maturity: verified
+
+vendor:
+  name: Zencoder (zencoderai)
+  url: https://github.com/zencoderai/slack-mcp-server
+  docs: https://github.com/zencoderai/slack-mcp-server#readme
+
+env_vars:
+  - name: SLACK_BOT_TOKEN
+    required: true
+    secret: true
+    description: "Bot OAuth token (xoxb-…) with channels:read, channels:history, chat:write, users:read, users.profile:read, and reactions:write scopes."
+
+  - name: SLACK_TEAM_ID
+    required: true
+    description: "Slack workspace/team identifier (starts with T, e.g. T01ABC123)."
+
+  - name: SLACK_CHANNEL_IDS
+    required: false
+    description: "Optional comma-separated list of pre-defined channel IDs to restrict access (e.g. C01ABC123,C02DEF456). Leave unset to allow all channels the bot is a member of."
+
+mcp:
+  transport: stdio
+  command: npx
+  args:
+    - "-y"
+    - "@zencoderai/slack-mcp-server"
+  env:
+    - SLACK_BOT_TOKEN
+    - SLACK_TEAM_ID
+    - SLACK_CHANNEL_IDS
+
