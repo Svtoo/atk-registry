@@ -21,20 +21,17 @@ env_vars:
 lifecycle:
   install: ./install.sh
   uninstall: ./uninstall.sh
-  status: docker image inspect ghcr.io/github/github-mcp-server > /dev/null 2>&1
+  start: ./start.sh
+  stop: ./stop.sh
+  status: docker ps --filter "name=atk-github-mcp" --filter "status=running" --format '{{.Names}}' | grep -q "atk-github-mcp"
 
 mcp:
   transport: stdio
   command: docker
   args:
-    - "run"
+    - "exec"
     - "-i"
-    - "--rm"
-    - "-e"
-    - "GITHUB_PERSONAL_ACCESS_TOKEN"
-    - "-e"
-    - "GITHUB_HOST"
-    - "ghcr.io/github/github-mcp-server"
+    - "atk-github-mcp"
   env:
     - GITHUB_PERSONAL_ACCESS_TOKEN
     - GITHUB_HOST
