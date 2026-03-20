@@ -1,0 +1,24 @@
+schema_version: "2026-01-23"
+name: streamlinear
+description: Token-efficient Linear MCP for AI agents — one tool with seven actions instead of 23 separate tools (~500 tokens vs ~17,000 for the official Linear MCP).
+
+vendor:
+  name: Jesse Vincent (obra)
+  url: https://github.com/obra/streamlinear
+  docs: https://github.com/obra/streamlinear#readme
+
+env_vars:
+  - name: LINEAR_API_TOKEN
+    required: true
+    secret: true
+    description: Linear personal API token (format lin_api_xxxxx). Create one at https://linear.app → Settings → Security and Access → Personal API keys.
+
+mcp:
+  transport: stdio
+  command: npx
+  args:
+    - "-y"
+    - "github:obra/streamlinear"
+  env:
+    - LINEAR_API_TOKEN
+
