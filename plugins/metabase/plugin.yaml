@@ -1,0 +1,40 @@
+schema_version: "2026-01-23"
+name: metabase
+description: Metabase integration via MCP — list databases, run saved questions, execute SQL, explore schemas, manage dashboards, and browse collections.
+
+vendor:
+  name: CognitionAI
+  url: https://github.com/CognitionAI/metabase-mcp-server
+  docs: https://github.com/CognitionAI/metabase-mcp-server#readme
+
+env_vars:
+  - name: METABASE_URL
+    required: true
+    description: "Full URL to your Metabase instance (no trailing slash). E.g. https://metabase.example.com or https://your-org.metabaseapp.com"
+
+  - name: METABASE_API_KEY
+    required: false
+    secret: true
+    description: "Metabase API key (preferred auth). Requires Metabase v0.46+. Create at: Metabase → Account Settings → API Keys → New key. Leave blank if using username/password auth instead."
+
+  - name: METABASE_USERNAME
+    required: false
+    description: "Metabase login email — alternative auth for instances that do not support API keys (older than v0.46). Use either API key OR username+password, not both."
+
+  - name: METABASE_PASSWORD
+    required: false
+    secret: true
+    description: "Metabase login password — required when using username/password auth instead of API key."
+
+mcp:
+  transport: stdio
+  command: npx
+  args:
+    - "-y"
+    - "@cognitionai/metabase-mcp-server"
+  env:
+    - METABASE_URL
+    - METABASE_API_KEY
+    - METABASE_USERNAME
+    - METABASE_PASSWORD
+
