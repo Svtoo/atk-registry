@@ -1,0 +1,23 @@
+schema_version: "2026-01-23"
+name: codanna
+description: Semantic code-intelligence tool — gives AI assistants instant call graphs, dependency analysis, and semantic search across a codebase via MCP.
+maturity: verified
+
+vendor:
+  name: bartolli
+  url: https://github.com/bartolli/codanna
+  docs: https://docs.codanna.sh
+
+lifecycle:
+  install: ./install.sh
+  uninstall: ./uninstall.sh
+
+mcp:
+  transport: stdio
+  command: codanna
+  args:
+    - "--config"
+    - ".codanna/settings.toml"
+    - "serve"
+    - "--watch"
+
