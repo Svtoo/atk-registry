@@ -58,9 +58,6 @@ atk mcp show metabase --json
 
 # Reconfigure credentials
 atk setup metabase
-
-# View logs (useful for auth debugging)
-atk logs metabase
 ```
 
 This plugin has no background service — `atk status metabase` shows `mcp-only`, which is correct.
@@ -102,13 +99,13 @@ The default (essential) tool set — loaded by `npx @cognitionai/metabase-mcp-se
 - `list_users` — List all users and their roles
 - `get_metabase_playground_link` — Generate an interactive playground link for a SQL query
 
-> The server also supports `--all`, `--read`, and `--write` flags for extended tool sets (80+ tools total).
-> To use a specific mode, configure `METABASE_MCP_FLAGS` or adjust the `atk mcp` command args via
-> `~/.atk/plugins/metabase/custom/overrides.yaml`.
+> The upstream server also supports `--all`, `--read`, and `--write` flags for extended tool sets (80+ tools
+> total). These are not configurable through ATK; consult the
+> [upstream README](https://github.com/CognitionAI/metabase-mcp-server#readme) for advanced usage.
 
 ## Links
 
 - [Metabase MCP Server (GitHub)](https://github.com/CognitionAI/metabase-mcp-server)
-- [Metabase API Keys documentation](https://www.metabase.com/docs/latest/people-and-org/api-keys)
+- [Metabase API Keys documentation](https://www.metabase.com/docs/latest/people-and-groups/api-keys)
 - [Metabase Cloud](https://www.metabase.com/cloud)
 
