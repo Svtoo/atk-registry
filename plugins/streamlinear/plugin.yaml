@@ -1,6 +1,7 @@
 schema_version: "2026-01-23"
 name: streamlinear
 description: Token-efficient Linear MCP for AI agents — one tool with seven actions instead of 23 separate tools (~500 tokens vs ~17,000 for the official Linear MCP).
+maturity: verified
 
 vendor:
   name: Jesse Vincent (obra)
