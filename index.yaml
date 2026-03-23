@@ -1,5 +1,9 @@
 schema_version: '2026-01-23'
 plugins:
+- name: codanna
+  path: plugins/codanna
+  description: Semantic code-intelligence tool — gives AI assistants instant call
+    graphs, dependency analysis, and semantic search across a codebase via MCP.
 - name: fetch
   path: plugins/fetch
   description: Web content fetching via MCP — retrieve any URL and receive clean Markdown
