@@ -47,3 +47,7 @@ plugins:
   path: plugins/slack
   description: Slack integration via MCP — list channels, read history, post messages,
     manage threads, and look up users.
+- name: streamlinear
+  path: plugins/streamlinear
+  description: Token-efficient Linear MCP for AI agents — one tool with seven actions
+    instead of 23 separate tools (~500 tokens vs ~17,000 for the official Linear MCP).
