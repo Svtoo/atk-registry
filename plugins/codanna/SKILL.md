@@ -19,10 +19,11 @@ Structure → codanna. Literal strings / logs / config text → Grep.
 
 ## Caveats
 
-- Dynamic dispatch has expected false negatives (DI, GraphQL resolvers, event handlers,
-  string-loaded modules) — cross-check with Grep in those cases.
-- If results look stale (missing fresh code, duplicates from old paths), run `get_index_info`
-  and suggest `codanna index --force` to the user.
+- **Stale-index tell:** `find_symbol` points at a generated/ignored file (`*.gen.ts`, `dist/`, etc.),
+  OR `find_callers`/`analyze_impact` returns empty when you suspect callers exist. Run
+  `get_index_info`; suggest `codanna index --force`.
+- **Dynamic dispatch** (NestJS DI, GraphQL resolvers, event handlers, string-loaded modules) has
+  expected false negatives even on a fresh index — cross-check with Grep.
 
 ## Stakes
 
