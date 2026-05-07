@@ -27,15 +27,20 @@ env_vars:
     secret: true
     description: "Metabase login password — required when using username/password auth instead of API key."
 
+  - name: METABASE_TOOL_SET
+    required: false
+    default: "essential"
+    description: "Which upstream tool set to expose: 'essential' (default, ~21 tools, no flag), 'all' (80+ tools incl. write/edit), 'read' (read-only subset), or 'write' (write-only subset). Set to 'all' to enable mutating operations like create_dashboard or card edits."
+
 mcp:
   transport: stdio
-  command: npx
+  command: bash
   args:
-    - "-y"
-    - "@cognitionai/metabase-mcp-server"
+    - "$ATK_PLUGIN_DIR/mcp.sh"
   env:
     - METABASE_URL
     - METABASE_API_KEY
     - METABASE_USERNAME
     - METABASE_PASSWORD
+    - METABASE_TOOL_SET
 

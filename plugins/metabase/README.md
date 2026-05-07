@@ -16,8 +16,9 @@ Requires: [Node.js / npx](https://nodejs.org/) (available in PATH)
 atk add metabase
 ```
 
-You will be prompted for `METABASE_URL` and optionally `METABASE_API_KEY` (recommended) or
-`METABASE_USERNAME` / `METABASE_PASSWORD` (fallback).
+You will be prompted for `METABASE_URL`, `METABASE_API_KEY` (recommended) or
+`METABASE_USERNAME` / `METABASE_PASSWORD` (fallback), and `METABASE_TOOL_SET`
+(optional — defaults to `essential`; set to `all` to enable mutating tools).
 
 ## Authentication
 
@@ -43,6 +44,7 @@ atk setup metabase
 | `METABASE_API_KEY`    | no       | —       | API key (preferred auth). Requires Metabase v0.46+. Obtain at Account Settings → API Keys.   |
 | `METABASE_USERNAME`   | no       | —       | Login email — alternative auth for instances without API key support.                        |
 | `METABASE_PASSWORD`   | no       | —       | Login password — required when using username/password auth.                                 |
+| `METABASE_TOOL_SET`   | no       | `essential` | Which upstream tool set to expose. One of `essential` (~21 tools, no flag), `all` (80+ tools incl. write/edit), `read` (read-only), `write` (write-only). Maps directly to the upstream `--all` / `--read` / `--write` flags. |
 
 > **Metabase Cloud**: Your URL is typically `https://your-org.metabaseapp.com`. API key auth works the same way.
 
@@ -99,9 +101,24 @@ The default (essential) tool set — loaded by `npx @cognitionai/metabase-mcp-se
 - `list_users` — List all users and their roles
 - `get_metabase_playground_link` — Generate an interactive playground link for a SQL query
 
-> The upstream server also supports `--all`, `--read`, and `--write` flags for extended tool sets (80+ tools
-> total). These are not configurable through ATK; consult the
-> [upstream README](https://github.com/CognitionAI/metabase-mcp-server#readme) for advanced usage.
+### Switching tool sets
+
+Set `METABASE_TOOL_SET` to expose a different upstream tool set:
+
+| Value (default `essential`) | Upstream flag | What you get                                                       |
+|------------------------------|---------------|--------------------------------------------------------------------|
+| `essential`                  | (none)        | ~21 tools listed above. Includes `execute_query` (raw SQL).        |
+| `all`                        | `--all`       | 80+ tools including dashboard/card/collection mutations.           |
+| `read`                       | `--read`      | Read-only subset — drops mutating tools.                            |
+| `write`                      | `--write`     | Write-only subset — rare, for write-bot scenarios.                  |
+
+> **Heads up**: `all` enables agents to create/update/delete dashboards, cards, and collections in your
+> Metabase instance. The default `essential` set already includes `execute_query`, so an agent can run
+> arbitrary SQL — control via Metabase API-key/user permissions, not via this flag alone.
+
+After changing the value, run `atk mcp show metabase` to verify the new flag and restart your MCP client.
+
+See the [upstream README](https://github.com/CognitionAI/metabase-mcp-server#readme) for the full tool list.
 
 ## Links
 

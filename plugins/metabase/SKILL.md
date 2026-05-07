@@ -61,7 +61,8 @@ questions, execute SQL, manage dashboards, and browse collections — all via th
 
 - **Auth**: The server uses `METABASE_API_KEY` if set, otherwise falls back to `METABASE_USERNAME` + `METABASE_PASSWORD`. API key requires Metabase v0.46+.
 - **Tool names**: The live server uses `snake_case` names (e.g., `execute_card`, not `run-question`). The upstream README may list them differently.
-- **Default tool set**: Running without flags loads the essential set (21 tools). Pass `--all` for 80+ tools, `--read` for read-only, `--write` for write-only.
+- **Tool set is configurable via `METABASE_TOOL_SET`**: defaults to `essential` (21 tools). Set to `all` for 80+ tools (incl. dashboard/card mutations like `update_dashboard`, `create_card`), `read` for read-only, or `write` for write-only. Restart the MCP client after changing.
+- **`get_dashboard` can be huge**: rich dashboards inline every card's full SQL/MBQL definition. The LLM Quality Dashboard returned 527 KB / 16K lines (59 cards). Prefer `get_dashboard_cards` for layout, then `get_card` on individual IDs.
 - **METABASE_URL**: Must not have a trailing slash — all API calls will 404 if it does.
 - **Permissions**: The API key or user must have appropriate Metabase permissions. If a resource isn't returned, check access rights in the Metabase admin panel.
 
