@@ -15,6 +15,15 @@ set -euo pipefail
 # Normalize ATK's <NOT_SET> placeholder so the bash default below kicks in.
 [[ "${METABASE_TOOL_SET:-}" == "<NOT_SET>" ]] && unset METABASE_TOOL_SET
 
+# Strip trailing slashes from METABASE_URL — upstream server doesn't normalize
+# and a trailing / makes every API call 404.  Loop handles "https://x.com//".
+if [[ -n "${METABASE_URL:-}" ]]; then
+    while [[ "$METABASE_URL" == */ ]]; do
+        METABASE_URL="${METABASE_URL%/}"
+    done
+    export METABASE_URL
+fi
+
 ARGS=("-y" "@cognitionai/metabase-mcp-server")
 
 case "${METABASE_TOOL_SET:-essential}" in
