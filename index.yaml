@@ -27,6 +27,10 @@ plugins:
 - name: langfuse
   path: plugins/langfuse
   description: Open-source LLM observability and tracing platform
+- name: metabase
+  path: plugins/metabase
+  description: Metabase integration via MCP — list databases, run saved questions,
+    execute SQL, explore schemas, manage dashboards, and browse collections.
 - name: notion
   path: plugins/notion
   description: Notion integration via MCP — search pages, read and write content,
