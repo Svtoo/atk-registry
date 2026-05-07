@@ -1,6 +1,7 @@
 schema_version: "2026-01-23"
 name: metabase
 description: Metabase integration via MCP — list databases, run saved questions, execute SQL, explore schemas, manage dashboards, and browse collections.
+maturity: verified
 
 vendor:
   name: CognitionAI
