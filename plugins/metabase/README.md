@@ -40,7 +40,7 @@ atk setup metabase
 
 | Variable              | Required | Default | Description                                                                                   |
 |-----------------------|----------|---------|-----------------------------------------------------------------------------------------------|
-| `METABASE_URL`        | ✅ yes   | —       | Full URL to your Metabase instance. No trailing slash. E.g. `https://metabase.example.com` or `https://your-org.metabaseapp.com` (Metabase Cloud). |
+| `METABASE_URL`        | ✅ yes   | —       | Full URL to your Metabase instance. Trailing slashes are stripped by the wrapper. E.g. `https://metabase.example.com` or `https://your-org.metabaseapp.com` (Metabase Cloud). |
 | `METABASE_API_KEY`    | no       | —       | API key (preferred auth). Requires Metabase v0.46+. Obtain at Account Settings → API Keys.   |
 | `METABASE_USERNAME`   | no       | —       | Login email — alternative auth for instances without API key support.                        |
 | `METABASE_PASSWORD`   | no       | —       | Login password — required when using username/password auth.                                 |
@@ -48,8 +48,9 @@ atk setup metabase
 
 > **Metabase Cloud**: Your URL is typically `https://your-org.metabaseapp.com`. API key auth works the same way.
 
-> **Trailing slash warning**: `METABASE_URL` must not end with `/`. The server does not normalise it —
-> a trailing slash will cause all API requests to fail with 404.
+> **Trailing slashes**: The wrapper strips trailing `/` from `METABASE_URL` at startup, so
+> `https://metabase.example.com/` and `https://metabase.example.com` both work. The raw upstream
+> server does not normalise — only matters if you bypass ATK and run `npx @cognitionai/metabase-mcp-server` directly.
 
 ## Usage
 
