@@ -19,10 +19,12 @@ if ! command -v uv &>/dev/null; then
   exit 1
 fi
 
-# uv tool install is idempotent and re-installs/upgrades to the latest version.
-# --prerelease=allow is the canonical upstream invocation (Serena publishes
-# prereleases between stable cuts).
-uv tool install -p 3.13 serena-agent@latest --prerelease=allow
+# Install IS update (per ATK plugin contract). Bare `uv tool install pkg@latest`
+# silently skips when pkg is already installed — it does NOT re-resolve to a newer
+# version. --reinstall forces uv to uninstall + reinstall at the latest matching
+# version every time. --prerelease=allow is the canonical upstream invocation
+# (Serena publishes prereleases between stable cuts).
+uv tool install -p 3.13 serena-agent@latest --prerelease=allow --reinstall
 
 # Find the serena binary. uv tool installs to ~/.local/bin by default;
 # the user's MCP client must have that directory on PATH.
