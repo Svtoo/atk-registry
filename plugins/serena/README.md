@@ -59,6 +59,7 @@ To undo: `atk unplug serena --claude` (same flag surface as `atk plug`).
 | Variable | Default | Description |
 |---|---|---|
 | `SERENA_CONTEXT` | `ide` | Built-in Serena context name (or path to a custom YAML). Picks the tool subset + system prompt at MCP startup. See **`--context`** below for the catalogue and trade-offs. |
+| `SERENA_DASHBOARD` | `off` | Serena's local web dashboard. `off` = no dashboard, no port consumed (plugin default; quiet). `headless` = dashboard runs on `127.0.0.1:<auto-port>` but no browser is opened. `open` = dashboard runs AND a browser tab is opened on every MCP startup (Serena's upstream default — noisy because Serena spawns one tab per session and the port auto-increments). |
 
 Serena's other configuration lives in `~/.serena/` (global) and `<project>/.serena/`
 (per-project), not env vars.
