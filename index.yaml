@@ -47,6 +47,10 @@ plugins:
   description: Browser automation using Microsoft Playwright's MCP server. Enables
     LLMs to interact with web pages, take screenshots, and execute JavaScript via
     structured accessibility snapshots.
+- name: serena
+  path: plugins/serena
+  description: LSP-backed semantic code intelligence over MCP — symbol-aware navigation,
+    references, and atomic refactors that work via the language server, not text search.
 - name: slack
   path: plugins/slack
   description: Slack integration via MCP — list channels, read history, post messages,
