@@ -14,6 +14,11 @@ env_vars:
     default: "ide"
     description: "Serena context selected at MCP startup — picks the tool subset and system prompt. Built-ins: ide (default — generic CLI agent), claude-code (coercive prompt; counteracts Claude Code's bias toward built-in tools), codex, vscode, copilot-cli, jb-copilot-plugin, jb-ai-assistant, junie, antigravity, chatgpt, desktop-app, agent, oaicompat-agent. See README for the trade-offs, or run 'serena context list' for the live list."
 
+  - name: SERENA_DASHBOARD
+    required: false
+    default: "off"
+    description: "Serena's local web dashboard (http://127.0.0.1:<auto-port>). One of: off (default — no dashboard, no port consumed), headless (dashboard runs but browser is NOT auto-opened), open (dashboard runs AND a browser tab opens on each MCP startup — Serena's upstream default, can be annoying)."
+
 lifecycle:
   install: ./install.sh
   uninstall: ./uninstall.sh
@@ -25,3 +30,4 @@ mcp:
     - "$ATK_PLUGIN_DIR/mcp.sh"
   env:
     - SERENA_CONTEXT
+    - SERENA_DASHBOARD
