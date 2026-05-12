@@ -1,0 +1,27 @@
+schema_version: "2026-01-23"
+name: serena
+description: LSP-backed semantic code intelligence over MCP — symbol-aware navigation, references, and atomic refactors that work via the language server, not text search.
+maturity: verified
+
+vendor:
+  name: oraios
+  url: https://github.com/oraios/serena
+  docs: https://oraios.github.io/serena/
+
+env_vars:
+  - name: SERENA_CONTEXT
+    required: false
+    default: "ide"
+    description: "Serena context selected at MCP startup — picks the tool subset and system prompt. Built-ins: ide (default — generic CLI agent), claude-code (coercive prompt; counteracts Claude Code's bias toward built-in tools), codex, vscode, copilot-cli, jb-copilot-plugin, jb-ai-assistant, junie, antigravity, chatgpt, desktop-app, agent, oaicompat-agent. See README for the trade-offs, or run 'serena context list' for the live list."
+
+lifecycle:
+  install: ./install.sh
+  uninstall: ./uninstall.sh
+
+mcp:
+  transport: stdio
+  command: bash
+  args:
+    - "$ATK_PLUGIN_DIR/mcp.sh"
+  env:
+    - SERENA_CONTEXT
