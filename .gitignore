@@ -4,3 +4,5 @@
 # not part of the registry source tree.
 ralph-*.yaml
 ralph-*.lock
+.codanna
+.serena
