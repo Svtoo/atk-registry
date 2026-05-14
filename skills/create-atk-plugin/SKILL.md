@@ -566,6 +566,9 @@ atk remove <name> --force
 - **Lifecycle one-liners**: For simple commands, put them inline in `plugin.yaml` instead of creating scripts.
 - **Unverified plugin prompt**: Local and non-registry plugins show a `⚠ Unverified plugin` confirmation on `atk add`.
   Pass `-y` to skip it non-interactively. Env var prompts follow: `printf "VAR1\nVAR2\n" | atk add -y ./plugins/<name>`.
+- **Destructive-command confirmation**: `atk uninstall` and `atk remove` each prompt with a data-loss warning. Pass
+  `--force` to skip the prompt — this is the uninstall/remove counterpart to `atk add -y`, and is required for
+  scripted lifecycle tests.
 
 ---
 
@@ -657,7 +660,7 @@ atk-registry/
         ├── plugin.yaml   # Required
         ├── install.sh    # Optional
         ├── docker-compose.yml
-        └── README.md     # Strongly recommended
+        └── README.md     # Required — enforced by `make validate`
 ```
 
 When ATK fetches a registry plugin, it sparse-checkouts `plugins/<name>/` and copies its contents to
