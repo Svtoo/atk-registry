@@ -1,5 +1,10 @@
 schema_version: '2026-01-23'
 plugins:
+- name: claude-code-atk
+  path: plugins/claude-code-atk
+  description: 'Makes Claude Code follow ATK rules: UserPromptSubmit hook that reminds
+    Claude to re-read each plugged SKILL.md, bootstrap deferred MCP tool schemas,
+    and run per-turn protocol before answering.'
 - name: codanna
   path: plugins/codanna
   description: Semantic code-intelligence tool — gives AI assistants instant call
