@@ -1,0 +1,16 @@
+schema_version: "2026-01-23"
+name: claude-code-atk
+description: "Makes Claude Code follow ATK rules: UserPromptSubmit hook that reminds Claude to re-read each plugged SKILL.md, bootstrap deferred MCP tool schemas, and run per-turn protocol before answering."
+maturity: ai-generated
+
+vendor:
+  name: ATK community
+  url: https://github.com/anthropics/atk-registry
+
+service:
+  type: script
+
+lifecycle:
+  install: ./install.sh
+  uninstall: ./uninstall.sh
+  status: ./status.sh
