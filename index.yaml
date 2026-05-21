@@ -9,6 +9,9 @@ plugins:
   path: plugins/codanna
   description: Semantic code-intelligence tool — gives AI assistants instant call
     graphs, dependency analysis, and semantic search across a codebase via MCP.
+- name: exa
+  path: plugins/exa
+  description: Exa MCP — neural web search and clean-markdown fetch for AI agents.
 - name: fetch
   path: plugins/fetch
   description: Web content fetching via MCP — retrieve any URL and receive clean Markdown
