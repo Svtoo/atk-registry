@@ -1,0 +1,23 @@
+schema_version: "2026-01-23"
+name: exa
+description: Exa MCP — neural web search and clean-markdown fetch for AI agents.
+maturity: verified
+
+vendor:
+  name: Exa Labs
+  url: https://github.com/exa-labs/exa-mcp-server
+  docs: https://exa.ai/docs/reference/exa-mcp
+
+env_vars:
+  - name: EXA_API_KEY
+    required: false
+    secret: true
+    description: "Optional Exa API key. Leave blank to use the free tier (no signup). Provide one to raise rate limits — get it at https://dashboard.exa.ai/api-keys."
+
+mcp:
+  transport: stdio
+  command: bash
+  args:
+    - "$ATK_PLUGIN_DIR/mcp.sh"
+  env:
+    - EXA_API_KEY
