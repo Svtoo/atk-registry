@@ -1,0 +1,32 @@
+schema_version: "2026-01-23"
+name: langfuse-official-mcp
+description: Official Langfuse MCP server (prompts, observations, metrics, scores, datasets) bridged to stdio
+maturity: verified
+
+vendor:
+  name: Langfuse
+  url: https://github.com/langfuse/langfuse
+  docs: https://langfuse.com/docs/api-and-data-platform/features/mcp-server
+
+env_vars:
+  - name: LANGFUSE_PUBLIC_KEY
+    required: true
+    description: "Langfuse project public key (pk-lf-...). Found under Project Settings → API Keys."
+  - name: LANGFUSE_SECRET_KEY
+    required: true
+    secret: true
+    description: "Langfuse project secret key (sk-lf-...). Found under Project Settings → API Keys."
+  - name: LANGFUSE_HOST
+    required: false
+    default: https://us.cloud.langfuse.com
+    description: "Langfuse base URL; defaults to US cloud. Set https://cloud.langfuse.com for EU, or your regional / self-hosted URL. Keys are region-scoped, so this must match your project's region."
+
+mcp:
+  # No `env:` block by design. The wrapper reads all config — including the
+  # secret key — from this plugin's .env at runtime, so no credentials are
+  # written into the agent's MCP config (where they'd show in plain text).
+  # `atk setup` edits .env; changes apply on the next restart, no re-plug.
+  transport: stdio
+  command: bash
+  args:
+    - "$ATK_PLUGIN_DIR/mcp.sh"
