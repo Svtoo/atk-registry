@@ -35,6 +35,10 @@ plugins:
 - name: langfuse
   path: plugins/langfuse
   description: Open-source LLM observability and tracing platform
+- name: langfuse-official-mcp
+  path: plugins/langfuse-official-mcp
+  description: Official Langfuse MCP server (prompts, observations, metrics, scores,
+    datasets) bridged to stdio
 - name: metabase
   path: plugins/metabase
   description: Metabase integration via MCP — list databases, run saved questions,
