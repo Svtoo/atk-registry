@@ -1,0 +1,21 @@
+<meta charset="utf-8" />
+<link rel="manifest" href="/assets/manifest.webmanifest" />
+<meta name="theme-color" content="#4f46e5" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Dashboard" />
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg" />
+<link rel="apple-touch-icon" href="/assets/icon.svg" />
+<script>
+  (function () {
+    try {
+      var pref = localStorage.getItem("claude-dashboard:theme") || "system";
+      var dark = pref === "dark" || (pref === "system" && window.matchMedia &&
+                                     window.matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+    } catch (e) {}
+  })();
+</script>
+<link rel="stylesheet" href="/assets/dashboard.css" />
+<script src="/assets/freshness.js" defer></script>
+<script src="/assets/dashboard.js" defer></script>

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Claude Dashboard">
+  <!-- Indigo rounded-square background (matches the dashboard's -accent).
+       96px corner radius leaves room for macOS / Android adaptive masks
+       (≥20% safe zone in the center per PWA maskable guidance). -->
+  <rect width="512" height="512" rx="96" fill="#4f46e5"/>
+
+  <!-- Three "pills" along the top — mirror of the dashboard's pill row.
+       Identity (info) / Status (ok) / Next-need (warn). -->
+  <rect x="100" y="140" width="120" height="42" rx="21" fill="#e0e7ff"/>
+  <rect x="232" y="140" width="100" height="42" rx="21" fill="#a7f3d0"/>
+  <rect x="344" y="140" width="68"  height="42" rx="21" fill="#fef3c7"/>
+
+  <!-- Stacked "card bars" suggesting To-do / Heads-up / Journey rows. -->
+  <rect x="100" y="220" width="312" height="34" rx="8" fill="#ffffff" opacity="0.95"/>
+  <rect x="100" y="266" width="252" height="34" rx="8" fill="#ffffff" opacity="0.75"/>
+  <rect x="100" y="312" width="288" height="34" rx="8" fill="#ffffff" opacity="0.55"/>
+  <rect x="100" y="358" width="180" height="34" rx="8" fill="#ffffff" opacity="0.40"/>
+
+  <!-- Live-status dot in the bottom-right corner. -->
+  <circle cx="402" cy="402" r="20" fill="#10b981"/>
+</svg>

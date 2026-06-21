@@ -1,0 +1,840 @@
+/*
+ * claude-dashboard — shared dashboard styles.
+ * Loaded by per-chat dashboard.html via:
+ *   <link rel="stylesheet" href="http://localhost:7878/assets/dashboard.css">
+ * Theme: follows system by default; can be overridden via JS toggle in dashboard.js.
+ */
+
+/* ---- Light theme (default) ---- */
+:root {
+  --bg: #fafafa;
+  --fg: #111827;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --card: #ffffff;
+  --code-bg: #f3f4f6;
+  --accent: #4f46e5;
+  --accent-fg: #1e3a8a;
+  --accent-soft-bg: #e0e7ff;
+  --accent-soft-br: #c7d2fe;
+  --ok: #10b981;
+  --ok-fg: #065f46;
+  --ok-soft-bg: #d1fae5;
+  --ok-soft-br: #a7f3d0;
+  --bad: #ef4444;
+  --bad-fg: #7f1d1d;
+  --bad-soft-bg: #fee2e2;
+  --bad-soft-br: #fecaca;
+  --warn: #f59e0b;
+  --warn-fg: #78350f;
+  --warn-soft-bg: #fef3c7;
+  --warn-soft-br: #fde68a;
+  --todo-done-bg: #ecfdf5;
+  --todo-active-bg: #eef2ff;
+  --todo-blocked-bg: #fef2f2;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* ---- Dark theme (applied by JS when data-theme="dark") ---- */
+:root[data-theme="dark"] {
+  --bg: #0b1220;
+  --fg: #e5e7eb;
+  --muted: #94a3b8;
+  --border: #1f2937;
+  --card: #111827;
+  --code-bg: #1f2937;
+  --accent: #818cf8;
+  --accent-fg: #c7d2fe;
+  --accent-soft-bg: #1e1b4b;
+  --accent-soft-br: #312e81;
+  --ok: #34d399;
+  --ok-fg: #6ee7b7;
+  --ok-soft-bg: #052e2b;
+  --ok-soft-br: #065f46;
+  --bad: #f87171;
+  --bad-fg: #fca5a5;
+  --bad-soft-bg: #3f1212;
+  --bad-soft-br: #7f1d1d;
+  --warn: #fbbf24;
+  --warn-fg: #fcd34d;
+  --warn-soft-bg: #3a2a05;
+  --warn-soft-br: #78350f;
+  --todo-done-bg: #0a201a;
+  --todo-active-bg: #1a1b3a;
+  --todo-blocked-bg: #2c1414;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* ---- Base ---- */
+* { box-sizing: border-box; }
+html, body { overflow-x: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  margin: 0;
+  padding: 1rem;
+  line-height: 1.55;
+  font-size: 13.5px;
+  transition: background 0.15s, color 0.15s;
+}
+.wrap, body.dashboard > * { max-width: 100%; }
+
+code {
+  background: var(--code-bg);
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.9em;
+  word-break: break-all;
+}
+
+/* ---- Top nav ---- */
+nav.topnav {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 1rem; flex-wrap: wrap;
+  padding: 0.5rem 0.85rem; margin-bottom: 0.85rem;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: var(--shadow-card);
+}
+nav.topnav a.back {
+  text-decoration: none; color: var(--accent); font-weight: 500; font-size: 0.85rem;
+  padding: 0.3rem 0.7rem; border: 1px solid var(--accent); border-radius: 6px;
+  transition: background 0.12s, color 0.12s;
+}
+nav.topnav a.back:hover { background: var(--accent); color: white; }
+nav.topnav .updated {
+  font-size: 0.74rem; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+/* `.actions` slot + the theme-toggle button work in any context, not
+   just nav.topnav — landing and project-index reuse them. */
+.actions { display: flex; gap: 0.4rem; align-items: center; }
+button.theme-toggle {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--muted); font: inherit; font-size: 0.74rem;
+  padding: 0.25rem 0.6rem; border-radius: 6px; cursor: pointer;
+}
+button.theme-toggle:hover { color: var(--fg); border-color: var(--muted); }
+
+/* ---- Header ---- */
+header.session-header {
+  border-bottom: 1px solid var(--border); padding-bottom: 0.85rem; margin-bottom: 1rem;
+}
+h1 { margin: 0 0 0.3rem; font-size: 1.4rem; font-weight: 600; letter-spacing: -0.02em; }
+.tldr { margin: 0; font-size: 0.95rem; color: var(--fg); line-height: 1.55; }
+.tldr.empty { color: var(--muted); font-style: italic; }
+
+/* ---- Status pills ---- */
+.pills { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+.pill {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.25rem 0.65rem; border-radius: 999px;
+  font-size: 0.74rem; font-weight: 500; border: 1px solid;
+}
+.pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.pill.ok   { color: var(--ok-fg);   background: var(--ok-soft-bg);   border-color: var(--ok-soft-br); }
+.pill.ok .dot   { background: var(--ok); }
+.pill.bad  { color: var(--bad-fg);  background: var(--bad-soft-bg);  border-color: var(--bad-soft-br); }
+.pill.bad .dot  { background: var(--bad); }
+.pill.warn { color: var(--warn-fg); background: var(--warn-soft-bg); border-color: var(--warn-soft-br); }
+.pill.warn .dot { background: var(--warn); }
+.pill.info { color: var(--accent-fg); background: var(--accent-soft-bg); border-color: var(--accent-soft-br); }
+.pill.info .dot { background: var(--accent); }
+
+/* ---- Section cards ---- */
+section.card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 1rem 1.1rem; margin-bottom: 1rem; box-shadow: var(--shadow-card);
+  overflow-wrap: break-word;
+}
+section.card h2 {
+  margin: 0 0 0.75rem; font-size: 1rem; font-weight: 600;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+section.card .hint { color: var(--muted); font-size: 0.8rem; margin: 0 0 0.75rem; }
+section.card h3 {
+  margin: 0.85rem 0 0.4rem; font-size: 0.78rem; font-weight: 600;
+  color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;
+}
+
+/* ---- Todo list ---- */
+ul.todo-list, ul.todo-list ul { list-style: none; padding-left: 0; margin: 0; }
+ul.todo-list ul { padding-left: 1.5rem; margin-top: 0.3rem; }
+ul.todo-list li {
+  position: relative; padding: 0.35rem 0.5rem 0.35rem 1.8rem;
+  margin-bottom: 0.25rem; border-radius: 6px;
+  font-size: 0.92rem; line-height: 1.45;
+}
+ul.todo-list li::before {
+  position: absolute; left: 0.4rem; top: 0.45rem;
+  width: 1rem; height: 1rem; border-radius: 3px;
+  border: 1.5px solid var(--border); background: var(--card);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 700;
+}
+ul.todo-list li.open::before { content: ""; }
+ul.todo-list li.active { background: var(--todo-active-bg); font-weight: 500; }
+ul.todo-list li.active::before {
+  content: "▸"; color: var(--accent); border-color: var(--accent); background: var(--card);
+}
+ul.todo-list li.done { background: var(--todo-done-bg); color: var(--muted); }
+ul.todo-list li.done > .label { text-decoration: line-through; }
+ul.todo-list li.done::before {
+  content: "✓"; color: white; background: var(--ok); border-color: var(--ok);
+}
+ul.todo-list li.blocked { background: var(--todo-blocked-bg); }
+ul.todo-list li.blocked::before {
+  content: "✗"; color: white; background: var(--bad); border-color: var(--bad);
+}
+
+/* ---- Numbered open questions ---- */
+ol.questions-list { list-style: none; counter-reset: q; padding-left: 0; margin: 0; }
+ol.questions-list li {
+  counter-increment: q; position: relative;
+  padding: 0.55rem 0.5rem 0.55rem 2.4rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.92rem; line-height: 1.5;
+}
+ol.questions-list li:last-child { border-bottom: 0; }
+ol.questions-list li::before {
+  content: counter(q); position: absolute; left: 0.5rem; top: 0.55rem;
+  width: 1.6rem; height: 1.6rem; border-radius: 50%;
+  background: var(--warn); color: white;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.78rem;
+}
+ol.questions-list li .ctx {
+  color: var(--muted); font-size: 0.82rem; margin-top: 0.2rem;
+}
+ol.questions-list li.resolved::before { background: var(--ok); content: "✓"; }
+ol.questions-list li.resolved { opacity: 0.6; }
+ol.questions-list li.resolved .label { text-decoration: line-through; }
+
+/* ---- Mermaid container ---- */
+.mermaid-box {
+  background: var(--card); padding: 0.6rem; border-radius: 8px;
+  border: 1px solid var(--border); min-height: 60px;
+}
+.mermaid-box svg { max-width: 100%; height: auto; }
+
+/* ---- Free-form canvas ---- */
+section.card.free-form .empty-state {
+  color: var(--muted); font-size: 0.85rem; font-style: italic; margin: 0;
+  text-align: center; padding: 0.5rem 0;
+}
+section.card.free-form ul.facts { list-style: none; padding: 0; margin: 0; }
+section.card.free-form ul.facts li { padding: 0.3rem 0; font-size: 0.88rem; }
+section.card.free-form ul.facts li::before {
+  content: "✓ "; color: var(--ok); font-weight: 700;
+}
+section.card.free-form a { color: var(--accent); }
+section.card.free-form pre {
+  background: var(--code-bg); padding: 0.75rem; border-radius: 6px;
+  overflow-x: auto; font-size: 0.85rem; line-height: 1.45;
+}
+
+/* ---- Placeholder warnings ("AGENT FILL" forcing function) ---- */
+ul.todo-list li.placeholder,
+ol.questions-list li.placeholder,
+.empty-state.placeholder {
+  background: var(--warn-soft-bg) !important;
+  border: 1px dashed var(--warn) !important;
+  color: var(--warn-fg) !important;
+  font-weight: 500 !important;
+  font-style: normal !important;
+}
+ul.todo-list li.placeholder::before {
+  content: "⚠" !important;
+  background: var(--warn) !important;
+  color: white !important;
+  border-color: var(--warn) !important;
+}
+ol.questions-list li.placeholder::before {
+  content: "⚠" !important;
+  background: var(--warn) !important;
+}
+.empty-state.placeholder {
+  text-align: left !important;
+  padding: 0.75rem 1rem !important;
+  border-radius: 6px;
+}
+.pill.placeholder {
+  background: var(--warn-soft-bg) !important;
+  border-color: var(--warn) !important;
+  border-style: dashed !important;
+  color: var(--warn-fg) !important;
+}
+ul.facts.placeholder li {
+  background: var(--warn-soft-bg);
+  border: 1px dashed var(--warn);
+  color: var(--warn-fg);
+  padding: 0.4rem 0.6rem; margin-bottom: 0.3rem;
+  border-radius: 6px; font-weight: 500;
+}
+ol.timeline > li.placeholder .what {
+  color: var(--warn-fg); font-weight: 500;
+}
+ol.timeline > li.placeholder .badge.here {
+  background: var(--warn); border-color: var(--warn);
+}
+
+/* ---- Footer ---- */
+footer {
+  margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);
+  color: var(--muted); font-size: 0.72rem; text-align: center;
+  word-break: break-all;
+}
+
+/* ---- Refresh indicator ---- */
+.refresh-flash {
+  position: fixed; bottom: 1rem; right: 1rem;
+  background: var(--accent); color: white; padding: 0.4rem 0.85rem;
+  border-radius: 999px; font-size: 0.75rem; opacity: 0;
+  pointer-events: none; transition: opacity 0.4s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+.refresh-flash.visible { opacity: 1; }
+
+/* ---- Shared chrome for the landing + project-index pages ---- */
+header.page {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 1rem; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.85rem; margin-bottom: 1rem;
+}
+header.page h1 {
+  margin: 0;
+  font-size: 1.3rem; font-weight: 600; letter-spacing: -0.02em;
+}
+header.page .subtitle {
+  color: var(--muted); font-size: 0.82rem; margin-top: 0.25rem;
+}
+
+.meta {
+  text-align: right;
+  font-size: 0.72rem; color: var(--muted); line-height: 1.65;
+}
+.meta code { word-break: break-all; }
+
+.status {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.2rem 0.5rem; border-radius: 999px;
+  font-size: 0.68rem; font-weight: 500;
+  border: 1px solid;
+}
+.status .dot { width: 6px; height: 6px; border-radius: 50%; }
+.status.live { color: var(--ok-fg);  background: var(--ok-soft-bg);  border-color: var(--ok-soft-br); }
+.status.live .dot { background: var(--ok); }
+.status.dead { color: var(--bad-fg); background: var(--bad-soft-bg); border-color: var(--bad-soft-br); }
+.status.dead .dot { background: var(--bad); }
+
+.stat-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.75rem; margin-bottom: 1rem;
+}
+.stat {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 0.85rem 1rem; box-shadow: var(--shadow-card);
+}
+.stat-value {
+  font-size: 1.5rem; font-weight: 600; color: var(--accent); line-height: 1;
+}
+.stat-label {
+  font-size: 0.7rem; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  margin-top: 0.3rem;
+}
+
+.empty, .err {
+  text-align: center; padding: 1.5rem; font-size: 0.85rem;
+  color: var(--muted); background: var(--card);
+  border: 1px dashed var(--border); border-radius: 10px;
+}
+.err {
+  color: var(--bad-fg); background: var(--bad-soft-bg);
+  border-color: var(--bad-soft-br); border-style: solid;
+}
+
+.skeleton {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  height: 60px; animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* ---- Free-form generic table styles ----
+   Agents put tables in the free-form canvas regularly. Without these
+   styles, plain <table> renders unreadably. Same look as the older
+   one-off .tix class so styling stays consistent across dashboards. */
+section.card.free-form table {
+  width: 100%; border-collapse: collapse; font-size: 0.88rem;
+  margin: 0.5rem 0 1rem;
+}
+section.card.free-form th, section.card.free-form td {
+  padding: 0.4rem 0.55rem; text-align: left; vertical-align: top;
+  border-bottom: 1px solid var(--border); word-break: break-word;
+}
+section.card.free-form th {
+  background: var(--code-bg); font-weight: 600; color: var(--muted);
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em;
+}
+section.card.free-form tr:last-child td { border-bottom: 0; }
+section.card.free-form td code { font-size: 0.85em; }
+
+/* ---- Journey · Decisions timeline ----
+   Vertical, pure CSS, scales with content. Replaces the mermaid-based
+   journey card from v6. Each <li> is one inflection point; the rail
+   on the left is rendered with ::before. Badges encode WHO drove the
+   decision via color. */
+ol.timeline {
+  list-style: none; padding: 0; margin: 0;
+  position: relative;
+}
+ol.timeline::before {
+  content: ""; position: absolute;
+  left: 1.05rem; top: 0.85rem; bottom: 0.85rem;
+  width: 2px; background: var(--border);
+  z-index: 0;
+}
+ol.timeline > li {
+  position: relative;
+  padding: 0.2rem 0 0.65rem 3rem;
+  min-height: 2.2rem;
+}
+ol.timeline > li:last-child { padding-bottom: 0; }
+ol.timeline .badge {
+  position: absolute; left: 0; top: 0.05rem;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.2rem; height: 2.2rem; border-radius: 50%;
+  background: var(--card); border: 2px solid var(--border);
+  font-size: 1rem;
+  z-index: 1;
+}
+ol.timeline .badge.user  { border-color: var(--warn);   background: var(--warn-soft-bg); }
+ol.timeline .badge.agent { border-color: var(--accent); background: var(--accent-soft-bg); }
+ol.timeline .badge.joint { border-color: var(--ok);     background: var(--ok-soft-bg); }
+ol.timeline .badge.here  { border-color: var(--accent); background: var(--accent); color: white; }
+ol.timeline .what {
+  font-weight: 500; font-size: 0.92rem; line-height: 1.45;
+}
+ol.timeline .who-name {
+  color: var(--muted); font-size: 0.78rem;
+  margin-right: 0.4rem; font-weight: 500;
+}
+ol.timeline .why {
+  color: var(--muted); font-size: 0.82rem; margin-top: 0.1rem; line-height: 1.45;
+}
+ol.timeline > li.current .what { color: var(--accent-fg); font-weight: 600; }
+
+/* ---- All-clear banner ----
+   Replaces an empty <ol class="questions-list"> when nothing is pending
+   in the Call-to-action card (or empty Heads-up). Visually unambiguous
+   "no actions needed" — better than rendering an empty list or "None
+   pending" <li>. */
+.all-clear {
+  background: var(--ok-soft-bg);
+  border: 1px solid var(--ok-soft-br);
+  color: var(--ok-fg);
+  padding: 0.55rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  display: inline-flex; align-items: center; gap: 0.5rem;
+}
+
+/* ---- Heads-up card · "Watch deck" table ----
+   Surfaces agent unilateral decisions and lurking risks. Distinct from
+   Call-to-action: this card is FROM the agent (confessions / findings);
+   CTA is FOR the user (blockers). Position in the dashboard: between
+   To-do and Journey.
+   Three severity tiers:
+     RISK = could break, decision uncertain, needs verification
+     FLAG = unilateral choice the user might have wanted to make
+     NOTE = easy-to-miss change worth surfacing
+   Lifecycle: rows are ACKNOWLEDGED not "resolved." When the user reads
+   one, the agent either (a) deletes (waived), (b) promotes to CTA
+   (becomes actionable), or (c) leaves (deferred note). */
+section.card.heads-up {
+  border-left: 3px solid var(--warn);
+}
+table.watch-deck {
+  border-collapse: collapse; width: 100%;
+  font-size: 0.86rem; margin: 0.5rem 0 0.25rem;
+}
+table.watch-deck th, table.watch-deck td {
+  padding: 0.4rem 0.55rem;
+  text-align: left; vertical-align: top;
+  border: 1px solid var(--border);
+  word-break: break-word;
+}
+table.watch-deck th {
+  background: var(--code-bg);
+  font-weight: 600; color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+table.watch-deck th.sev-col, table.watch-deck td.sev-col {
+  width: 4.5rem; white-space: nowrap;
+}
+table.watch-deck td.sev-col span {
+  display: inline-block;
+  padding: 0.12rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.68rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  border: 1px solid;
+}
+table.watch-deck td.sev-col .risk { background: var(--bad-soft-bg);  color: var(--bad-fg);  border-color: var(--bad-soft-br); }
+table.watch-deck td.sev-col .flag { background: var(--warn-soft-bg); color: var(--warn-fg); border-color: var(--warn-soft-br); }
+table.watch-deck td.sev-col .note { background: var(--code-bg);      color: var(--muted);   border-color: var(--border); }
+
+/* Ack column + button — clicking writes to /api/ack/… on the server.
+   Acked rows get a muted style and are reordered to the bottom by
+   dashboard.js. The button toggles to "✓ acked · undo". */
+table.watch-deck th.ack-col, table.watch-deck td.ack-col {
+  width: 6rem; white-space: nowrap; text-align: center;
+}
+button.ack-btn {
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--accent); padding: 0.18rem 0.55rem;
+  border-radius: 4px; cursor: pointer;
+  font: inherit; font-size: 0.78rem;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+button.ack-btn:hover {
+  background: var(--accent-soft-bg);
+  border-color: var(--accent);
+}
+button.ack-btn.acked {
+  background: var(--ok-soft-bg);
+  border-color: var(--ok-soft-br);
+  color: var(--ok-fg);
+}
+button.ack-btn.acked:hover {
+  background: var(--ok);
+  color: white;
+}
+button.ack-btn[disabled] {
+  opacity: 0.5; cursor: wait;
+}
+table.watch-deck tr.acked {
+  opacity: 0.55;
+  background: var(--bg);
+}
+table.watch-deck tr.acked td:not(.ack-col) {
+  color: var(--muted);
+}
+table.watch-deck tr.acked td.sev-col span {
+  opacity: 0.7;
+}
+
+/* ---- Freshness chips (project-index rows + dashboard topnav) ---- */
+/* Drives the state-aware badge that says "updating · 32s", "current",   */
+/* "behind 5m", "last update failed". Reused by Freshness.chipHtml().    */
+.badge.running {
+  color: var(--accent);
+  background: var(--code-bg);
+  border-color: var(--accent);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.badge.failed {
+  color: var(--bad-fg);
+  background: var(--bad-soft-bg);
+  border-color: var(--bad-soft-br);
+  cursor: help;
+}
+.badge.behind {
+  color: var(--warn-fg);
+  background: var(--warn-soft-bg);
+  border-color: var(--warn-soft-br);
+}
+.badge.current {
+  color: var(--ok-fg);
+  background: var(--ok-soft-bg);
+  border-color: var(--ok-soft-br);
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+/* ---- Topnav status group (per-dashboard shell) ---- */
+.topnav .status-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.76rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.topnav .status-group .age { white-space: nowrap; }
+
+/* ---- Recents strip (jump between last N opened dashboards) ---- */
+.recents-strip {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.45rem 1rem;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 0.74rem;
+  color: var(--muted);
+  background: var(--bg);
+}
+.recents-strip .label {
+  font-weight: 500;
+  margin-right: 0.2rem;
+  letter-spacing: 0.02em;
+}
+/* The chips slot is display:contents so chips flow as direct flex children */
+/* of .recents-strip — they inherit its gap + wrap, preserving the original */
+/* spacing now that a toggle sits where the "recent ↔" label used to.       */
+.recents-strip .strip-toggle-slot { display: inline-flex; }
+.recents-strip .strip-chips { display: contents; }
+.recents-strip .strip-empty { color: var(--muted); font-style: italic; }
+.recents-strip .strip-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-right: 0.15rem;
+}
+.recents-strip .strip-toggle .seg {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.recents-strip .strip-toggle .seg + .seg { border-left: 1px solid var(--border); }
+.recents-strip .strip-toggle .seg:hover { color: var(--fg); }
+.recents-strip .strip-toggle .seg.on {
+  background: var(--accent-soft-bg);
+  color: var(--accent-fg);
+  font-weight: 500;
+}
+
+/* Page-wide auth-health banner (regen subagent can't authenticate). Injected */
+/* at the top of <body> by freshness.js on every surface.                     */
+.auth-banner {
+  background: var(--bad-soft-bg);
+  border-bottom: 1px solid var(--bad-soft-br);
+  color: var(--bad-fg);
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.auth-banner .auth-banner-detail {
+  display: block;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  margin-top: 0.15rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.recents-strip a.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  text-decoration: none;
+  color: var(--fg);
+  max-width: 22em;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.recents-strip a.chip:hover {
+  border-color: var(--accent);
+}
+.recents-strip a.chip.here {
+  background: var(--accent-soft-bg);
+  border-color: var(--accent-soft-br);
+  color: var(--accent-fg);
+  cursor: default;
+  pointer-events: none;
+}
+.recents-strip .chip-project {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  border-right: 1px solid var(--border);
+  padding-right: 0.4rem;
+}
+.recents-strip a.chip.here .chip-project { color: var(--accent-fg); }
+.recents-strip .chip-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* State dots — small coloured pip on the chip; full chip lives on the */
+/* dashboard's own status group, the strip just hints. */
+.recents-strip .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  display: inline-block; flex: 0 0 7px;
+}
+.recents-strip .dot.running { background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
+.recents-strip .dot.failed  { background: var(--bad); }
+.recents-strip .dot.behind  { background: var(--warn); }
+.recents-strip .dot.current { background: var(--ok); }
+
+/* ---- Toast notifications (sibling-chat state transitions) ----------- */
+/* freshness.js inserts these via _emitTransitionToasts. Bottom-right    */
+/* fixed stack; auto-dismiss 8s, hover pauses the timer, click navigates */
+/* to the sibling chat's dashboard.                                       */
+.toast-region {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.5rem;
+  z-index: 1000;
+  pointer-events: none;
+  max-width: calc(100vw - 2rem);
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.65rem 0.5rem 0.55rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  font-size: 0.8rem;
+  text-decoration: none;
+  color: var(--fg);
+  max-width: 24em;
+  cursor: pointer;
+  animation: toastSlideIn 0.18s ease-out;
+}
+.toast.success { border-left: 3px solid var(--ok); }
+.toast.failed  { border-left: 3px solid var(--bad); }
+.toast:hover  { border-color: var(--accent); }
+.toast .t-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex: 0 0 8px;
+}
+.toast.success .t-dot { background: var(--ok); }
+.toast.failed  .t-dot { background: var(--bad); }
+.toast .t-msg { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.toast .t-line { font-weight: 500; }
+.toast .t-meta {
+  display: flex;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--muted);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.toast .t-project {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  border-right: 1px solid var(--border);
+  padding-right: 0.4rem;
+}
+.toast .t-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toast .t-close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+  margin-left: 0.15rem;
+}
+.toast .t-close:hover { color: var(--fg); }
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(18px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ---- Regen-errors banner (per-dashboard layout, below topnav) -------- */
+/* Persistent counterpart to the toast — surfaces every un-acked regen   */
+/* failure for THIS chat. Each <li> = one error; dismiss → POST          */
+/* /api/dashboard/<h>/<s>/error/<id>/acknowledge.                         */
+.regen-errors-banner {
+  margin: 0.55rem 0 0.75rem;
+  border: 1px solid var(--bad-soft-br);
+  background: var(--bad-soft-bg);
+  border-radius: 10px;
+  padding: 0.6rem 0.85rem 0.65rem;
+}
+.regen-errors-banner[hidden] { display: none; }
+.regen-errors-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--bad-fg);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.regen-errors-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.regen-error {
+  border: 1px solid var(--bad-soft-br);
+  background: var(--card);
+  border-radius: 6px;
+  padding: 0.4rem 0.55rem;
+}
+.regen-error-head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+.regen-error-kind {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--bad-fg);
+  font-weight: 600;
+}
+.regen-error-when { font-variant-numeric: tabular-nums; }
+.regen-error-dismiss {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.regen-error-dismiss:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.regen-error-dismiss:disabled { opacity: 0.5; cursor: progress; }
+.regen-error-msg {
+  margin: 0.35rem 0 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--code-bg);
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  max-height: 8em;
+  overflow: auto;
+}

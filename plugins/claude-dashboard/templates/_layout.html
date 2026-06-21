@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{shared_head}}
+<title>{{session_title}}</title>
+</head>
+<body class="dashboard">
+
+<nav class="topnav">
+  <a class="back" href="/{{project_hash}}/">← all chats in {{project_label}}</a>
+  <div class="actions" data-theme-slot>
+    <span class="status-group" id="status-group">
+      <span id="status-chip"></span>
+      <time class="age" id="status-age" title="Time since the dashboard was last written.">—</time>
+    </span>
+    <button type="button" id="rebuild-btn"
+            data-session="{{session_uuid}}"
+            data-project="{{project_hash}}"
+            title="Re-run the subagent to regenerate this dashboard from the latest transcript."
+            style="border:1px solid var(--border);background:var(--card);color:var(--muted);border-radius:6px;padding:0.25rem 0.6rem;font:inherit;font-size:0.78rem;cursor:pointer;">
+      ↻ rebuild
+    </button>
+  </div>
+</nav>
+
+<div class="recents-strip" id="recents-strip"
+     data-current-project="{{project_hash}}"
+     data-current-session="{{session_uuid}}"></div>
+
+<!--
+  Persistent regen-error banner. Hidden by default; the inline boot script
+  (renderErrorsBanner) unhides + populates it when /api/dashboard/<h>/<s>.json
+  reports any un-acked entries in regenErrors. Lives in the layout (not the
+  fragment) because errors are SYSTEM-emitted state — the agent doesn't
+  know they happened, and the banner needs to be visible immediately on
+  page load even when the fragment itself is stale.
+-->
+<section id="regen-errors-banner" class="regen-errors-banner" hidden
+         data-project="{{project_hash}}" data-session="{{session_uuid}}">
+  <h2 class="regen-errors-title">Dashboard regen errors</h2>
+  <ol class="regen-errors-list"></ol>
+</section>
+
+{{content}}
+
+<footer>
+  <code>~/.claude/projects/{{project_hash}}/{{session_uuid}}/dashboard.html</code>
+  <span class="regen-metrics" id="regen-metrics" style="color:var(--muted)"
+        title="Regenerations recorded for this chat: tokens consumed and average rebuild time."></span>
+</footer>
+
+<script>
+// Per-dashboard freshness chip + rebuild trigger. Single endpoint
+// (/api/dashboard/<project>/<session>.json) drives both: the chip reads
+// regen state + mtimes, the button POSTs and lets the next poll surface
+// the new "running" state. Adaptive cadence — 3s while running, 30s
+// while idle — keeps the "updating · 32s" counter believable without
+// hammering the server when nothing's happening.
+//
+// DOMContentLoaded gate: deferred scripts (freshness.js) execute BEFORE
+// DOMContentLoaded fires. Without this gate, this inline body script
+// would run during HTML parse — before window.Freshness exists — and
+// any code path that touched it would silently no-op. (Same timing
+// trap that broke the recents strip on first iteration.)
+function _bootDashboardShell() {
+  // Server-side _PROJECT_HASH_RE / _SESSION_UUID_RE guarantee these are
+  // safe to embed directly inside double-quoted JS strings (no quotes,
+  // backslashes, or angle brackets).
+  const PROJECT = "{{project_hash}}";
+  const SESSION = "{{session_uuid}}";
+  const STATUS_URL = "/api/dashboard/" + PROJECT + "/" + SESSION + ".json";
+
+  const chipEl   = document.getElementById("status-chip");
+  const ageEl    = document.getElementById("status-age");
+  const btn      = document.getElementById("rebuild-btn");
+  const bannerEl = document.getElementById("regen-errors-banner");
+  const bannerList = bannerEl ? bannerEl.querySelector(".regen-errors-list") : null;
+  const metricsEl = document.getElementById("regen-metrics");
+
+  let initialized       = false;  // true after the first poll settles
+  let lastDashboardMtime = null;   // epoch seconds; used by ageEl ticker
+  let lastState          = null;   // "running" | "failed" | "behind" | "current" | "no-dashboard"
+  let pollTimer          = null;
+  let ageTimer           = null;
+
+  function escapeHtml(s) {
+    return (s == null ? "" : String(s)).replace(/[&<>"']/g,
+      c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function renderErrorsBanner(errors) {
+    if (!bannerEl || !bannerList) return;
+    const unacked = (errors || []).filter(e => e.ackedAt == null);
+    if (unacked.length === 0) {
+      bannerEl.hidden = true;
+      bannerList.innerHTML = "";
+      return;
+    }
+    // Newest first — the user just-failed turn matters more than a
+    // week-old ghost. ChatState appends, so we reverse here.
+    const sorted = unacked.slice().sort((a, b) => b.at - a.at);
+    bannerList.innerHTML = sorted.map(e => {
+      const when = window.Freshness
+        ? window.Freshness.fmtAge((Date.now() / 1000) - e.at) + " ago"
+        : "";
+      return (
+        '<li class="regen-error" data-error-id="' + escapeHtml(e.id) + '">' +
+          '<div class="regen-error-head">' +
+            '<span class="regen-error-kind">' + escapeHtml(e.kind || "error") + '</span>' +
+            '<span class="regen-error-when">' + escapeHtml(when) + '</span>' +
+            '<button class="regen-error-dismiss" type="button"' +
+                    ' title="Acknowledge — moves this entry out of the active list">' +
+              '✕ dismiss' +
+            '</button>' +
+          '</div>' +
+          '<pre class="regen-error-msg">' + escapeHtml(e.message || "(no message)") + '</pre>' +
+        '</li>'
+      );
+    }).join("");
+    bannerEl.hidden = false;
+  }
+
+  // Click handler: dismiss = POST .../error/<id>/acknowledge. Removes
+  // the entry from the active list (the server keeps it persisted; we
+  // can extend the UI to show "archived errors" later if needed).
+  if (bannerList) {
+    bannerList.addEventListener("click", async (ev) => {
+      const dismissBtn = ev.target.closest(".regen-error-dismiss");
+      if (!dismissBtn) return;
+      const li = dismissBtn.closest("li.regen-error");
+      if (!li) return;
+      const errorId = li.getAttribute("data-error-id");
+      const project = bannerEl.getAttribute("data-project");
+      const session = bannerEl.getAttribute("data-session");
+      dismissBtn.disabled = true;
+      try {
+        const r = await fetch(
+          "/api/dashboard/" + project + "/" + session + "/error/" + errorId + "/acknowledge",
+          { method: "POST", headers: { "Content-Type": "application/json" } }
+        );
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        li.remove();
+        if (bannerList.children.length === 0) {
+          bannerEl.hidden = true;
+        }
+        // Re-poll so the chip drops the "N errors" badge in sync.
+        poll();
+      } catch (_) {
+        dismissBtn.disabled = false;
+      }
+    });
+  }
+
+  function fmtTokens(n) {
+    if (n == null) return "?";
+    return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n);
+  }
+
+  function renderMetrics(m) {
+    if (!metricsEl) return;
+    if (!m || !m.regens) { metricsEl.textContent = ""; return; }
+    const avgS = m.avg_wall_ms != null ? (m.avg_wall_ms / 1000).toFixed(1) + "s" : "?";
+    metricsEl.textContent =
+      " · " + m.regens + " regen" + (m.regens === 1 ? "" : "s") +
+      " · " + fmtTokens(m.input_tokens) + " in / " + fmtTokens(m.output_tokens) + " out" +
+      " · avg " + avgS;
+  }
+
+  function render(info) {
+    if (!window.Freshness) return; // freshness.js still loading
+    chipEl.innerHTML = window.Freshness.chipHtml(info, { showCurrent: true });
+    lastState = window.Freshness.classify(info).state;
+    lastDashboardMtime = info.dashboardMtime;
+    renderErrorsBanner(info.regenErrors);
+    renderMetrics(info.metrics);
+    tickAge();
+  }
+
+  // Local ticker that updates the "Xs ago" label and the running chip's
+  // age string without re-fetching. Saves a round-trip every second.
+  function tickAge() {
+    if (lastDashboardMtime != null) {
+      const ageS = (Date.now() / 1000) - lastDashboardMtime;
+      ageEl.textContent = window.Freshness
+        ? window.Freshness.fmtAge(ageS) + " ago"
+        : "—";
+    } else {
+      ageEl.textContent = "—";
+    }
+    // If a job is running, the chip's own age counter advances too.
+    if (lastState === "running" && chipEl.firstChild) {
+      // Cheap path: re-render the chip with the current clock.
+      // Stored info would let us skip re-classifying, but the round-trip
+      // already happened — this is pure local arithmetic.
+      const child = chipEl.firstChild;
+      if (child.classList && child.classList.contains("running")) {
+        const m = (child.textContent || "").match(/^↻ updating · /);
+        if (m && window.Freshness && currentRegenSince != null) {
+          const ageS = (Date.now() / 1000) - currentRegenSince;
+          child.textContent = "↻ updating · " + window.Freshness.fmtAge(ageS);
+        }
+      }
+    }
+  }
+
+  let currentRegenSince = null;
+
+  async function poll() {
+    try {
+      const r = await fetch(STATUS_URL, { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const info = await r.json();
+      currentRegenSince = info.regen && info.regen.since != null ? info.regen.since : null;
+
+      // Detect a fresh successful regen: dashboard mtime advanced past
+      // what we last loaded the page with. Hard-reload so the new
+      // fragment appears (we can't hot-swap server-rendered HTML).
+      if (initialized &&
+          info.dashboardMtime != null &&
+          (initialDashboardMtime == null || info.dashboardMtime > initialDashboardMtime)) {
+        // Reload when a dashboard newly APPEARS (placeholder → real, null→value)
+        // or when an existing one is regenerated (mtime advances). The
+        // `initialized` gate prevents reloading during the first poll.
+        location.reload();
+        return;
+      }
+      render(info);
+    } catch (e) {
+      chipEl.innerHTML = '<span class="badge failed" title="' +
+        escapeHtml(e.message) + '">⚠ server unreachable</span>';
+    }
+  }
+
+  function schedule() {
+    clearTimeout(pollTimer);
+    const next = lastState === "running" ? 3000 : 30000;
+    pollTimer = setTimeout(async () => { await poll(); schedule(); }, next);
+  }
+
+  // Track the mtime at page load so we can detect "a new dashboard
+  // landed; reload to see it" without confusing it with no-op polls.
+  let initialDashboardMtime = null;
+
+  btn.addEventListener("click", async () => {
+    if (!window.Freshness) return;
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = "↻ requested";
+    try {
+      await window.Freshness.triggerRebuild(PROJECT, SESSION);
+      // Switch to fast polling — the next poll will catch the running
+      // state and `schedule()` will keep it there.
+      setTimeout(async () => { await poll(); schedule(); }, 250);
+      btn.textContent = original;
+      btn.disabled = false;
+    } catch (e) {
+      btn.textContent = "⚠ error";
+      setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2500);
+    }
+  });
+
+  // Boot: one initial poll captures the at-load mtime; subsequent polls
+  // can compare against it to detect a finished regen.
+  poll().then(() => {
+    initialDashboardMtime = lastDashboardMtime;
+    initialized = true;
+    schedule();
+    ageTimer = setInterval(tickAge, 1000);
+  });
+
+  // (Recents strip self-boots from freshness.js — reads data attributes
+  //  off #recents-strip after defer scripts complete.)
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", _bootDashboardShell);
+} else {
+  _bootDashboardShell();
+}
+</script>
+
+</body>
+</html>
