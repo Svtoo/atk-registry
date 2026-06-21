@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{shared_head}}
+<title>{{project_label}} · chat index</title>
+<style>
+  body { padding: 1rem; font-size: 13px; line-height: 1.5; }
+  .wrap { max-width: 100%; margin: 0 auto; }
+
+  .breadcrumb { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.5rem; }
+  .breadcrumb a { color: var(--accent); text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
+
+  .filter-row {
+    display: flex; gap: 0.6rem; margin-bottom: 1rem;
+    flex-wrap: wrap; align-items: center;
+  }
+  .filter-row input {
+    flex: 1; min-width: 180px; padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border); border-radius: 8px;
+    font: inherit; background: var(--card); color: var(--fg);
+  }
+  .filter-row input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .filter-row label {
+    display: flex; align-items: center; gap: 0.35rem;
+    font-size: 0.82rem; color: var(--muted);
+    user-select: none; cursor: pointer;
+  }
+
+  .sessions { display: flex; flex-direction: column; gap: 0.55rem; }
+  .session {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 0.8rem; align-items: center;
+    padding: 0.65rem 0.85rem; background: var(--card);
+    border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: var(--shadow-card);
+  }
+  .session.no-dash { opacity: 0.72; }
+  .when {
+    font-size: 0.74rem; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    min-width: 92px; line-height: 1.3;
+  }
+  .when .date { display: block; color: var(--fg); font-weight: 500; }
+  .titlecol { min-width: 0; }
+  .title { font-weight: 500; font-size: 0.92rem; line-height: 1.35; word-break: break-word; }
+  .title.empty { color: var(--muted); font-style: italic; font-weight: 400; }
+  .prompt {
+    color: var(--muted); font-size: 0.78rem; margin-top: 0.2rem;
+    overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
+    -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+  }
+  .uuid {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.7rem; color: var(--muted); margin-top: 0.15rem;
+  }
+  .right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.3rem; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.2rem 0.55rem; border-radius: 999px;
+    font-size: 0.7rem; font-weight: 500;
+    border: 1px solid; white-space: nowrap;
+  }
+  .badge.dash    { color: var(--ok-fg);   background: var(--ok-soft-bg);   border-color: var(--ok-soft-br); }
+  .badge.nodash  { color: var(--muted);   background: var(--code-bg);     border-color: var(--border); }
+  /* .badge.running / .failed / .behind / .current live in dashboard.css
+     so the per-dashboard topnav and the index share one source of truth. */
+  .session button.rebuild {
+    border: 1px solid var(--border); background: var(--card); color: var(--muted);
+    border-radius: 6px; padding: 0.2rem 0.5rem; font: inherit; font-size: 0.72rem;
+    cursor: pointer; transition: color 0.15s, border-color 0.15s;
+  }
+  .session button.rebuild:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+  .session button.rebuild:disabled { opacity: 0.5; cursor: progress; }
+  .wt-tag {
+    display: inline-block;
+    padding: 0.1rem 0.4rem; margin-top: 0.2rem; margin-right: 0.3rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.68rem; color: var(--muted);
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .size { font-size: 0.7rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .session a.open {
+    text-decoration: none; color: var(--accent); font-weight: 500;
+    font-size: 0.78rem; padding: 0.2rem 0.55rem;
+    border: 1px solid var(--accent); border-radius: 6px;
+  }
+  .session a.open:hover { background: var(--accent); color: white; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="recents-strip" id="recents-strip" style="border-bottom:none;padding:0 0 0.55rem;background:transparent;"></div>
+<div class="breadcrumb"><a href="/">all projects</a> · {{project_label}}</div>
+
+<header class="page">
+  <div>
+    <h1>{{project_label}} · chat index</h1>
+    <div class="subtitle">All Claude Code sessions in this project · auto-refreshes every 30s</div>
+  </div>
+  <div class="meta">
+    <div class="actions" data-theme-slot style="justify-content: flex-end; margin-bottom: 0.3rem;"></div>
+    Project <code>{{project_hash}}</code><br/>
+    <span class="status live" id="status"><span class="dot"></span>live</span><br/>
+    Updated <span id="updated">—</span>
+  </div>
+</header>
+
+<div class="stat-row">
+  <div class="stat"><div class="stat-value" id="stat-total">–</div><div class="stat-label">total chats</div></div>
+  <div class="stat"><div class="stat-value" style="color: var(--ok);" id="stat-dash">–</div><div class="stat-label">with dashboard</div></div>
+  <div class="stat"><div class="stat-value" id="stat-visible">–</div><div class="stat-label">visible</div></div>
+  <div class="stat"><div class="stat-value" id="stat-recent" style="font-size: 0.95rem; line-height: 1.2;">–</div><div class="stat-label">most recent</div></div>
+</div>
+
+<div class="filter-row">
+  <input id="filter" type="search" placeholder="Filter by title or prompt…" />
+  <label><input type="checkbox" id="show-dash-only" /> only with dashboard</label>
+</div>
+
+<div class="sessions" id="sessions">
+  <div class="skeleton"></div>
+  <div class="skeleton" style="animation-delay: 0.1s;"></div>
+  <div class="skeleton" style="animation-delay: 0.2s;"></div>
+</div>
+
+<footer><code>/api/sessions/{{project_hash}}.json</code></footer>
+
+</div>
+
+<script>
+const PROJECT_HASH = "{{project_hash}}";
+
+function fmtSize(bytes) {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + " KB";
+  return (bytes / 1024 / 1024).toFixed(1) + " MB";
+}
+function fmtDate(iso) {
+  const d = new Date(iso);
+  return {
+    date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    time: d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+  };
+}
+// fmtAge + freshnessChip live in assets/freshness.js so the per-dashboard
+// topnav uses the exact same logic. Local thin wrappers here just call it.
+function freshnessChip(s) {
+  return window.Freshness ? window.Freshness.chipHtml(s) : "";
+}
+function escapeHtml(s) {
+  return (s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+async function rebuildSession(sourceHash, uuid, btn) {
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = "queued…";
+  try {
+    await window.Freshness.triggerRebuild(sourceHash, uuid);
+    // Refresh shortly so the new "updating" state shows up.
+    setTimeout(refresh, 500);
+  } catch (e) {
+    btn.textContent = "failed";
+    setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 1800);
+  }
+}
+
+let lastSessions = [];
+
+function renderSessions(sessions) {
+  const q = document.getElementById("filter").value.toLowerCase().trim();
+  const onlyDash = document.getElementById("show-dash-only").checked;
+  const container = document.getElementById("sessions");
+  let visible = 0;
+  const html = [];
+
+  for (const s of sessions) {
+    const matchesQ = !q || (s.aiTitle + " " + s.firstUser + " " + s.uuid + " " + (s.worktreeName || "")).toLowerCase().includes(q);
+    const matchesDash = !onlyDash || s.hasDashboard;
+    if (!(matchesQ && matchesDash)) continue;
+    visible++;
+
+    const classes = ["session"];
+    if (!s.hasDashboard) classes.push("no-dash");
+    const { date, time } = fmtDate(s.mtimeIso);
+    const title = s.aiTitle || "(untitled chat)";
+    const titleClass = s.aiTitle ? "" : "empty";
+
+    // Worktree-sourced chats live in a sibling project-hash dir; the
+    // dashboard URL uses that source hash, not the parent we're viewing.
+    const sourceHash = s.sourceHash || PROJECT_HASH;
+    const dashLink = s.hasDashboard
+      ? `<a class="open" href="/${sourceHash}/${s.uuid}/dashboard.html">open dashboard →</a>`
+      : "";
+    const badge = s.hasDashboard
+      ? `<span class="badge dash">✓ dashboard</span>`
+      : `<span class="badge nodash">no dashboard</span>`;
+    const stateChip = freshnessChip(s);
+    const rebuildBtn = `<button class="rebuild" type="button" data-source="${escapeHtml(sourceHash)}" data-uuid="${escapeHtml(s.uuid)}" title="Regenerate this dashboard from the latest transcript.">↻ rebuild</button>`;
+    const wtTag = s.worktreeName
+      ? `<span class="wt-tag" title="From worktree: ${escapeHtml(s.sourceHash || "")}">wt:${escapeHtml(s.worktreeName)}</span>`
+      : "";
+
+    html.push(`
+      <div class="${classes.join(" ")}">
+        <div class="when"><span class="date">${date}</span>${time}</div>
+        <div class="titlecol">
+          <div class="title ${titleClass}">${escapeHtml(title)}</div>
+          ${s.firstUser ? `<div class="prompt">${escapeHtml(s.firstUser)}</div>` : ""}
+          <div class="uuid">${wtTag}${s.shortUuid}</div>
+        </div>
+        <div class="right">
+          ${badge}
+          ${stateChip}
+          ${dashLink}
+          ${rebuildBtn}
+          <span class="size">${fmtSize(s.size)}</span>
+        </div>
+      </div>
+    `);
+  }
+  container.innerHTML = html.length ? html.join("") : `<div class="empty">No chats match the filter.</div>`;
+  document.getElementById("stat-visible").textContent = visible;
+}
+
+async function refresh() {
+  try {
+    const r = await fetch(`/api/sessions/${PROJECT_HASH}.json`, { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const { sessions } = await r.json();
+    lastSessions = sessions;
+
+    document.getElementById("stat-total").textContent = sessions.length;
+    document.getElementById("stat-dash").textContent = sessions.filter(s => s.hasDashboard).length;
+    if (sessions[0]) {
+      document.getElementById("stat-recent").textContent = fmtDate(sessions[0].mtimeIso).date;
+    }
+    document.getElementById("updated").innerHTML = `<strong>${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</strong>`;
+    document.getElementById("status").className = "status live";
+    document.getElementById("status").innerHTML = `<span class="dot"></span>live`;
+
+    renderSessions(sessions);
+  } catch (e) {
+    document.getElementById("status").className = "status dead";
+    document.getElementById("status").innerHTML = `<span class="dot"></span>server down`;
+    document.getElementById("sessions").innerHTML =
+      `<div class="err">Server unreachable: ${escapeHtml(e.message)}. Run <code>atk start claude-dashboard</code></div>`;
+  }
+}
+
+document.getElementById("filter").addEventListener("input", () => renderSessions(lastSessions));
+document.getElementById("show-dash-only").addEventListener("change", () => renderSessions(lastSessions));
+// Event delegation — rebuild buttons are re-rendered on every refresh.
+document.getElementById("sessions").addEventListener("click", (e) => {
+  const btn = e.target.closest("button.rebuild");
+  if (!btn) return;
+  rebuildSession(btn.dataset.source, btn.dataset.uuid, btn);
+});
+
+// Adaptive polling: tighten the interval whenever a job is running so the
+// "updating · 5s" chip stays believable. Stretches back out to 30s when
+// the fleet is idle.
+let _refreshTimer = null;
+function schedule() {
+  clearTimeout(_refreshTimer);
+  const anyRunning = lastSessions.some(s => s.regen && s.regen.state === "running");
+  const next = anyRunning ? 3_000 : 30_000;
+  _refreshTimer = setTimeout(async () => { await refresh(); schedule(); }, next);
+}
+refresh().then(schedule);
+
+// Recents strip self-boots from freshness.js.
+</script>
+
+</body>
+</html>
