@@ -1,0 +1,34 @@
+schema_version: "2026-01-23"
+name: obsidian-local-rest-api
+description: Obsidian "Local REST API with MCP" vault server (read, search, and edit notes) bridged to stdio
+maturity: verified
+
+vendor:
+  name: Adam Coddington
+  url: https://github.com/coddingtonbear/obsidian-local-rest-api
+  docs: https://coddingtonbear.github.io/obsidian-local-rest-api/
+
+env_vars:
+  - name: OBSIDIAN_API_KEY
+    required: true
+    secret: true
+    description: "Your Local REST API key. Get it in Obsidian: Settings → Community plugins → 'Local REST API' → Options (gear icon); copy the API key shown at the top. Paste it here (pasting the whole 'Bearer …' line also works)."
+  - name: OBSIDIAN_HOST
+    required: false
+    default: https://127.0.0.1:27124
+    description: "Base URL of the Local REST API server. The default https://127.0.0.1:27124 is correct for a standard local Obsidian install; change it only if you moved the plugin's port or run Obsidian on another machine."
+  - name: OBSIDIAN_VERIFY_TLS
+    required: false
+    default: "false"
+    description: "Whether to verify the server's TLS certificate. The plugin uses a self-signed cert, so the default 'false' is correct for localhost; set 'true' only if you have installed and trusted that cert yourself."
+
+mcp:
+  # No `env:` block by design (mirrors langfuse-official-mcp): the wrapper reads
+  # all config — including the secret API key — from this plugin's own .env at
+  # runtime, so no credentials are written into the agent's MCP config, where
+  # `atk mcp show` / `claude mcp get` would print them in plain text.
+  # `atk setup` edits .env; changes apply on the next restart, no re-plug.
+  transport: stdio
+  command: bash
+  args:
+    - "$ATK_PLUGIN_DIR/mcp.sh"
