@@ -54,6 +54,10 @@ plugins:
   path: plugins/notion
   description: Notion integration via MCP — search pages, read and write content,
     manage databases, and keep docs in sync.
+- name: obsidian-local-rest-api
+  path: plugins/obsidian-local-rest-api
+  description: Obsidian "Local REST API with MCP" vault server (read, search, and
+    edit notes) bridged to stdio
 - name: openmemory
   path: plugins/openmemory
   description: Persistent memory layer for AI agents with semantic search and MCP
