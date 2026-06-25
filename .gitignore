@@ -6,3 +6,7 @@ ralph-*.yaml
 ralph-*.lock
 .codanna
 .serena
+
+# Per-plugin runtime config written by `atk add`/`atk setup` — may contain
+# secrets (API keys/tokens). Never commit these; the registry source ships none.
+plugins/*/.env
