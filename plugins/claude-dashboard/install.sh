@@ -12,9 +12,9 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
-PY_OK=$(python3 -c 'import sys; print("yes" if sys.version_info >= (3, 7) else "no")')
+PY_OK=$(python3 -c 'import sys; print("yes" if sys.version_info >= (3, 9) else "no")')
 if [ "$PY_OK" != "yes" ]; then
-  echo "ERROR: python3 >= 3.7 required (need ThreadingHTTPServer)."
+  echo "ERROR: python3 >= 3.9 required (pydantic's floor for the server venv)."
   echo "  current: $(python3 --version)"
   exit 1
 fi
@@ -33,7 +33,13 @@ fi
 # tearing down the running process).
 mkdir -p "$PLUGIN_DIR/runtime"
 
-# Wire the Stop hook + copy hook scripts to ~/.claude/hooks/.
+# The server runs on a pinned virtualenv (the dashboard model is validated with
+# pydantic). Idempotent: `venv` is a no-op if it already exists.
+python3 -m venv "$PLUGIN_DIR/.venv"
+"$PLUGIN_DIR/.venv/bin/pip" install --quiet --upgrade pip
+"$PLUGIN_DIR/.venv/bin/pip" install --quiet -r "$PLUGIN_DIR/requirements.txt"
+
+# Wire the Stop + UserPromptSubmit hooks + copy hook scripts to ~/.claude/hooks/.
 python3 "$PLUGIN_DIR/manage.py" install "$PLUGIN_DIR"
 
 echo "✓ claude-dashboard installed"

@@ -1,26 +1,14 @@
-<!doctype html>
-<html lang="en">
-<head>
-{{shared_head}}
-<title>{{project_label}} · chat index</title>
 <style>
-  body { padding: 1rem; font-size: 13px; line-height: 1.5; }
-  .wrap { max-width: 100%; margin: 0 auto; }
-
-  .breadcrumb { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.5rem; }
-  .breadcrumb a { color: var(--accent); text-decoration: none; }
-  .breadcrumb a:hover { text-decoration: underline; }
-
   .filter-row {
     display: flex; gap: 0.6rem; margin-bottom: 1rem;
     flex-wrap: wrap; align-items: center;
   }
-  .filter-row input {
+  .filter-row input[type="search"] {
     flex: 1; min-width: 180px; padding: 0.5rem 0.75rem;
     border: 1px solid var(--border); border-radius: 8px;
     font: inherit; background: var(--card); color: var(--fg);
   }
-  .filter-row input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .filter-row input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   .filter-row label {
     display: flex; align-items: center; gap: 0.35rem;
     font-size: 0.82rem; color: var(--muted);
@@ -30,9 +18,7 @@
   .sessions { display: flex; flex-direction: column; gap: 0.55rem; }
   .session {
     display: grid; grid-template-columns: auto 1fr auto; gap: 0.8rem; align-items: center;
-    padding: 0.65rem 0.85rem; background: var(--card);
-    border: 1px solid var(--border); border-radius: 10px;
-    box-shadow: var(--shadow-card);
+    padding: 0.65rem 0.85rem;
   }
   .session.no-dash { opacity: 0.72; }
   .when {
@@ -50,31 +36,16 @@
     -webkit-line-clamp: 1; -webkit-box-orient: vertical;
   }
   .uuid {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: var(--mono);
     font-size: 0.7rem; color: var(--muted); margin-top: 0.15rem;
   }
   .right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.3rem; }
-  .badge {
-    display: inline-flex; align-items: center; gap: 0.35rem;
-    padding: 0.2rem 0.55rem; border-radius: 999px;
-    font-size: 0.7rem; font-weight: 500;
-    border: 1px solid; white-space: nowrap;
-  }
   .badge.dash    { color: var(--ok-fg);   background: var(--ok-soft-bg);   border-color: var(--ok-soft-br); }
   .badge.nodash  { color: var(--muted);   background: var(--code-bg);     border-color: var(--border); }
-  /* .badge.running / .failed / .behind / .current live in dashboard.css
-     so the per-dashboard topnav and the index share one source of truth. */
-  .session button.rebuild {
-    border: 1px solid var(--border); background: var(--card); color: var(--muted);
-    border-radius: 6px; padding: 0.2rem 0.5rem; font: inherit; font-size: 0.72rem;
-    cursor: pointer; transition: color 0.15s, border-color 0.15s;
-  }
-  .session button.rebuild:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
-  .session button.rebuild:disabled { opacity: 0.5; cursor: progress; }
   .wt-tag {
     display: inline-block;
     padding: 0.1rem 0.4rem; margin-top: 0.2rem; margin-right: 0.3rem;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: var(--mono);
     font-size: 0.68rem; color: var(--muted);
     background: var(--code-bg); border: 1px solid var(--border);
     border-radius: 4px;
@@ -85,48 +56,25 @@
     font-size: 0.78rem; padding: 0.2rem 0.55rem;
     border: 1px solid var(--accent); border-radius: 6px;
   }
-  .session a.open:hover { background: var(--accent); color: white; }
+  .session a.open:hover { background: var(--accent); color: var(--on-accent); }
 </style>
-</head>
-<body>
-<div class="wrap">
-
-<div class="recents-strip" id="recents-strip" style="border-bottom:none;padding:0 0 0.55rem;background:transparent;"></div>
-<div class="breadcrumb"><a href="/">all projects</a> · {{project_label}}</div>
-
-<header class="page">
-  <div>
-    <h1>{{project_label}} · chat index</h1>
-    <div class="subtitle">All Claude Code sessions in this project · auto-refreshes every 30s</div>
-  </div>
-  <div class="meta">
-    <div class="actions" data-theme-slot style="justify-content: flex-end; margin-bottom: 0.3rem;"></div>
-    Project <code>{{project_hash}}</code><br/>
-    <span class="status live" id="status"><span class="dot"></span>live</span><br/>
-    Updated <span id="updated">—</span>
-  </div>
-</header>
 
 <div class="stat-row">
-  <div class="stat"><div class="stat-value" id="stat-total">–</div><div class="stat-label">total chats</div></div>
-  <div class="stat"><div class="stat-value" style="color: var(--ok);" id="stat-dash">–</div><div class="stat-label">with dashboard</div></div>
-  <div class="stat"><div class="stat-value" id="stat-visible">–</div><div class="stat-label">visible</div></div>
-  <div class="stat"><div class="stat-value" id="stat-recent" style="font-size: 0.95rem; line-height: 1.2;">–</div><div class="stat-label">most recent</div></div>
+  <div class="stat surface"><div class="stat-value" id="stat-total">–</div><div class="stat-label">total chats</div></div>
+  <div class="stat surface"><div class="stat-value stat-value--ok" id="stat-dash">–</div><div class="stat-label">with dashboard</div></div>
+  <div class="stat surface"><div class="stat-value" id="stat-visible">–</div><div class="stat-label">visible</div></div>
+  <div class="stat surface"><div class="stat-value stat-value--sm" id="stat-recent">–</div><div class="stat-label">most recent</div></div>
 </div>
 
 <div class="filter-row">
-  <input id="filter" type="search" placeholder="Filter by title or prompt…" />
+  <input id="filter" type="search" placeholder="Filter by title or prompt…" aria-label="Filter chats by title or prompt" />
   <label><input type="checkbox" id="show-dash-only" /> only with dashboard</label>
 </div>
 
 <div class="sessions" id="sessions">
   <div class="skeleton"></div>
-  <div class="skeleton" style="animation-delay: 0.1s;"></div>
-  <div class="skeleton" style="animation-delay: 0.2s;"></div>
-</div>
-
-<footer><code>/api/sessions/{{project_hash}}.json</code></footer>
-
+  <div class="skeleton"></div>
+  <div class="skeleton"></div>
 </div>
 
 <script>
@@ -137,21 +85,6 @@ function fmtSize(bytes) {
   if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + " KB";
   return (bytes / 1024 / 1024).toFixed(1) + " MB";
 }
-function fmtDate(iso) {
-  const d = new Date(iso);
-  return {
-    date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-    time: d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
-  };
-}
-// fmtAge + freshnessChip live in assets/freshness.js so the per-dashboard
-// topnav uses the exact same logic. Local thin wrappers here just call it.
-function freshnessChip(s) {
-  return window.Freshness ? window.Freshness.chipHtml(s) : "";
-}
-function escapeHtml(s) {
-  return (s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
 
 async function rebuildSession(sourceHash, uuid, btn) {
   btn.disabled = true;
@@ -159,7 +92,6 @@ async function rebuildSession(sourceHash, uuid, btn) {
   btn.textContent = "queued…";
   try {
     await window.Freshness.triggerRebuild(sourceHash, uuid);
-    // Refresh shortly so the new "updating" state shows up.
     setTimeout(refresh, 500);
   } catch (e) {
     btn.textContent = "failed";
@@ -182,23 +114,23 @@ function renderSessions(sessions) {
     if (!(matchesQ && matchesDash)) continue;
     visible++;
 
-    const classes = ["session"];
+    const classes = ["session", "surface"];
     if (!s.hasDashboard) classes.push("no-dash");
-    const { date, time } = fmtDate(s.mtimeIso);
+    const { date, time } = window.Freshness.fmtDateParts(s.mtimeIso);
     const title = s.aiTitle || "(untitled chat)";
     const titleClass = s.aiTitle ? "" : "empty";
 
-    // Worktree-sourced chats live in a sibling project-hash dir; the
-    // dashboard URL uses that source hash, not the parent we're viewing.
+    // A worktree chat lives in a sibling project-hash dir; its dashboard URL
+    // uses that source hash, not the parent being viewed.
     const sourceHash = s.sourceHash || PROJECT_HASH;
     const dashLink = s.hasDashboard
-      ? `<a class="open" href="/${sourceHash}/${s.uuid}/dashboard.html">open dashboard →</a>`
+      ? `<a class="open" href="${window.Freshness.dashboardHref(sourceHash, s.uuid)}">open dashboard →</a>`
       : "";
     const badge = s.hasDashboard
       ? `<span class="badge dash">✓ dashboard</span>`
       : `<span class="badge nodash">no dashboard</span>`;
-    const stateChip = freshnessChip(s);
-    const rebuildBtn = `<button class="rebuild" type="button" data-source="${escapeHtml(sourceHash)}" data-uuid="${escapeHtml(s.uuid)}" title="Regenerate this dashboard from the latest transcript.">↻ rebuild</button>`;
+    const stateChip = window.Freshness.chipHtml(s);
+    const rebuildBtn = `<button class="btn-quiet rebuild" type="button" data-source="${escapeHtml(sourceHash)}" data-uuid="${escapeHtml(s.uuid)}" title="Regenerate this dashboard from the latest transcript.">↻ rebuild</button>`;
     const wtTag = s.worktreeName
       ? `<span class="wt-tag" title="From worktree: ${escapeHtml(s.sourceHash || "")}">wt:${escapeHtml(s.worktreeName)}</span>`
       : "";
@@ -235,16 +167,15 @@ async function refresh() {
     document.getElementById("stat-total").textContent = sessions.length;
     document.getElementById("stat-dash").textContent = sessions.filter(s => s.hasDashboard).length;
     if (sessions[0]) {
-      document.getElementById("stat-recent").textContent = fmtDate(sessions[0].mtimeIso).date;
+      document.getElementById("stat-recent").textContent =
+        window.Freshness.fmtDateParts(sessions[0].mtimeIso).date;
     }
-    document.getElementById("updated").innerHTML = `<strong>${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</strong>`;
-    document.getElementById("status").className = "status live";
-    document.getElementById("status").innerHTML = `<span class="dot"></span>live`;
+    window.Freshness.stampUpdated();
+    window.Freshness.setPageStatus(true);
 
     renderSessions(sessions);
   } catch (e) {
-    document.getElementById("status").className = "status dead";
-    document.getElementById("status").innerHTML = `<span class="dot"></span>server down`;
+    if (window.Freshness) window.Freshness.setPageStatus(false);
     document.getElementById("sessions").innerHTML =
       `<div class="err">Server unreachable: ${escapeHtml(e.message)}. Run <code>atk start claude-dashboard</code></div>`;
   }
@@ -252,16 +183,14 @@ async function refresh() {
 
 document.getElementById("filter").addEventListener("input", () => renderSessions(lastSessions));
 document.getElementById("show-dash-only").addEventListener("change", () => renderSessions(lastSessions));
-// Event delegation — rebuild buttons are re-rendered on every refresh.
+// Rebuild buttons are re-rendered on every refresh, so the handler delegates.
 document.getElementById("sessions").addEventListener("click", (e) => {
   const btn = e.target.closest("button.rebuild");
   if (!btn) return;
   rebuildSession(btn.dataset.source, btn.dataset.uuid, btn);
 });
 
-// Adaptive polling: tighten the interval whenever a job is running so the
-// "updating · 5s" chip stays believable. Stretches back out to 30s when
-// the fleet is idle.
+// 3s while a regen is running keeps the "updating · 5s" chip honest; 30s idle.
 let _refreshTimer = null;
 function schedule() {
   clearTimeout(_refreshTimer);
@@ -270,9 +199,4 @@ function schedule() {
   _refreshTimer = setTimeout(async () => { await refresh(); schedule(); }, next);
 }
 refresh().then(schedule);
-
-// Recents strip self-boots from freshness.js.
 </script>
-
-</body>
-</html>

@@ -3,7 +3,7 @@
 A live, per-chat executive dashboard for Claude Code sessions. Runs a small
 localhost HTTP server that browses your `~/.claude/projects/` directory and,
 after every turn, regenerates a visual `dashboard.html` for the active chat so
-you can see the state of a session at a glance in the Code preview pane (or any
+you can see the state of a session at a glance in the Code Browser pane (or any
 browser).
 
 It serves three things:
@@ -11,8 +11,9 @@ It serves three things:
 - **Top-level landing**: every project with chat history, with drill-in links
 - **Per-project chat index**: every chat in a project (title, first prompt, and
   which ones have a dashboard)
-- **Per-session dashboards**: a visual summary of the chat (facts, open
-  questions, to-dos, artifacts, timeline) that the plugin keeps up to date
+- **Per-session dashboards**: a visual summary of the chat (glance header,
+  call to action, to-do, heads-up, journey, freeform canvas) that the plugin
+  keeps up to date
 
 This plugin is **Claude Code-specific**: it reads the JSONL transcript layout
 Claude Code writes under `~/.claude/projects/<project-hash>/<session-uuid>.jsonl`.
@@ -25,8 +26,10 @@ static data:
 1. Installing the plugin registers a **global Claude Code `Stop` hook** in
    `~/.claude/settings.json`. It fires after every turn, in every project.
 2. The hook POSTs the active session id to the local server's `/api/regen`.
-3. The server runs `claude -p` (Sonnet by default) against the recent transcript
-   and writes a fresh `dashboard.html` for that session.
+3. The server owns each dashboard as typed state. `claude -p` (Sonnet by
+   default) reads the recent transcript plus a digest of that state and emits a
+   small validated op-set (a delta) which the server folds in, renders, and
+   writes as a fresh `dashboard.html` for that session.
 
 **This means every turn triggers a billed model call.** It runs on your Claude
 subscription: the plugin deliberately strips `ANTHROPIC_API_KEY` and
@@ -36,9 +39,25 @@ never a metered API key. With the default Sonnet model the per-turn cost is
 small, but it is not zero, and it accrues across every chat while the server is
 running. Stop it any time with `atk stop claude-dashboard`.
 
+### Browser pane
+
+In the Claude Code Browser pane you can watch the active chat's dashboard
+without leaving the editor. Installing the plugin registers a `UserPromptSubmit`
+hook that, on each chat's first prompt, asks the agent to open this chat's
+dashboard URL
+(`http://localhost:7878/<project-hash>/<session-uuid>/dashboard.html`) directly
+in the pane. The instruction carries the URL, so you can also ask the agent
+to reopen the dashboard any time the pane is closed. A new session id (resume /
+clear / compact) re-injects for the new chat.
+
+This integration is **opt-out**. Set `CCD_PREVIEW_PANE=false` (see
+Configuration) to turn it off entirely: the server runs and dashboards still
+regenerate, but no open instruction is injected.
+
 ## Requirements
 
-- **Python 3.7+** (standard library only; no third-party packages to install).
+- **Python 3.9+**. `install.sh` creates a pinned virtualenv inside the plugin
+  (`.venv`, pydantic) that the server runs on; nothing is installed globally.
 - **An authenticated `claude` CLI on your `PATH`**, the same one Claude Code
   uses, signed in to a Claude subscription. Without it the server still serves
   the browse and index UI, but per-session dashboards cannot be generated.
@@ -52,26 +71,30 @@ atk start claude-dashboard                # launch the server
 open http://localhost:7878/
 ```
 
-`atk install` writes the `Stop` hook into `~/.claude/settings.json`. **Restart
-Claude Code once** afterwards so it picks up the new hook registration. Hook
-*content* changes thereafter take effect automatically; only the registration
-needs the restart. `atk uninstall claude-dashboard` removes the hook and
-its settings entry cleanly.
+`atk install` writes two hooks into `~/.claude/settings.json`: a `Stop` hook
+(regenerates the dashboard) and a `UserPromptSubmit` hook (once per session,
+tells the agent to open the current chat's dashboard URL in the Browser pane).
+**Restart Claude Code once** afterwards so
+it picks up the new hook registrations. Hook *content* changes thereafter take
+effect automatically; only the registration needs the restart. `atk uninstall
+claude-dashboard` removes both hooks and their settings entries cleanly.
 
 ## Configuration
 
-All settings are optional atk-level config (declared in `plugin.yaml`), stored
-in the plugin's `.env` and injected when the server starts. Defaults are shown
-below.
+`CCD_MODEL`, `CCD_REGEN_TIMEOUT` and `CCD_LOG_LEVEL` are runtime settings: the
+**Settings page** (`http://localhost:7878/settings`) changes them live, no
+restart needed, and writes them back to the plugin's `.env`. The rest are
+fixed at startup, stored in `.env` (declared in `plugin.yaml`) and injected
+when the server starts. Defaults are shown below.
 
 | Variable              | Default              | Description                                                      |
 |-----------------------|----------------------|-----------------------------------------------------------------|
 | `PORT`                | `7878`               | TCP port the dashboard server binds (loopback only; set in `.env`) |
 | `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Path the server reads chat history from                         |
 | `CCD_MODEL`           | `sonnet`             | Model `claude -p` uses to regenerate dashboards (e.g. `haiku`)  |
-| `CCD_N_TURNS`         | `6`                  | Recent chat turns fed into each regeneration                    |
-| `CCD_MAX_TRANSCRIPT_WORDS` | `20000`         | Word budget for the recent transcript; older whole turns dropped to fit, the most recent turn always kept in full |
 | `CCD_REGEN_TIMEOUT`   | `180`                | Seconds before a wedged `claude -p` regeneration is killed       |
+| `CCD_LOG_LEVEL`       | `INFO`               | `DEBUG` additionally dumps each regen's full prompt into `runtime/server.log` |
+| `CCD_PREVIEW_PANE`    | `true`               | Auto-open each chat's dashboard URL in the Code Browser pane; the agent can also reopen it on request. `false` turns the Browser-pane integration off; the server and regeneration still run |
 
 ## Usage
 
@@ -81,6 +104,10 @@ After `atk start claude-dashboard`:
 - **A project**: click a tile to see its chats and open any dashboard.
 - **A chat's dashboard**:
   `http://localhost:7878/<project-hash>/<session-uuid>/dashboard.html`.
+- **Stats**: `http://localhost:7878/stats` shows every regen the server has run:
+  cost, wall time, failures, and what drives them.
+- **Settings**: `http://localhost:7878/settings` changes the runtime settings
+  live.
 
 The browse pages refresh every 30 seconds; per-session dashboards update
 automatically after each turn via the regen pipeline above.
@@ -108,6 +135,7 @@ subscription.
 | Route                                               | Source                                            |
 |-----------------------------------------------------|---------------------------------------------------|
 | `GET /`                                             | projects landing (templated)                      |
+| `GET /stats` / `GET /settings`                      | generation stats / runtime settings pages         |
 | `GET /<project-hash>/`                              | per-project chat index (templated)                |
 | `GET /<project-hash>/<session-uuid>/dashboard.html` | the generated dashboard for that session          |
 | `GET /api/projects.json`                            | all projects with chat counts and mtimes          |
@@ -115,35 +143,15 @@ subscription.
 | `GET /api/recents.json` / `GET /api/latest.json`    | recently-opened queue / freshest dashboards       |
 | `GET /api/dashboard/<hash>/<uuid>.json`             | per-chat status, acks, regen errors, metrics      |
 | `GET /api/metrics.json` / `GET /api/health.json`    | cumulative regen metrics / regen-auth health      |
+| `GET /api/stats.json?range=…`                       | aggregated regen telemetry for the stats page     |
+| `GET`/`POST /api/settings.json`                     | read / change one runtime setting                 |
 | `POST /api/regen`                                   | regenerate one session's dashboard (hook-driven)  |
 | `POST`/`DELETE /api/dashboard/.../acknowledge/...`  | ack / un-ack a heads-up row or a regen error      |
 | `GET /assets/<path>`                                | plugin static assets (CSS, JS, icon)              |
+| `GET /<project-hash>/<file…>`                       | any other file in a session dir (never `.jsonl`)  |
 
 The server parses each `.jsonl` once and caches the `ai-title` and first user
 message by mtime, so browsing stays fast across many projects.
-
-## Files
-
-- [`plugin.yaml`](./plugin.yaml): ATK plugin metadata, ports, lifecycle, config
-- [`SYSTEM.md`](./SYSTEM.md): the system prompt that drives dashboard regeneration
-- [`server/serve.py`](./server/serve.py): the HTTP server
-- [`server/regen.py`](./server/regen.py): the `claude -p` regeneration pipeline
-- [`server/store.py`](./server/store.py): the SQLite store (recents + regen metrics)
-- [`server/chat_state.py`](./server/chat_state.py): per-chat ack / regen-error sidecars
-- [`server/logging_config.py`](./server/logging_config.py): rotating-file logging setup
-- [`hooks/dashboard-update-hook.sh`](./hooks/dashboard-update-hook.sh): the Stop hook
-- [`manage.py`](./manage.py): installs / removes the Stop hook (used by install.sh)
-- [`templates/`](./templates): landing, index, and dashboard layout templates
-- [`install.sh`](./install.sh) / [`start.sh`](./start.sh) / [`stop.sh`](./stop.sh) / [`uninstall.sh`](./uninstall.sh): lifecycle
-- [`run_tests.sh`](./run_tests.sh): run the unit test suites
-
-## License
-
-Copyright (C) 2026 Oleksandr (Sasha) Antoshchenko.
-
-[AGPL-3.0-or-later](./LICENSE). Free to use, modify, and redistribute, including
-over a network, provided derivative works stay open source under the same
-license.
 
 ## Links
 

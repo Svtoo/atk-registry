@@ -12,6 +12,14 @@ if [ -f "$PLUGIN_DIR/.env" ]; then
 fi
 PORT="${PORT:-7878}"
 
+# The server runs on the plugin's pinned virtualenv (pydantic lives there);
+# install.sh creates it.
+PY="$PLUGIN_DIR/.venv/bin/python"
+if [ ! -x "$PY" ]; then
+  echo "ERROR: virtualenv missing at $PLUGIN_DIR/.venv — run install.sh first."
+  exit 1
+fi
+
 mkdir -p "$PLUGIN_DIR/runtime"
 
 # Reap stale PID file if the process is gone.
@@ -39,7 +47,7 @@ fi
 # env. The server's RotatingFileHandler owns server.log; discard the detached
 # process's stdout/stderr (nothing useful goes there once logging is up, and a
 # pre-logging crash is rare and visible by running serve.py directly).
-PYTHONDONTWRITEBYTECODE=1 nohup python3 "$PLUGIN_DIR/server/serve.py" >/dev/null 2>&1 &
+PYTHONDONTWRITEBYTECODE=1 nohup "$PY" "$PLUGIN_DIR/server/serve.py" >/dev/null 2>&1 &
 PID=$!
 echo "$PID" > "$PID_FILE"
 disown "$PID" 2>/dev/null || true
@@ -56,7 +64,7 @@ for i in $(seq 1 20); do
     echo "ERROR: server process exited during startup"
     echo "  last log lines:"
     tail -20 "$LOG_FILE" 2>/dev/null | sed 's/^/    /'
-    echo "  (run 'python3 $PLUGIN_DIR/server/serve.py' directly to see startup errors)"
+    echo "  (run '$PY $PLUGIN_DIR/server/serve.py' directly to see startup errors)"
     rm -f "$PID_FILE"
     exit 1
   fi

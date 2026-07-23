@@ -1,0 +1,27 @@
+<style>
+  .ccd-pending { max-width: 34rem; margin: 2.5rem auto; text-align: center; }
+  .ccd-pending h1 { margin: 0 0 0.25rem; }
+  .ccd-pending .lead {
+    font-size: 1.05rem; font-weight: 600; color: var(--fg);
+    margin: 0.3rem 0 0.9rem;
+  }
+  .ccd-pending p { color: var(--muted); font-size: 0.92rem; line-height: 1.65; margin: 0.7rem 0; }
+  .ccd-spinner {
+    width: 28px; height: 28px; margin: 0 auto 0.6rem; border-radius: 50%;
+    border: 3px solid var(--border); border-top-color: var(--accent);
+    animation: ccd-spin 0.9s linear infinite;
+  }
+  @keyframes ccd-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .ccd-spinner { animation: none; } }
+</style>
+<section class="ccd-pending">
+  <div class="ccd-spinner" aria-hidden="true"></div>
+  <h1>Your live dashboard</h1>
+  <p class="lead" id="ccd-pending-lead">Waiting for the first reply…</p>
+  <p>This pane shows a live, at-a-glance summary of <strong>this chat</strong>:
+  the key facts, decisions, open questions, and to-dos, rebuilt automatically
+  after every reply.</p>
+  <p>It is generated from the conversation, so there is nothing to show until
+  the agent responds. Your dashboard will appear <strong>automatically</strong>
+  here once the first reply finishes. No action needed, just keep working.</p>
+</section>

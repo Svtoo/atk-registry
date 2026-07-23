@@ -1,0 +1,18 @@
+Looking at this turn, the experiment is done and the architecture is settled — I'll mark the todo, add a journey beat, and finalize the freeform.
+
+<update>
+{"phase":"building","ops":[
+  {"op":"todo.upsert","id":"t31","status":"done","reason":"experiment underway"},
+  {"op":"journey.add","kind":"agent","what":"Server owns render","why":"kills re-emission"},
+  {"op":"freeform.upsert","id":"f2","reason":"architecture finalized","htmlRef":"f2-body"}
+]}
+</update>
+
+<freeform ref="f2-body">
+<section class="card free-form"><h2>🏗 Regen v2 — data flow</h2><svg viewBox="0 0 400 120" role="img" aria-label="flow"><rect x="4" y="4" width="120" height="40" rx="6" fill="#0b5" stroke="#083"/><text x="12" y="28" font-size="12" fill="#fff">agent → ops</text><line x1="124" y1="24" x2="200" y2="24" stroke="#888" stroke-width="2"/><rect x="200" y="4" width="180" height="40" rx="6" fill="#05b"/><text x="210" y="28" font-size="12" fill="#fff">server: apply_ops + render</text></svg><table><thead><tr><th>Stage</th><th>Owner</th><th>Note</th></tr></thead><tbody><tr><td>digest</td><td>server</td><td>ids + labels; freeform bodies elided</td></tr><tr><td>emit</td><td>agent</td><td>op-set, e.g. <code>{"op":"todo.set","id":"t31","status":"done"}</code></td></tr><tr><td>fold</td><td>server</td><td>mints ids; renders <code>todo-list li.done</code></td></tr></tbody></table><pre><code>{
+  "port": 7878,
+  "model": "sonnet",
+  "budget": {"soft_words": 120, "hard_ops": 8},
+  "note": "a raw ]]> sequence must survive intact"
+}</code></pre><p>Edge cases: <strong>"double"</strong>, 'single', &amp; ampersand, &lt;angle&gt;, emoji 🚀, café.</p></section>
+</freeform>

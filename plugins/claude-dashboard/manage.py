@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Plugin manager for claude-dashboard.
 
-Idempotently installs/uninstalls the Stop hook that fires the headless
-dashboard updater. The HTTP server's lifecycle is independent — handled
-by start.sh/stop.sh and atk start/stop.
+Idempotently installs/uninstalls the plugin's Claude Code hooks: a Stop hook
+(fires the headless dashboard regen) and a UserPromptSubmit hook (injects the
+once-per-session Browser-pane open instruction), and strips any stale
+SessionStart hook entry. The HTTP server's lifecycle is separate (start.sh /
+stop.sh / atk start/stop).
 
 Usage:
     manage.py install <plugin_dir>
@@ -22,22 +24,39 @@ SETTINGS_PATH = CLAUDE_DIR / "settings.json"
 
 HOOK_SCRIPTS = [
     "dashboard-update-hook.sh",
+    "dashboard-open-hook.sh",
 ]
 
-# Stable identifier for OUR hook entry, independent of the exact command string
-# (which now bakes in an absolute DASHBOARD_PORT_FILE path so the copied hook can find
-# the running server's port). Matching on this substring keeps install/uninstall
-# idempotent and lets an upgrade replace an older command form cleanly.
-HOOK_COMMAND_MARKER = "dashboard-update-hook.sh"
+# Our hook entries are matched by the script name in their command (independent
+# of the exact command string, which bakes in absolute paths). Matching on these
+# keeps install/uninstall idempotent and lets an upgrade replace an older form.
+HOOK_COMMAND_MARKERS = tuple(HOOK_SCRIPTS)
 
-OWNED_EVENTS = ("Stop",)
+# event -> the hook script that owns it. Stop fires the regen; UserPromptSubmit
+# injects the once-per-session Browser-pane open instruction. UserPromptSubmit
+# (not SessionStart) because SessionStart additionalContext suppresses Claude
+# Code's chat-title generation.
+OWNED_EVENTS = ("Stop", "UserPromptSubmit")
+
+# install()/uninstall() also strip our entries from these events (an older
+# layout registered the open hook on SessionStart).
+LEGACY_EVENTS = ("SessionStart",)
 
 
-def owned_hook_command(plugin_dir: Path) -> str:
-    # DASHBOARD_PORT_FILE lets the hook read the server's actual bound port — the hook
-    # runs inside Claude Code's process, outside atk's env injection, so it can't
-    # otherwise learn a non-default port. bash runs the copy in ~/.claude/hooks/.
-    return f"DASHBOARD_PORT_FILE={plugin_dir / 'runtime' / 'port'} bash {HOOKS_DIR}/dashboard-update-hook.sh"
+def owned_hook_command(event: str, plugin_dir: Path) -> str:
+    # Absolute paths are baked in because the copied hook runs inside Claude
+    # Code's process, outside atk's env injection, so it cannot otherwise find
+    # the plugin or the server's bound port. bash runs the copy in ~/.claude/hooks/.
+    if event == "Stop":
+        # DASHBOARD_PORT_FILE lets the regen hook read the server's actual port.
+        return (
+            f"DASHBOARD_PORT_FILE={plugin_dir / 'runtime' / 'port'} "
+            f"bash {HOOKS_DIR}/dashboard-update-hook.sh"
+        )
+    if event == "UserPromptSubmit":
+        # DASHBOARD_PLUGIN_DIR lets the open hook find preview/session_open.py.
+        return f"DASHBOARD_PLUGIN_DIR={plugin_dir} bash {HOOKS_DIR}/dashboard-open-hook.sh"
+    raise ValueError(f"no hook command defined for event {event!r}")
 
 
 def owned_hooks(plugin_dir: Path) -> dict:
@@ -46,7 +65,7 @@ def owned_hooks(plugin_dir: Path) -> dict:
             "hooks": [
                 {
                     "type": "command",
-                    "command": owned_hook_command(plugin_dir),
+                    "command": owned_hook_command(event, plugin_dir),
                     "timeout": 5,
                 }
             ]
@@ -78,11 +97,12 @@ def write_settings(data: dict) -> None:
 
 
 def hook_entry_matches(existing_entry: dict) -> bool:
-    """Is this settings entry OUR hook? Matched by the script-name marker so it
-    recognises any command form we have shipped (with or without DASHBOARD_PORT_FILE),
-    keeping upgrades and uninstall idempotent."""
+    """Is this settings entry OUR hook? Matched by hook-script name so it
+    recognises any command form we have shipped, keeping upgrades and uninstall
+    idempotent."""
     for h in existing_entry.get("hooks", []):
-        if HOOK_COMMAND_MARKER in (h.get("command") or ""):
+        command = h.get("command") or ""
+        if any(marker in command for marker in HOOK_COMMAND_MARKERS):
             return True
     return False
 
@@ -114,6 +134,17 @@ def install(plugin_dir: Path) -> None:
         hooks[event] = filtered
         print(f"  Configured: {event} hook")
 
+    # Drop our entries from LEGACY_EVENTS.
+    for event in LEGACY_EVENTS:
+        existing_entries = hooks.get(event, [])
+        filtered = [e for e in existing_entries if not hook_entry_matches(e)]
+        if len(filtered) != len(existing_entries):
+            print(f"  Removed stale {event} hook entry")
+        if filtered:
+            hooks[event] = filtered
+        elif event in hooks:
+            del hooks[event]
+
     write_settings(settings)
 
     verify = read_settings()
@@ -142,7 +173,7 @@ def uninstall(plugin_dir: Path) -> None:
         settings = read_settings()
         hooks = settings.get("hooks", {})
 
-        for event in OWNED_EVENTS:
+        for event in (*OWNED_EVENTS, *LEGACY_EVENTS):
             existing = hooks.get(event, [])
             filtered = [e for e in existing if not hook_entry_matches(e)]
             if filtered:

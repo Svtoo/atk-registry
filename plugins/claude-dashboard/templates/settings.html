@@ -1,0 +1,155 @@
+<style>
+  .setting { padding: 0.9rem 1.05rem; margin-bottom: 0.7rem; }
+  .setting.fixed { margin-top: 1.4rem; margin-bottom: 0; }
+  .setting .name { font-size: 0.95rem; font-weight: 600; color: var(--fg); }
+  .setting .help { font-size: 0.8rem; color: var(--muted); margin: 0.15rem 0 0.7rem; }
+  .setting .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .setting input, .setting select {
+    font: inherit; font-size: 0.9rem; padding: 0.35rem 0.6rem;
+    background: var(--bg); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 8px; min-width: 8rem;
+  }
+  .setting input:focus, .setting select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .setting button { font-size: 0.82rem; padding: 0.35rem 0.85rem; border-radius: 8px; }
+  .setting .unit { font-size: 0.8rem; color: var(--muted); }
+  .setting .note { font-size: 0.8rem; margin-left: 0.2rem; }
+  .setting .note.ok { color: var(--ok); }
+  .setting .note.bad { color: var(--bad); }
+  .setting .default { font-size: 0.74rem; color: var(--muted); margin-top: 0.45rem; }
+
+  .setting dl {
+    display: grid; grid-template-columns: auto 1fr; gap: 0.4rem 1rem;
+    margin: 0 0 0.9rem; font-size: 0.82rem; align-items: baseline;
+  }
+  .setting dt { color: var(--muted); }
+  .setting dd {
+    margin: 0; color: var(--fg);
+    font-family: var(--mono);
+    font-size: 0.78rem; word-break: break-all;
+  }
+  .cmds { display: flex; flex-direction: column; gap: 0.4rem; }
+  .cmd {
+    display: flex; align-items: center; gap: 0.6rem;
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.4rem 0.65rem;
+  }
+  .cmd code {
+    background: none; padding: 0; font-size: 0.8rem; color: var(--fg);
+  }
+  .cmd button { margin-left: auto; font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 5px; }
+</style>
+
+<div id="body"><div class="muted-note" style="color:var(--muted)">Loading…</div></div>
+
+<script>
+"use strict";
+const esc = window.escapeHtml;
+
+function control(s) {
+  if (s.choices) {
+    const opts = s.choices.map(c =>
+      `<option value="${esc(c)}"${String(c) === String(s.value) ? " selected" : ""}>${esc(c)}</option>`).join("");
+    return `<select data-input="${esc(s.name)}" aria-label="${esc(s.label)}">${opts}</select>`;
+  }
+  if (s.kind === "float" || s.kind === "int") {
+    const min = s.minimum != null ? ` min="${s.minimum}"` : "";
+    const max = s.maximum != null ? ` max="${s.maximum}"` : "";
+    return `<input type="number" data-input="${esc(s.name)}" aria-label="${esc(s.label)}" value="${esc(s.value)}"${min}${max} />`;
+  }
+  return `<input type="text" data-input="${esc(s.name)}" aria-label="${esc(s.label)}" value="${esc(s.value)}" />`;
+}
+
+function rangeHint(s) {
+  if (s.minimum != null && s.maximum != null) return ` · allowed ${s.minimum} to ${s.maximum}`;
+  return "";
+}
+
+function render(data) {
+  const cards = data.settings.map(s => `
+    <div class="setting surface">
+      <div class="name">${esc(s.label)}</div>
+      <div class="help">${esc(s.help)}</div>
+      <div class="row">
+        ${control(s)}
+        ${s.name === "CCD_REGEN_TIMEOUT" ? '<span class="unit">seconds</span>' : ""}
+        <button type="button" class="btn-quiet" data-save="${esc(s.name)}" aria-label="Save ${esc(s.label)}">Save</button>
+        <span class="note" data-note="${esc(s.name)}" role="status"></span>
+      </div>
+      <div class="default">Default ${esc(s.default)}${rangeHint(s)}</div>
+    </div>`).join("");
+
+  const ro = data.readonly || {};
+  const setup = "atk setup claude-dashboard";
+  const restart = "atk restart claude-dashboard";
+  document.getElementById("body").innerHTML = cards + `
+    <div class="setting fixed surface">
+      <div class="name">Set when the plugin is installed</div>
+      <div class="help">These cannot change while the server is running.</div>
+      <dl>
+        <dt>Port</dt><dd>${esc(ro.port)}</dd>
+        <dt>Chats folder</dt><dd>${esc(ro.projects_dir)}</dd>
+      </dl>
+      <div class="help" style="margin-bottom:0.5rem">To change them, run these two commands in a terminal.</div>
+      <div class="cmds">
+        <div class="cmd"><code>${esc(setup)}</code><button type="button" class="btn-quiet" data-copy="${esc(setup)}">Copy</button></div>
+        <div class="cmd"><code>${esc(restart)}</code><button type="button" class="btn-quiet" data-copy="${esc(restart)}">Copy</button></div>
+      </div>
+    </div>`;
+
+  document.querySelectorAll("[data-save]").forEach(btn => {
+    btn.addEventListener("click", () => save(btn.dataset.save, btn));
+  });
+  document.querySelectorAll("[data-copy]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(btn.dataset.copy); } catch (_) { /* not fatal */ }
+      const original = btn.textContent;
+      btn.textContent = "Copied";
+      setTimeout(() => { btn.textContent = original; }, 1200);
+    });
+  });
+}
+
+async function save(name, btn) {
+  const input = document.querySelector(`[data-input="${name}"]`);
+  const note = document.querySelector(`[data-note="${name}"]`);
+  if (!input || !note) return;
+  btn.disabled = true;
+  note.className = "note";
+  note.textContent = "";
+  try {
+    const r = await fetch("/api/settings.json", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, value: input.value }),
+    });
+    const out = await r.json().catch(() => ({}));
+    if (!r.ok || !out.ok) throw new Error(out.error || ("HTTP " + r.status));
+    note.className = "note ok";
+    note.textContent = out.applies_now ? "Saved, in effect now" : "Saved, applies after a restart";
+    if (window.Freshness) window.Freshness.setPageStatus(true);
+  } catch (e) {
+    note.className = "note bad";
+    note.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function load() {
+  try {
+    const r = await fetch("/api/settings.json", { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    render(await r.json());
+    if (window.Freshness) {
+      window.Freshness.setPageStatus(true);
+      window.Freshness.stampUpdated();
+    }
+  } catch (e) {
+    document.getElementById("body").innerHTML =
+      `<div class="err">Could not load settings: ${esc(e.message)}</div>`;
+    if (window.Freshness) window.Freshness.setPageStatus(false);
+  }
+}
+
+load();
+</script>

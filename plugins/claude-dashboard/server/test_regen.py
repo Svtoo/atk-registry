@@ -6,12 +6,14 @@ every path is exercised in-process. Run with: python3 test_regen.py
 
 from __future__ import annotations
 
+import sqlite3
 import tempfile
 import threading
 import time
 from pathlib import Path
 
 import regen
+import store
 
 SESS = "sess-test-0001"
 
@@ -23,46 +25,6 @@ def wait_until(pred, timeout: float = 5.0, interval: float = 0.005) -> bool:
             return True
         time.sleep(interval)
     return False
-
-
-# ─── pure functions ────────────────────────────────────────────────────
-
-def _turn(n_words):
-    # one single-event turn whose content carries ~n_words words
-    return [{"type": "user", "message": {"role": "user", "content": " ".join(["w"] * n_words)}}]
-
-
-def test_word_budget_always_keeps_most_recent_turn_even_if_over():
-    older = _turn(5000)
-    newest = _turn(5000)
-    selected, dropped = regen.select_turns_within_word_budget([older, newest], 1000)
-    assert selected == [newest], "the most recent turn must always be kept in full"
-    assert dropped == 1
-
-
-def test_word_budget_includes_older_turns_until_full():
-    t1, t2, t3 = _turn(300), _turn(300), _turn(300)  # oldest -> newest
-    selected, dropped = regen.select_turns_within_word_budget([t1, t2, t3], 700)
-    # newest-first: t3 (~302) + t2 (~302) ~= 604 <= 700; adding t1 would exceed -> drop t1
-    assert selected == [t2, t3]
-    assert dropped == 1
-
-
-def test_word_budget_zero_disables():
-    t1, t2 = _turn(1000), _turn(1000)
-    selected, dropped = regen.select_turns_within_word_budget([t1, t2], 0)
-    assert selected == [t1, t2]
-    assert dropped == 0
-
-
-def test_render_curated_events_preserves_full_tool_output():
-    huge = "z " * 5000
-    events = [{"message": {"role": "user", "content": [
-        {"type": "tool_result", "tool_use_id": "t1", "content": huge},
-    ]}}]
-    rendered = regen.render_curated_events(events)
-    assert "truncated" not in rendered, "render must NOT truncate within a turn"
-    assert rendered.count("z") >= 5000, "full tool output must be preserved"
 
 
 def test_regen_timeout_is_not_retryable_but_subprocessfailed_is():
@@ -88,6 +50,26 @@ def test_parse_cli_json_extracts_result_and_usage():
     assert m["output_tokens"] == 41
     assert m["cost_usd"] == 0.0098
     assert m["duration_ms"] == 3174
+    assert m["model"] is None, "no modelUsage block means no resolved model"
+
+
+def test_parse_cli_json_resolves_the_generating_model():
+    # The CLI envelope names the exact models used; the metrics must record
+    # the resolved id (which generation model an alias mapped to), picking the
+    # one that did the work over the CLI's tiny internal helper calls.
+    import json as _json
+    main_model = "claude-sonnet-4-6"
+    envelope = _json.dumps({
+        "result": "{}",
+        "usage": {"input_tokens": 10, "output_tokens": 22},
+        "modelUsage": {
+            "claude-haiku-4-5-20251001": {"inputTokens": 504, "outputTokens": 11},
+            main_model: {"inputTokens": 10, "outputTokens": 22,
+                         "cacheCreationInputTokens": 7275},
+        },
+    })
+    _, m = regen.parse_cli_json(envelope)
+    assert m["model"] == main_model, m["model"]
 
 
 def test_parse_cli_json_falls_back_on_non_json():
@@ -98,15 +80,14 @@ def test_parse_cli_json_falls_back_on_non_json():
 
 
 def test_registry_accepts_full_serve_config_kwargs():
-    # Regression: serve.py builds Registry with timeout/max_words/metrics, so
-    # Registry.__init__ MUST accept exactly those kwargs (a prior version did
-    # not, which would crash the server at startup).
+    # Regression: serve.py builds Registry with exactly these kwargs, so
+    # Registry.__init__ MUST accept them (a mismatch crashes the server at startup).
     import pathlib
     import tempfile
     d = pathlib.Path(tempfile.mkdtemp())
     reg = regen.Registry(
-        plugin_dir=d, projects_root=d,
-        model="sonnet", n_turns=6, timeout=180.0, max_words=20000,
+        plugin_dir=d, projects_root=d, chat_state=None,
+        model="sonnet", timeout=180.0,
         metrics=None, on_success=None, on_failure=None,
     )
     assert reg is not None
@@ -125,21 +106,45 @@ def test_atomic_write_creates_file_and_leaves_no_tmp():
     assert (d / "dashboard.html").read_text() == body2, "overwrite must succeed"
 
 
-def test_is_retryable_classifies_transient_vs_structural():
+def test_a_failure_that_would_repeat_is_not_retried():
+    # Retrying re-sends the identical prompt, so an oversized prompt fails the
+    # same way and an expired sign in is still expired. Both burned a second
+    # `claude -p` call for nothing.
+    too_long = regen.SubprocessFailed(
+        "claude -p exited 1 after 1.1s\n--- stdout ---\nPrompt is too long")
+    expired = regen.SubprocessFailed(
+        "claude -p exited 1\n--- stdout ---\n"
+        "Failed to authenticate. API Error: 401 OAuth access token has expired.")
+    assert regen._is_retryable(too_long) is False, "an oversized prompt must not be retried"
+    assert regen._is_retryable(expired) is False, "an expired sign in must not be retried"
+
+
+def test_retry_instruction_names_the_format_the_parser_accepts():
+    # agent_io.parse_output reads <update> and <freeform ref="…"> blocks; a
+    # retry hint naming any other format makes the corrective retry re-fail.
+    assert "<update>" in regen.RETRY_INSTRUCTION
+    assert "<freeform" in regen.RETRY_INSTRUCTION
+    assert "```" not in regen.RETRY_INSTRUCTION
+
+
+def test_is_retryable_classifies_transient_vs_rejected():
+    # OutputRejected already consumed run_once's corrective retry; only
+    # transient subprocess failures earn a registry-level second attempt.
     assert regen._is_retryable(regen.SubprocessFailed("exited 1 socket closed")) is True
-    assert regen._is_retryable(regen.FragmentRejected("empty output (first 200 chars: '\\n')")) is True
-    assert regen._is_retryable(regen.FragmentRejected("output too small (123 bytes)")) is True
-    structural = regen.FragmentRejected("missing required marker '<div class=\"pills\">'")
-    assert regen._is_retryable(structural) is False
+    assert regen._is_retryable(regen.OutputRejected("op-set invalid after retry: bad json")) is False
+    assert regen._is_retryable(regen.OutputRejected("render too small (12 bytes)")) is False
     assert regen._is_retryable(FileNotFoundError("jsonl gone")) is False
 
 
 # ─── registry: retry behaviour ─────────────────────────────────────────
 
 def _registry(on_failure=None, on_success=None):
+    # chat_state=None is fine here: every registry test fakes run_once, so
+    # nothing dereferences it.
     return regen.Registry(
         plugin_dir=Path("."),
         projects_root=Path("."),
+        chat_state=None,
         on_failure=on_failure,
         on_success=on_success,
     )
@@ -182,19 +187,19 @@ def test_retries_are_bounded_then_error_surfaces(monkeypatched):
     assert s is not None and s["state"] == "failed", f"record should be failed, got {s}"
 
 
-def test_structural_rejection_does_not_retry(monkeypatched):
+def test_output_rejection_does_not_retry(monkeypatched):
     calls = []
 
     def fake(**kw):
         calls.append(1)
-        raise regen.FragmentRejected("missing required marker '<div class=\"pills\">'")
+        raise regen.OutputRejected("op-set invalid after retry: not valid JSON")
 
     monkeypatched(fake)
     failures = []
     reg = _registry(on_failure=lambda *a: failures.append(a))
     reg.trigger("hash", SESS)
-    assert wait_until(lambda: len(failures) == 1), "structural failure must surface"
-    assert len(calls) == 1, f"structural failure must surface on first attempt, got {len(calls)}"
+    assert wait_until(lambda: len(failures) == 1), "a rejected output must surface"
+    assert len(calls) == 1, f"a rejected output must surface on first attempt, got {len(calls)}"
     s = reg.state_for(SESS)
     assert s is not None and s["state"] == "failed", f"record should be failed, got {s}"
 
@@ -240,6 +245,39 @@ def test_quiet_completion_does_not_rerun(monkeypatched):
     assert wait_until(lambda: reg.state_for(SESS) is None)
     time.sleep(0.05)
     assert len(calls) == 1, f"no trigger arrived mid-run → exactly one run, got {len(calls)}"
+
+
+# ─── registry: supersede telemetry ─────────────────────────────────────
+
+def test_superseded_run_records_a_superseded_row(monkeypatched):
+    st = store.DashboardStore(Path(tempfile.mkdtemp()) / "dashboard.db")
+
+    def fake(**kw):
+        # A SIGTERM landing mid-flight: the registry has marked this job
+        # superseded, and the killed subprocess surfaces as SubprocessFailed.
+        reg._jobs[SESS].superseded = True
+        raise regen.SubprocessFailed("claude -p killed by supersede")
+
+    monkeypatched(fake)
+    reg = regen.Registry(
+        plugin_dir=Path("."), projects_root=Path("."), chat_state=None, metrics=st,
+    )
+    reg.trigger("hash", SESS)
+    assert wait_until(lambda: st.stats(since=0)["kpis"]["superseded"] == 1), \
+        "a superseded run records exactly one superseded row"
+    kpis = st.stats(since=0)["kpis"]
+    assert kpis["failed"] == 0, "a supersede is not a failure"
+    assert kpis["regens"] == 0, "a supersede is not an ok regen"
+
+    conn = sqlite3.connect(st._db_path)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        "SELECT status, kind, attempts FROM regen_metrics ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    conn.close()
+    assert row["status"] == "superseded"
+    assert row["kind"] == "SubprocessFailed"
+    assert row["attempts"] == 1, "the attempt number at the kill is recorded"
 
 
 # ─── auth policy + health probe ────────────────────────────────────────
@@ -305,6 +343,93 @@ def test_probe_auth_reports_credit_failure():
         ok, detail = regen.probe_auth()
         assert ok is False, "non-zero exit means unhealthy"
         assert credit_msg in detail, "the CLI's own diagnostic must surface"
+    finally:
+        regen.subprocess.Popen = original
+
+
+# ─── registry: vanished-session skip + subprocess cleanup ──────────────
+
+def test_run_once_raises_session_gone_when_jsonl_missing():
+    # A chat deleted (or its git worktree cleaned) between the regen trigger and
+    # the worker running leaves no <uuid>.jsonl. That is "gone", NOT a failure —
+    # run_once must signal it distinctly so the registry can skip it quietly,
+    # while a missing SYSTEM.md (broken config) stays a real, surfaced error.
+    uuid = "deadbeef-0000-0000-0000-000000000000"
+
+    # (a) jsonl missing, SYSTEM.md present → SessionGone
+    d = Path(tempfile.mkdtemp())
+    (d / "SYSTEM.md").write_text("system prompt")
+    try:
+        regen.run_once(plugin_dir=d, projects_root=d,
+                       project_hash="-proj", session_uuid=uuid, chat_state=None)
+        raise AssertionError("expected SessionGone when the jsonl is missing")
+    except regen.SessionGone:
+        pass  # correct
+
+    # (b) jsonl present, SYSTEM.md missing → a real error, NOT SessionGone
+    d2 = Path(tempfile.mkdtemp())
+    (d2 / "-proj").mkdir()
+    (d2 / "-proj" / f"{uuid}.jsonl").write_text("{}")
+    try:
+        regen.run_once(plugin_dir=d2, projects_root=d2,
+                       project_hash="-proj", session_uuid=uuid, chat_state=None)
+        raise AssertionError("expected an error when SYSTEM.md is missing")
+    except regen.SessionGone:
+        raise AssertionError("missing SYSTEM.md must NOT be classified as SessionGone")
+    except FileNotFoundError:
+        pass  # correct — broken config surfaces as a real error
+
+
+def test_vanished_session_is_skipped_not_surfaced(monkeypatched):
+    # When run_once reports the session is gone, the registry must drop the job
+    # quietly: no on_failure banner, and no lingering "failed" record.
+    def fake(**kw):
+        raise regen.SessionGone("jsonl not found")
+
+    monkeypatched(fake)
+    failures = []
+    reg = _registry(on_failure=lambda *a: failures.append(a))
+    reg.trigger("hash", SESS)
+    assert wait_until(lambda: reg.state_for(SESS) is None), "skipped job clears its record"
+    time.sleep(0.05)
+    assert failures == [], "a vanished session must NOT surface an error banner"
+
+
+class _RaisingPopen:
+    """Popen stub whose communicate() raises a non-timeout error on the first
+    call (the real generation) and reaps cleanly once killed."""
+
+    def __init__(self, exc):
+        self._exc = exc
+        self.returncode = None
+        self.killed = False
+
+    def communicate(self, input=None, timeout=None):
+        if not self.killed:
+            raise self._exc
+        return "", ""  # post-kill reap
+
+    def kill(self):
+        self.killed = True
+
+
+def test_invoke_claude_kills_subprocess_on_non_timeout_error():
+    # If communicate() raises anything other than TimeoutExpired, the child must
+    # still be killed before the error propagates — otherwise the `claude -p`
+    # process leaks.
+    boom = ValueError("stream pipe broke")
+    fake = _RaisingPopen(boom)
+    original = regen.subprocess.Popen
+    try:
+        regen.subprocess.Popen = lambda *a, **k: fake
+        raised = None
+        try:
+            regen.invoke_claude(system_prompt="s", user_message="m",
+                                model="sonnet", timeout=5.0)
+        except ValueError as e:
+            raised = e
+        assert raised is boom, "the original error must propagate"
+        assert fake.killed, "the subprocess must be killed so it does not leak"
     finally:
         regen.subprocess.Popen = original
 

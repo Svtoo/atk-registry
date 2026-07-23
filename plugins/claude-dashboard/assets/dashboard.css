@@ -1,12 +1,10 @@
-/*
- * claude-dashboard — shared dashboard styles.
- * Loaded by per-chat dashboard.html via:
- *   <link rel="stylesheet" href="http://localhost:7878/assets/dashboard.css">
- * Theme: follows system by default; can be overridden via JS toggle in dashboard.js.
- */
+/* claude-dashboard: shared styles for every page. */
 
 /* ---- Light theme (default) ---- */
 :root {
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.28);
+  --on-accent: #ffffff;
   --bg: #fafafa;
   --fg: #111827;
   --muted: #6b7280;
@@ -79,6 +77,8 @@ body {
   transition: background 0.15s, color 0.15s;
 }
 .wrap, body.dashboard > * { max-width: 100%; }
+.wrap--wide { max-width: 1080px; margin: 0 auto; }
+.wrap--narrow { max-width: 720px; margin: 0 auto; }
 
 code {
   background: var(--code-bg);
@@ -88,57 +88,106 @@ code {
   word-break: break-all;
 }
 
-/* ---- Top nav ---- */
-nav.topnav {
-  display: flex; justify-content: space-between; align-items: center;
-  gap: 1rem; flex-wrap: wrap;
-  padding: 0.5rem 0.85rem; margin-bottom: 0.85rem;
+/* ---- Card surface: the shared chrome for the browse pages' cards ---- */
+.surface {
   background: var(--card); border: 1px solid var(--border);
   border-radius: 10px; box-shadow: var(--shadow-card);
 }
-nav.topnav a.back {
-  text-decoration: none; color: var(--accent); font-weight: 500; font-size: 0.85rem;
-  padding: 0.3rem 0.7rem; border: 1px solid var(--accent); border-radius: 6px;
-  transition: background 0.12s, color 0.12s;
-}
-nav.topnav a.back:hover { background: var(--accent); color: white; }
-nav.topnav .updated {
-  font-size: 0.74rem; color: var(--muted); font-variant-numeric: tabular-nums;
-}
-/* `.actions` slot + the theme-toggle button work in any context, not
-   just nav.topnav — landing and project-index reuse them. */
-.actions { display: flex; gap: 0.4rem; align-items: center; }
-button.theme-toggle {
+
+/* ---- Quiet button: the shared chrome for low-emphasis controls ---- */
+.btn-quiet {
   background: transparent; border: 1px solid var(--border);
-  color: var(--muted); font: inherit; font-size: 0.74rem;
+  color: var(--muted); font: inherit; font-size: 0.78rem;
   padding: 0.25rem 0.6rem; border-radius: 6px; cursor: pointer;
 }
-button.theme-toggle:hover { color: var(--fg); border-color: var(--muted); }
+.btn-quiet:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.btn-quiet:disabled { opacity: 0.5; cursor: progress; }
+
+/* ---- App nav bar (shared partial: breadcrumb + menu, every page) ---- */
+nav.appnav {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 0.75rem; padding: 0.4rem 0.7rem; margin-bottom: 0.7rem;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: var(--shadow-card);
+}
+nav.appnav .crumb {
+  display: flex; align-items: center; gap: 0.4rem; min-width: 0;
+  font-size: 0.82rem; color: var(--muted);
+}
+nav.appnav .crumb a { color: var(--accent); text-decoration: none; white-space: nowrap; }
+nav.appnav .crumb a:hover { text-decoration: underline; }
+nav.appnav .crumb .sep { opacity: 0.45; }
+nav.appnav .crumb .here {
+  color: var(--fg); font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+nav.appnav .appnav-right { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+
+.appmenu { position: relative; }
+/* When the bar also carries page actions (the dashboard's status + rebuild),
+   set the global menu apart with a divider; on its own it needs none. */
+.appnav-right .appmenu { border-left: 1px solid var(--border); margin-left: 0.15rem; padding-left: 0.5rem; }
+.appnav-right .appmenu:first-child { border-left: none; margin-left: 0; padding-left: 0; }
+.appmenu-trigger {
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+  font: inherit; font-size: 0.95rem; line-height: 1; cursor: pointer;
+  padding: 0.3rem 0.55rem; border-radius: 6px;
+}
+.appmenu-trigger:hover, .appmenu-trigger[aria-expanded="true"] {
+  color: var(--fg); border-color: var(--muted);
+}
+.appmenu-panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 50;
+  min-width: 172px; padding: 0.3rem; display: flex; flex-direction: column; gap: 0.1rem;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: var(--shadow-pop);
+}
+.appmenu-panel[hidden] { display: none; }
+.appmenu-item {
+  padding: 0.4rem 0.6rem; border-radius: 6px;
+  font-size: 0.85rem; color: var(--fg); text-decoration: none;
+}
+.appmenu-item:hover { background: var(--code-bg); }
+.appmenu-item.on { color: var(--accent-fg); background: var(--accent-soft-bg); font-weight: 500; }
+.appmenu-div { height: 1px; background: var(--border); margin: 0.25rem 0.2rem; }
+.appmenu-theme { display: flex; }
+.appmenu-theme .theme-toggle {
+  width: 100%; text-align: left; border: none; background: transparent;
+  color: var(--muted); font: inherit; cursor: pointer;
+  padding: 0.4rem 0.6rem; font-size: 0.85rem; border-radius: 6px;
+}
+.appmenu-theme .theme-toggle:hover { background: var(--code-bg); color: var(--fg); }
 
 /* ---- Header ---- */
 header.session-header {
   border-bottom: 1px solid var(--border); padding-bottom: 0.85rem; margin-bottom: 1rem;
 }
 h1 { margin: 0 0 0.3rem; font-size: 1.4rem; font-weight: 600; letter-spacing: -0.02em; }
-.tldr { margin: 0; font-size: 0.95rem; color: var(--fg); line-height: 1.55; }
-.tldr.empty { color: var(--muted); font-style: italic; }
 
-/* ---- Status pills ---- */
-.pills { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
-.pill {
-  display: inline-flex; align-items: center; gap: 0.4rem;
-  padding: 0.25rem 0.65rem; border-radius: 999px;
-  font-size: 0.74rem; font-weight: 500; border: 1px solid;
+/* ---- Header glance grid: fixed what / where / your move ---- */
+dl.glance { margin: 0.5rem 0 0; }
+dl.glance .glance-row {
+  display: grid; grid-template-columns: 5.5rem 1fr; gap: 0.75rem;
+  align-items: baseline; padding: 0.4rem 0; border-top: 1px solid var(--border);
 }
-.pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.pill.ok   { color: var(--ok-fg);   background: var(--ok-soft-bg);   border-color: var(--ok-soft-br); }
-.pill.ok .dot   { background: var(--ok); }
-.pill.bad  { color: var(--bad-fg);  background: var(--bad-soft-bg);  border-color: var(--bad-soft-br); }
-.pill.bad .dot  { background: var(--bad); }
-.pill.warn { color: var(--warn-fg); background: var(--warn-soft-bg); border-color: var(--warn-soft-br); }
-.pill.warn .dot { background: var(--warn); }
-.pill.info { color: var(--accent-fg); background: var(--accent-soft-bg); border-color: var(--accent-soft-br); }
-.pill.info .dot { background: var(--accent); }
+dl.glance .glance-row:first-child { border-top: none; }
+dl.glance dt {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted); font-weight: 500;
+}
+dl.glance dd { margin: 0; font-size: 0.9rem; color: var(--fg); line-height: 1.5; }
+dl.glance .glance-row.move dt { color: var(--warn-fg); }
+dl.glance .glance-row.move dd { font-weight: 500; }
+dl.glance .glance-row.move.clear dt { color: var(--muted); }
+dl.glance .glance-row.move.clear dd { font-weight: 400; color: var(--muted); }
+.phase-chip {
+  display: inline-flex; align-items: center; padding: 0.1rem 0.5rem;
+  border-radius: 999px; font-size: 0.7rem; font-weight: 500; border: 1px solid;
+}
+.phase-chip.ok   { color: var(--ok-fg);     background: var(--ok-soft-bg);     border-color: var(--ok-soft-br); }
+.phase-chip.bad  { color: var(--bad-fg);    background: var(--bad-soft-bg);    border-color: var(--bad-soft-br); }
+.phase-chip.warn { color: var(--warn-fg);   background: var(--warn-soft-bg);   border-color: var(--warn-soft-br); }
+.phase-chip.info { color: var(--accent-fg); background: var(--accent-soft-bg); border-color: var(--accent-soft-br); }
 
 /* ---- Section cards ---- */
 section.card {
@@ -150,7 +199,6 @@ section.card h2 {
   margin: 0 0 0.75rem; font-size: 1rem; font-weight: 600;
   display: flex; align-items: center; gap: 0.5rem;
 }
-section.card .hint { color: var(--muted); font-size: 0.8rem; margin: 0 0 0.75rem; }
 section.card h3 {
   margin: 0.85rem 0 0.4rem; font-size: 0.78rem; font-weight: 600;
   color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;
@@ -179,11 +227,11 @@ ul.todo-list li.active::before {
 ul.todo-list li.done { background: var(--todo-done-bg); color: var(--muted); }
 ul.todo-list li.done > .label { text-decoration: line-through; }
 ul.todo-list li.done::before {
-  content: "✓"; color: white; background: var(--ok); border-color: var(--ok);
+  content: "✓"; color: var(--on-accent); background: var(--ok); border-color: var(--ok);
 }
 ul.todo-list li.blocked { background: var(--todo-blocked-bg); }
 ul.todo-list li.blocked::before {
-  content: "✗"; color: white; background: var(--bad); border-color: var(--bad);
+  content: "✗"; color: var(--on-accent); background: var(--bad); border-color: var(--bad);
 }
 
 /* ---- Numbered open questions ---- */
@@ -198,7 +246,7 @@ ol.questions-list li:last-child { border-bottom: 0; }
 ol.questions-list li::before {
   content: counter(q); position: absolute; left: 0.5rem; top: 0.55rem;
   width: 1.6rem; height: 1.6rem; border-radius: 50%;
-  background: var(--warn); color: white;
+  background: var(--warn); color: var(--on-accent);
   display: inline-flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: 0.78rem;
 }
@@ -209,72 +257,12 @@ ol.questions-list li.resolved::before { background: var(--ok); content: "✓"; }
 ol.questions-list li.resolved { opacity: 0.6; }
 ol.questions-list li.resolved .label { text-decoration: line-through; }
 
-/* ---- Mermaid container ---- */
-.mermaid-box {
-  background: var(--card); padding: 0.6rem; border-radius: 8px;
-  border: 1px solid var(--border); min-height: 60px;
-}
-.mermaid-box svg { max-width: 100%; height: auto; }
-
-/* ---- Free-form canvas ---- */
-section.card.free-form .empty-state {
-  color: var(--muted); font-size: 0.85rem; font-style: italic; margin: 0;
-  text-align: center; padding: 0.5rem 0;
-}
-section.card.free-form ul.facts { list-style: none; padding: 0; margin: 0; }
-section.card.free-form ul.facts li { padding: 0.3rem 0; font-size: 0.88rem; }
-section.card.free-form ul.facts li::before {
-  content: "✓ "; color: var(--ok); font-weight: 700;
-}
+/* ---- Free-form canvas (agent-authored HTML) ---- */
 section.card.free-form a { color: var(--accent); }
+section.card.free-form svg { max-width: 100%; height: auto; }
 section.card.free-form pre {
   background: var(--code-bg); padding: 0.75rem; border-radius: 6px;
   overflow-x: auto; font-size: 0.85rem; line-height: 1.45;
-}
-
-/* ---- Placeholder warnings ("AGENT FILL" forcing function) ---- */
-ul.todo-list li.placeholder,
-ol.questions-list li.placeholder,
-.empty-state.placeholder {
-  background: var(--warn-soft-bg) !important;
-  border: 1px dashed var(--warn) !important;
-  color: var(--warn-fg) !important;
-  font-weight: 500 !important;
-  font-style: normal !important;
-}
-ul.todo-list li.placeholder::before {
-  content: "⚠" !important;
-  background: var(--warn) !important;
-  color: white !important;
-  border-color: var(--warn) !important;
-}
-ol.questions-list li.placeholder::before {
-  content: "⚠" !important;
-  background: var(--warn) !important;
-}
-.empty-state.placeholder {
-  text-align: left !important;
-  padding: 0.75rem 1rem !important;
-  border-radius: 6px;
-}
-.pill.placeholder {
-  background: var(--warn-soft-bg) !important;
-  border-color: var(--warn) !important;
-  border-style: dashed !important;
-  color: var(--warn-fg) !important;
-}
-ul.facts.placeholder li {
-  background: var(--warn-soft-bg);
-  border: 1px dashed var(--warn);
-  color: var(--warn-fg);
-  padding: 0.4rem 0.6rem; margin-bottom: 0.3rem;
-  border-radius: 6px; font-weight: 500;
-}
-ol.timeline > li.placeholder .what {
-  color: var(--warn-fg); font-weight: 500;
-}
-ol.timeline > li.placeholder .badge.here {
-  background: var(--warn); border-color: var(--warn);
 }
 
 /* ---- Footer ---- */
@@ -283,16 +271,6 @@ footer {
   color: var(--muted); font-size: 0.72rem; text-align: center;
   word-break: break-all;
 }
-
-/* ---- Refresh indicator ---- */
-.refresh-flash {
-  position: fixed; bottom: 1rem; right: 1rem;
-  background: var(--accent); color: white; padding: 0.4rem 0.85rem;
-  border-radius: 999px; font-size: 0.75rem; opacity: 0;
-  pointer-events: none; transition: opacity 0.4s;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-.refresh-flash.visible { opacity: 1; }
 
 /* ---- Shared chrome for the landing + project-index pages ---- */
 header.page {
@@ -315,13 +293,14 @@ header.page .subtitle {
 }
 .meta code { word-break: break-all; }
 
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+
 .status {
   display: inline-flex; align-items: center; gap: 0.35rem;
   padding: 0.2rem 0.5rem; border-radius: 999px;
   font-size: 0.68rem; font-weight: 500;
   border: 1px solid;
 }
-.status .dot { width: 6px; height: 6px; border-radius: 50%; }
 .status.live { color: var(--ok-fg);  background: var(--ok-soft-bg);  border-color: var(--ok-soft-br); }
 .status.live .dot { background: var(--ok); }
 .status.dead { color: var(--bad-fg); background: var(--bad-soft-bg); border-color: var(--bad-soft-br); }
@@ -331,18 +310,18 @@ header.page .subtitle {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 0.75rem; margin-bottom: 1rem;
 }
-.stat {
-  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-  padding: 0.85rem 1rem; box-shadow: var(--shadow-card);
-}
+.stat { padding: 0.85rem 1rem; }
 .stat-value {
   font-size: 1.5rem; font-weight: 600; color: var(--accent); line-height: 1;
 }
+.stat-value--ok { color: var(--ok); }
+.stat-value--sm { font-size: 0.95rem; line-height: 1.2; }
 .stat-label {
   font-size: 0.7rem; color: var(--muted);
   text-transform: uppercase; letter-spacing: 0.04em;
   margin-top: 0.3rem;
 }
+.ok-count { color: var(--ok); }
 
 .empty, .err {
   text-align: center; padding: 1.5rem; font-size: 0.85rem;
@@ -358,12 +337,10 @@ header.page .subtitle {
   background: var(--card); border: 1px solid var(--border); border-radius: 10px;
   height: 60px; animation: pulse 1.5s ease-in-out infinite;
 }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.skeleton:nth-child(2) { animation-delay: 0.1s; }
+.skeleton:nth-child(3) { animation-delay: 0.2s; }
 
-/* ---- Free-form generic table styles ----
-   Agents put tables in the free-form canvas regularly. Without these
-   styles, plain <table> renders unreadably. Same look as the older
-   one-off .tix class so styling stays consistent across dashboards. */
+/* Free-form bodies are agent-authored HTML; plain tables get styled here. */
 section.card.free-form table {
   width: 100%; border-collapse: collapse; font-size: 0.88rem;
   margin: 0.5rem 0 1rem;
@@ -372,18 +349,14 @@ section.card.free-form th, section.card.free-form td {
   padding: 0.4rem 0.55rem; text-align: left; vertical-align: top;
   border-bottom: 1px solid var(--border); word-break: break-word;
 }
-section.card.free-form th {
+section.card.free-form th, table.watch-deck th {
   background: var(--code-bg); font-weight: 600; color: var(--muted);
   font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em;
 }
 section.card.free-form tr:last-child td { border-bottom: 0; }
 section.card.free-form td code { font-size: 0.85em; }
 
-/* ---- Journey · Decisions timeline ----
-   Vertical, pure CSS, scales with content. Replaces the mermaid-based
-   journey card from v6. Each <li> is one inflection point; the rail
-   on the left is rendered with ::before. Badges encode WHO drove the
-   decision via color. */
+/* ---- Journey · Decisions timeline ---- */
 ol.timeline {
   list-style: none; padding: 0; margin: 0;
   position: relative;
@@ -411,7 +384,7 @@ ol.timeline .badge {
 ol.timeline .badge.user  { border-color: var(--warn);   background: var(--warn-soft-bg); }
 ol.timeline .badge.agent { border-color: var(--accent); background: var(--accent-soft-bg); }
 ol.timeline .badge.joint { border-color: var(--ok);     background: var(--ok-soft-bg); }
-ol.timeline .badge.here  { border-color: var(--accent); background: var(--accent); color: white; }
+ol.timeline .badge.here  { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
 ol.timeline .what {
   font-weight: 500; font-size: 0.92rem; line-height: 1.45;
 }
@@ -424,11 +397,7 @@ ol.timeline .why {
 }
 ol.timeline > li.current .what { color: var(--accent-fg); font-weight: 600; }
 
-/* ---- All-clear banner ----
-   Replaces an empty <ol class="questions-list"> when nothing is pending
-   in the Call-to-action card (or empty Heads-up). Visually unambiguous
-   "no actions needed" — better than rendering an empty list or "None
-   pending" <li>. */
+/* ---- All-clear banner ---- */
 .all-clear {
   background: var(--ok-soft-bg);
   border: 1px solid var(--ok-soft-br);
@@ -440,18 +409,7 @@ ol.timeline > li.current .what { color: var(--accent-fg); font-weight: 600; }
   display: inline-flex; align-items: center; gap: 0.5rem;
 }
 
-/* ---- Heads-up card · "Watch deck" table ----
-   Surfaces agent unilateral decisions and lurking risks. Distinct from
-   Call-to-action: this card is FROM the agent (confessions / findings);
-   CTA is FOR the user (blockers). Position in the dashboard: between
-   To-do and Journey.
-   Three severity tiers:
-     RISK = could break, decision uncertain, needs verification
-     FLAG = unilateral choice the user might have wanted to make
-     NOTE = easy-to-miss change worth surfacing
-   Lifecycle: rows are ACKNOWLEDGED not "resolved." When the user reads
-   one, the agent either (a) deletes (waived), (b) promotes to CTA
-   (becomes actionable), or (c) leaves (deferred note). */
+/* ---- Heads-up card · "Watch deck" table ---- */
 section.card.heads-up {
   border-left: 3px solid var(--warn);
 }
@@ -464,12 +422,6 @@ table.watch-deck th, table.watch-deck td {
   text-align: left; vertical-align: top;
   border: 1px solid var(--border);
   word-break: break-word;
-}
-table.watch-deck th {
-  background: var(--code-bg);
-  font-weight: 600; color: var(--muted);
-  font-size: 0.72rem;
-  text-transform: uppercase; letter-spacing: 0.04em;
 }
 table.watch-deck th.sev-col, table.watch-deck td.sev-col {
   width: 4.5rem; white-space: nowrap;
@@ -486,9 +438,6 @@ table.watch-deck td.sev-col .risk { background: var(--bad-soft-bg);  color: var(
 table.watch-deck td.sev-col .flag { background: var(--warn-soft-bg); color: var(--warn-fg); border-color: var(--warn-soft-br); }
 table.watch-deck td.sev-col .note { background: var(--code-bg);      color: var(--muted);   border-color: var(--border); }
 
-/* Ack column + button — clicking writes to /api/ack/… on the server.
-   Acked rows get a muted style and are reordered to the bottom by
-   dashboard.js. The button toggles to "✓ acked · undo". */
 table.watch-deck th.ack-col, table.watch-deck td.ack-col {
   width: 6rem; white-space: nowrap; text-align: center;
 }
@@ -510,7 +459,7 @@ button.ack-btn.acked {
 }
 button.ack-btn.acked:hover {
   background: var(--ok);
-  color: white;
+  color: var(--on-accent);
 }
 button.ack-btn[disabled] {
   opacity: 0.5; cursor: wait;
@@ -522,13 +471,29 @@ table.watch-deck tr.acked {
 table.watch-deck tr.acked td:not(.ack-col) {
   color: var(--muted);
 }
+table.watch-deck.acked-folded tr.acked { display: none; }
+table.watch-deck tr.acked-toggle td {
+  cursor: pointer; user-select: none;
+  color: var(--muted); font-size: 0.78rem; font-weight: 500;
+  padding: 0.4rem 0.6rem; background: var(--bg);
+}
+table.watch-deck tr.acked-toggle td:hover { color: var(--fg); }
 table.watch-deck tr.acked td.sev-col span {
   opacity: 0.7;
 }
 
-/* ---- Freshness chips (project-index rows + dashboard topnav) ---- */
-/* Drives the state-aware badge that says "updating · 32s", "current",   */
-/* "behind 5m", "last update failed". Reused by Freshness.chipHtml().    */
+/* ---- Freshness chips: "updating · 32s" / "current" / "behind" / "failed" ---- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border: 1px solid;
+  white-space: nowrap;
+}
 .badge.running {
   color: var(--accent);
   background: var(--code-bg);
@@ -556,8 +521,8 @@ table.watch-deck tr.acked td.sev-col span {
   50%      { opacity: 0.55; }
 }
 
-/* ---- Topnav status group (per-dashboard shell) ---- */
-.topnav .status-group {
+/* ---- Status group in the app-nav bar (per-chat pages) ---- */
+.status-group {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
@@ -565,7 +530,7 @@ table.watch-deck tr.acked td.sev-col span {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.topnav .status-group .age { white-space: nowrap; }
+.status-group .age { white-space: nowrap; }
 
 /* ---- Recents strip (jump between last N opened dashboards) ---- */
 .recents-strip {
@@ -579,14 +544,13 @@ table.watch-deck tr.acked td.sev-col span {
   color: var(--muted);
   background: var(--bg);
 }
+.recents-strip--inline { border-bottom: none; padding: 0 0 0.55rem; background: transparent; }
 .recents-strip .label {
   font-weight: 500;
   margin-right: 0.2rem;
   letter-spacing: 0.02em;
 }
-/* The chips slot is display:contents so chips flow as direct flex children */
-/* of .recents-strip — they inherit its gap + wrap, preserving the original */
-/* spacing now that a toggle sits where the "recent ↔" label used to.       */
+/* display:contents lets chips flow as direct flex children of the strip. */
 .recents-strip .strip-toggle-slot { display: inline-flex; }
 .recents-strip .strip-chips { display: contents; }
 .recents-strip .strip-empty { color: var(--muted); font-style: italic; }
@@ -616,8 +580,7 @@ table.watch-deck tr.acked td.sev-col span {
   font-weight: 500;
 }
 
-/* Page-wide auth-health banner (regen subagent can't authenticate). Injected */
-/* at the top of <body> by freshness.js on every surface.                     */
+/* ---- Auth-health banner (injected at the top of <body> by freshness.js) ---- */
 .auth-banner {
   background: var(--bad-soft-bg);
   border-bottom: 1px solid var(--bad-soft-br);
@@ -629,7 +592,7 @@ table.watch-deck tr.acked td.sev-col span {
 .auth-banner .auth-banner-detail {
   display: block;
   color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--mono);
   font-size: 0.72rem;
   margin-top: 0.15rem;
   white-space: pre-wrap;
@@ -663,7 +626,7 @@ table.watch-deck tr.acked td.sev-col span {
 .recents-strip .chip-project {
   color: var(--muted);
   font-size: 0.7rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--mono);
   border-right: 1px solid var(--border);
   padding-right: 0.4rem;
 }
@@ -673,21 +636,20 @@ table.watch-deck tr.acked td.sev-col span {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* State dots — small coloured pip on the chip; full chip lives on the */
-/* dashboard's own status group, the strip just hints. */
-.recents-strip .dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  display: inline-block; flex: 0 0 7px;
+.recents-strip .chip-when {
+  color: var(--muted);
+  font-size: 0.7rem;
+  border-left: 1px solid var(--border);
+  padding-left: 0.4rem;
+  white-space: nowrap;
 }
+.recents-strip a.chip.here .chip-when { color: var(--accent-fg); }
 .recents-strip .dot.running { background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
 .recents-strip .dot.failed  { background: var(--bad); }
 .recents-strip .dot.behind  { background: var(--warn); }
 .recents-strip .dot.current { background: var(--ok); }
 
-/* ---- Toast notifications (sibling-chat state transitions) ----------- */
-/* freshness.js inserts these via _emitTransitionToasts. Bottom-right    */
-/* fixed stack; auto-dismiss 8s, hover pauses the timer, click navigates */
-/* to the sibling chat's dashboard.                                       */
+/* ---- Toast notifications (sibling-chat state transitions) ---- */
 .toast-region {
   position: fixed;
   bottom: 1rem;
@@ -708,7 +670,7 @@ table.watch-deck tr.acked td.sev-col span {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-pop);
   font-size: 0.8rem;
   text-decoration: none;
   color: var(--fg);
@@ -736,7 +698,7 @@ table.watch-deck tr.acked td.sev-col span {
   white-space: nowrap;
 }
 .toast .t-project {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--mono);
   border-right: 1px solid var(--border);
   padding-right: 0.4rem;
 }
@@ -760,14 +722,11 @@ table.watch-deck tr.acked td.sev-col span {
   to   { opacity: 1; transform: translateX(0); }
 }
 
-/* ---- Regen-errors banner (per-dashboard layout, below topnav) -------- */
-/* Persistent counterpart to the toast — surfaces every un-acked regen   */
-/* failure for THIS chat. Each <li> = one error; dismiss → POST          */
-/* /api/dashboard/<h>/<s>/error/<id>/acknowledge.                         */
+/* ---- Regen-errors banner (per-chat layout, below the nav bar) ---- */
 .regen-errors-banner {
   margin: 0.55rem 0 0.75rem;
-  border: 1px solid var(--bad-soft-br);
-  background: var(--bad-soft-bg);
+  border: 1px solid var(--border);
+  background: var(--card);
   border-radius: 10px;
   padding: 0.6rem 0.85rem 0.65rem;
 }
@@ -776,7 +735,7 @@ table.watch-deck tr.acked td.sev-col span {
   margin: 0 0 0.4rem;
   font-size: 0.82rem;
   font-weight: 600;
-  color: var(--bad-fg);
+  color: var(--muted);
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
@@ -789,10 +748,93 @@ table.watch-deck tr.acked td.sev-col span {
   gap: 0.4rem;
 }
 .regen-error {
-  border: 1px solid var(--bad-soft-br);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--muted);
   background: var(--card);
   border-radius: 6px;
-  padding: 0.4rem 0.55rem;
+  padding: 0.5rem 0.65rem;
+}
+.regen-error.sev-action  { border-left-color: var(--bad);    background: var(--bad-soft-bg); }
+.regen-error.sev-warning { border-left-color: var(--warn);   background: var(--warn-soft-bg); }
+.regen-error.sev-bug     { border-left-color: var(--accent); background: var(--accent-soft-bg); }
+
+.regen-error-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fg);
+  line-height: 1.4;
+}
+.regen-error-body {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--fg);
+  opacity: 0.9;
+}
+.regen-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+.regen-error-cmd {
+  display: inline-flex;
+  align-items: stretch;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.regen-error-cmd code {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--fg);
+  background: none;
+  padding: 0.25rem 0.55rem;
+  border-radius: 0;
+  white-space: nowrap;
+}
+.regen-error-copy, .regen-error-link, .regen-error-dismiss {
+  font-size: 0.72rem; padding: 0.25rem 0.55rem; border-radius: 5px;
+}
+.regen-error-link { color: var(--accent); text-decoration: none; }
+.regen-error-cmd .regen-error-copy {
+  border: none;
+  border-left: 1px solid var(--border);
+  border-radius: 0;
+}
+.regen-error-detail { margin-top: 0.45rem; }
+.regen-error-detail summary {
+  font-size: 0.72rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+.regen-error-detail summary .regen-error-copy {
+  margin-left: 0.6rem;
+  font-size: 0.68rem;
+  padding: 0.1rem 0.4rem;
+  vertical-align: 1px;
+}
+.regen-error-diag {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.8rem;
+  margin: 0.4rem 0 0;
+  font-size: 0.72rem;
+}
+.regen-error-diag dt { color: var(--muted); white-space: nowrap; }
+.regen-error-diag dd {
+  margin: 0; color: var(--fg);
+  font-family: var(--mono);
+}
+.regen-error-detail pre {
+  margin: 0.3rem 0 0;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--muted);
+  white-space: pre-wrap;
+  max-height: 11rem;
+  overflow: auto;
 }
 .regen-error-head {
   display: flex;
@@ -801,40 +843,16 @@ table.watch-deck tr.acked td.sev-col span {
   font-size: 0.74rem;
   color: var(--muted);
 }
-.regen-error-kind {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--bad-fg);
-  font-weight: 600;
-}
 .regen-error-when { font-variant-numeric: tabular-nums; }
-.regen-error-dismiss {
-  margin-left: auto;
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  border-radius: 4px;
-  padding: 0.1rem 0.4rem;
-  font: inherit;
-  font-size: 0.7rem;
-  cursor: pointer;
+.regen-error-dismiss { margin-left: auto; }
+.regen-error.resolved { opacity: 0.65; }
+.regen-errors-fold { list-style: none; }
+.regen-errors-resolved {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
-.regen-error-dismiss:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-.regen-error-dismiss:disabled { opacity: 0.5; cursor: progress; }
-.regen-error-msg {
-  margin: 0.35rem 0 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.72rem;
-  line-height: 1.4;
-  color: var(--fg);
-  white-space: pre-wrap;
-  word-break: break-word;
-  background: var(--code-bg);
-  padding: 0.35rem 0.5rem;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  max-height: 8em;
-  overflow: auto;
-}
+.regen-errors-resolved[hidden] { display: none; }

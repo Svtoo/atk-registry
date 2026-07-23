@@ -1,6 +1,6 @@
 schema_version: "2026-01-23"
 name: claude-dashboard
-description: Per-chat executive dashboard for Claude Code sessions. Runs a localhost server that browses ~/.claude/projects/ and serves a top-level projects landing, a per-project chat index, and per-session dashboards the agent maintains. Claude-specific because it reads Claude Code's chat-history layout (project hash dirs + session UUID JSONLs) and targets the Claude Code preview pane.
+description: Per-chat executive dashboard for Claude Code sessions. Runs a localhost server that browses ~/.claude/projects/ and serves a top-level projects landing, a per-project chat index, and per-session dashboards the agent maintains. Claude-specific because it reads Claude Code's chat-history layout (project hash dirs + session UUID JSONLs) and targets the Claude Code Browser pane.
 maturity: verified
 
 vendor:
@@ -24,18 +24,18 @@ env_vars:
     required: false
     default: "sonnet"
     description: Model alias passed to `claude -p` for dashboard regeneration (e.g. sonnet, haiku).
-  - name: CCD_N_TURNS
+  - name: CCD_LOG_LEVEL
     required: false
-    default: "6"
-    description: How many recent chat turns to feed into each regeneration prompt.
-  - name: CCD_MAX_TRANSCRIPT_WORDS
-    required: false
-    default: "20000"
-    description: Word budget for the recent transcript fed to each regen. Older whole turns are dropped to fit; the most recent turn is always kept in full. 0 disables (use only CCD_N_TURNS).
+    default: "INFO"
+    description: INFO (normal) or DEBUG. DEBUG additionally dumps the full prompt (system + user message) the model receives, per regen, into runtime/server.log.
   - name: CCD_REGEN_TIMEOUT
     required: false
     default: "180"
     description: Wall-clock seconds before a wedged `claude -p` regeneration is killed.
+  - name: CCD_PREVIEW_PANE
+    required: false
+    default: "true"
+    description: "Auto-open this chat's dashboard in the Claude Code Browser pane (default true). A UserPromptSubmit hook asks the agent, once per session, to open this chat's dashboard URL directly in the pane, and to reopen it on request. Set to false to turn the Browser-pane integration off entirely; the server and per-chat dashboard regeneration are unaffected, and no open instruction is injected."
 
 lifecycle:
   install: ./install.sh
