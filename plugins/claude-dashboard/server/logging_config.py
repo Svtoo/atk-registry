@@ -1,15 +1,4 @@
-"""
-Logging configuration for the dashboard server + regen workers.
-
-Single rotating log file under <plugin>/runtime/server.log. 5 MB per file,
-3 backups kept (so ~20 MB max on disk). Format includes the logger name so
-serve.py and regen.py traces interleave cleanly.
-
-Call configure_logging() ONCE at process startup before any loggers are
-used. It is idempotent — repeated calls swap handlers in place rather than
-stacking them (matters for in-process tests and for the `python -c` smoke
-checks we run during development).
-"""
+"""Rotating-file logging shared by the server and the regen workers."""
 
 from __future__ import annotations
 
@@ -20,16 +9,20 @@ from pathlib import Path
 
 _LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
 _LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
-_MAX_BYTES = 5 * 1024 * 1024
-_BACKUP_COUNT = 3
+_MAX_BYTES = 15 * 1024 * 1024
+_BACKUP_COUNT = 1
 
 
-def configure_logging(runtime_dir: Path, *, level: int = logging.INFO) -> Path:
-    """Install a rotating file handler on the root logger (plus a console
-    handler only when attached to a real terminal).
+def _level_from_str(name: str) -> int:
+    return logging.DEBUG if name.strip().upper() == "DEBUG" else logging.INFO
 
-    Returns the log file path so callers can echo it at startup.
-    """
+
+def configure_logging(runtime_dir: Path, *, level: "int | None" = None) -> Path:
+    """Install a rotating file handler on the root logger; returns the log
+    path. Idempotent: repeated calls swap handlers rather than stacking them."""
+    if level is None:
+        import os
+        level = _level_from_str(os.environ.get("CCD_LOG_LEVEL", "INFO"))
 
     runtime_dir.mkdir(parents=True, exist_ok=True)
     log_path = runtime_dir / "server.log"
@@ -46,8 +39,6 @@ def configure_logging(runtime_dir: Path, *, level: int = logging.INFO) -> Path:
     file_handler.setLevel(level)
 
     root = logging.getLogger()
-    # Reset existing handlers so re-running this function (tests, dev reloads)
-    # doesn't double-log every line.
     for h in list(root.handlers):
         root.removeHandler(h)
         try:
@@ -57,10 +48,8 @@ def configure_logging(runtime_dir: Path, *, level: int = logging.INFO) -> Path:
     root.setLevel(level)
     root.addHandler(file_handler)
 
-    # Console handler ONLY when attached to a real terminal (an interactive dev
-    # run). Under `atk start` / nohup, stderr is redirected, so we skip it:
-    # otherwise the redirect target would accumulate a second, unrotated copy of
-    # every log line. The rotating file handler is the durable log.
+    # Under `atk start`/nohup, a stderr handler would write a second, unrotated
+    # copy of every line into the redirect target.
     if sys.stderr.isatty():
         stderr_handler = logging.StreamHandler(sys.stderr)
         stderr_handler.setFormatter(formatter)
@@ -71,6 +60,15 @@ def configure_logging(runtime_dir: Path, *, level: int = logging.INFO) -> Path:
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Tiny passthrough so callers don't have to import `logging` directly —
-    keeps the import surface uniform across server modules."""
+    """Named logger for a server module."""
     return logging.getLogger(name)
+
+
+def set_log_level(level: "int | str") -> None:
+    """Change the running process's log level, handlers included."""
+    if isinstance(level, str):
+        level = _level_from_str(level)
+    root = logging.getLogger()
+    root.setLevel(level)
+    for handler in root.handlers:
+        handler.setLevel(level)

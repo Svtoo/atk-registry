@@ -1,0 +1,296 @@
+<style>
+  .ranges { display: flex; gap: 0.35rem; margin: 0.2rem 0 1rem; flex-wrap: wrap; }
+  .ranges button { border-radius: 999px; font-size: 0.85rem; padding: 0.3rem 0.7rem; }
+  .ranges button.active {
+    background: var(--accent-soft-bg); color: var(--accent-fg);
+    border-color: var(--accent-soft-br); font-weight: 600;
+  }
+
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; margin-bottom: 1rem; }
+  @media (min-width: 720px) { .kpis { grid-template-columns: repeat(6, 1fr); } }
+  .kpi { padding: 0.6rem 0.75rem; }
+  .kpi .v { font-size: 1.35rem; font-weight: 600; color: var(--fg); line-height: 1.15; }
+  .kpi .l { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+
+  .callout { border-radius: 10px; padding: 0.6rem 0.85rem; margin-bottom: 1rem; font-size: 0.9rem;
+             background: var(--bad-soft-bg); border: 1px solid var(--bad-soft-br); color: var(--bad-fg); }
+  .callout.ok { background: var(--ok-soft-bg); border-color: var(--ok-soft-br); color: var(--ok-fg); }
+  .callout b { font-weight: 600; }
+
+  .card { padding: 0.9rem 1.05rem; margin-bottom: 1rem; }
+  .card h2 { font-size: 1rem; font-weight: 600; margin: 0 0 0.15rem; }
+  .card .sub { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.8rem; }
+
+  .two { display: grid; grid-template-columns: 1fr; gap: 1.2rem; }
+  @media (min-width: 720px) { .two { grid-template-columns: 1fr 1fr; } }
+  .chart-cap { font-size: 0.8rem; text-align: center; color: var(--fg); margin-top: 0.1rem; }
+  .card svg { display: block; width: 100%; height: auto; }
+
+  .blockbar { display: flex; height: 34px; gap: 2px; border-radius: 6px; overflow: hidden;
+              font-size: 0.72rem; }
+  .blockbar > div { display: flex; align-items: center; justify-content: center; min-width: 0;
+                    color: var(--on-accent); white-space: nowrap; overflow: hidden; }
+  .legend { display: flex; gap: 1.2rem; margin-top: 0.6rem; font-size: 0.78rem; color: var(--muted);
+            flex-wrap: wrap; }
+  .legend b { color: var(--fg); }
+  .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+                vertical-align: -1px; margin-right: 4px; }
+  .legend .sw--accent { background: var(--accent); }
+  .legend .sw--muted { background: var(--muted); }
+
+  table.stats-tbl { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  table.stats-tbl th { color: var(--muted); font-weight: 500; text-align: right; padding: 0.35rem 0.4rem;
+                       font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  table.stats-tbl th:first-child, table.stats-tbl td:first-child { text-align: left; }
+  table.stats-tbl td { padding: 0.4rem 0.4rem; text-align: right; border-top: 1px solid var(--border); color: var(--fg); }
+  table.stats-tbl td.proj { font-family: var(--mono);
+                            max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  table.stats-tbl td.bad { color: var(--bad); }
+  table.stats-tbl td.zero { color: var(--muted); }
+
+  .count-pills { display: inline-flex; gap: 0.4rem; flex-wrap: wrap; }
+  .count-pill { font-size: 0.75rem; padding: 0.15rem 0.55rem; border-radius: 999px;
+                background: var(--code-bg); color: var(--muted); }
+  .count-pill b { color: var(--fg); font-weight: 600; }
+  .muted-note { font-size: 0.78rem; color: var(--muted); }
+</style>
+
+<div class="ranges" id="ranges">
+  <button class="btn-quiet" data-range="1d">1d</button>
+  <button class="btn-quiet" data-range="7d">7d</button>
+  <button class="btn-quiet" data-range="30d">30d</button>
+  <button class="btn-quiet" data-range="all">All</button>
+</div>
+
+<div id="body">
+  <div class="muted-note">Loading…</div>
+</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = window.escapeHtml;
+const fmtUsd = (n) => n == null ? "$0" : "$" + Number(n).toFixed(2);
+const fmtS = (n) => n == null ? "–" : Number(n).toFixed(n < 10 ? 1 : 0) + "s";
+const pct = (num, den) => den > 0 ? Math.round(100 * num / den) : 0;
+
+let RANGE = "7d";
+let LABELS = {};   // project_hash → friendly label
+
+const PROSE = ["freeform", "journey", "headsup"];
+const CARD_ORDER = ["freeform", "journey", "headsup", "header", "todo", "cta"];
+
+function barChart(buckets, opt) {
+  const W = 280, yTop = 14, yBase = 132, x0 = 30, x1 = 274;
+  const yMax = Math.max(opt.timeout, 1);
+  const y = (v) => yBase - (Math.min(v, yMax) / yMax) * (yBase - yTop);
+  const n = buckets.length;
+  const slot = (x1 - x0) / n;
+  const bw = Math.min(34, slot * 0.62);
+  let bars = "", labs = "", vals = "";
+  buckets.forEach((b, i) => {
+    const cx = x0 + slot * (i + 0.5);
+    const v = b.avg_wall_s || 0;
+    const yv = y(v);
+    bars += `<rect x="${(cx - bw/2).toFixed(1)}" y="${yv.toFixed(1)}" width="${bw.toFixed(1)}" height="${(yBase - yv).toFixed(1)}" rx="3" fill="var(--accent)"></rect>`;
+    if (b.avg_wall_s != null)
+      vals += `<text x="${cx.toFixed(1)}" y="${(yv - 4).toFixed(1)}" font-size="10" fill="var(--fg)" text-anchor="middle">${Math.round(b.avg_wall_s)}s</text>`;
+    labs += `<text x="${cx.toFixed(1)}" y="146" font-size="10" fill="var(--muted)" text-anchor="middle">${esc(b.label)}</text>`;
+    labs += `<text x="${cx.toFixed(1)}" y="158" font-size="9" fill="var(--muted)" text-anchor="middle">n=${b.n}</text>`;
+  });
+  // Ref-line labels sit at the left edge, over the shortest bars.
+  const killY = y(opt.timeout), warnY = y(opt.warn);
+  const ref = `
+    <line x1="${x0}" y1="${killY.toFixed(1)}" x2="${x1}" y2="${killY.toFixed(1)}" stroke="var(--bad)" stroke-width="1" stroke-dasharray="4 3"></line>
+    <text x="${x0}" y="${(killY - 3).toFixed(1)}" font-size="9" fill="var(--bad)" text-anchor="start">${Math.round(opt.timeout)}s kill</text>
+    <line x1="${x0}" y1="${warnY.toFixed(1)}" x2="${x1}" y2="${warnY.toFixed(1)}" stroke="var(--warn)" stroke-width="1" stroke-dasharray="3 3"></line>
+    <text x="${x0}" y="${(warnY - 3).toFixed(1)}" font-size="9" fill="var(--warn)" text-anchor="start">${Math.round(opt.warn)}s</text>`;
+  return `<svg viewBox="0 0 ${W} 168" role="img" aria-label="${esc(opt.aria || "")}">
+    ${ref}
+    <line x1="${x0}" y1="${yBase}" x2="${x1}" y2="${yBase}" stroke="var(--border)" stroke-width="1"></line>
+    ${bars}${vals}${labs}
+    <text x="${(W/2).toFixed(0)}" y="167" font-size="10" fill="var(--muted)" text-anchor="middle">${esc(opt.xlabel)}</text>
+  </svg>`;
+}
+
+function lineChart(points, key, opt) {
+  const W = 280, yTop = 12, yBase = 120, x0 = 34, x1 = 274;
+  const vals = points.map(p => p[key]).filter(v => v != null);
+  if (!vals.length) return `<div class="muted-note">No data.</div>`;
+  const vMax = Math.max(...vals, opt.min || 0) * 1.1 || 1;
+  const y = (v) => yBase - (v / vMax) * (yBase - yTop);
+  const n = points.length;
+  const x = (i) => n <= 1 ? (x0 + x1) / 2 : x0 + (i / (n - 1)) * (x1 - x0);
+  let path = "", dots = "";
+  points.forEach((p, i) => {
+    if (p[key] == null) return;
+    const px = x(i), py = y(p[key]);
+    path += (path ? " L" : "M") + px.toFixed(1) + " " + py.toFixed(1);
+    if (n <= 20) dots += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2.2" fill="${opt.color}"></circle>`;
+  });
+  const first = points[0] ? points[0].t : "", last = points[n-1] ? points[n-1].t : "";
+  const shortT = (t) => esc((t || "").slice(5).replace("T", " "));
+  return `<svg viewBox="0 0 ${W} 138" role="img" aria-label="${esc(opt.aria || "")}">
+    <line x1="${x0}" y1="${yBase}" x2="${x1}" y2="${yBase}" stroke="var(--border)" stroke-width="1"></line>
+    <text x="${x0}" y="${yTop}" font-size="9" fill="var(--muted)">${esc(opt.top)} ${Math.round(vMax)}</text>
+    <path d="${path}" fill="none" stroke="${opt.color}" stroke-width="2"></path>${dots}
+    <text x="${x0}" y="134" font-size="9" fill="var(--muted)">${shortT(first)}</text>
+    <text x="${x1}" y="134" font-size="9" fill="var(--muted)" text-anchor="end">${shortT(last)}</text>
+  </svg>`;
+}
+
+function blockBreakdown(blocks) {
+  const total = Object.values(blocks).reduce((a, b) => a + b, 0);
+  if (!total) return `<div class="muted-note">Per-card telemetry hasn't accrued yet for this range.</div>`;
+  const proseTotal = PROSE.reduce((s, k) => s + (blocks[k] || 0), 0);
+  let seg = "";
+  CARD_ORDER.forEach((k, i) => {
+    const v = blocks[k]; if (!v) return;
+    const share = 100 * v / total;
+    const isProse = PROSE.includes(k);
+    const bg = isProse ? "var(--accent)" : "var(--muted)";
+    const op = isProse ? (1 - 0.16 * PROSE.indexOf(k)) : 0.55;
+    const label = share >= 9 ? `${esc(k)} ${Math.round(share)}%` : "";
+    seg += `<div style="flex:${share.toFixed(2)};background:${bg};opacity:${op};" title="${esc(k)}: ${Math.round(share)}%">${label}</div>`;
+  });
+  return `<div class="blockbar">${seg}</div>
+    <div class="legend">
+      <span><span class="sw sw--accent"></span>prose cards = <b>${Math.round(100*proseTotal/total)}%</b></span>
+      <span><span class="sw sw--muted"></span>fixed chrome = ${Math.round(100*(total-proseTotal)/total)}%</span>
+    </div>`;
+}
+
+function render(d) {
+  const k = d.kpis || {};
+  const dangerPct = pct(k.danger || 0, k.regens || 0);
+
+  const kpis = `
+    <div class="kpis">
+      <div class="kpi surface"><div class="v">${k.regens ?? 0}</div><div class="l">regens</div></div>
+      <div class="kpi surface"><div class="v">${fmtUsd(k.cost_usd)}</div><div class="l">cost</div></div>
+      <div class="kpi surface"><div class="v">${fmtS(k.avg_wall_s)}</div><div class="l">avg wall</div></div>
+      <div class="kpi surface"><div class="v">${k.failed ?? 0}</div><div class="l">failed</div></div>
+      <div class="kpi surface"><div class="v">${k.superseded ?? 0}</div><div class="l">superseded</div></div>
+      <div class="kpi surface"><div class="v" style="color:${dangerPct>0?"var(--warn)":"var(--fg)"}">${k.danger ?? 0}</div><div class="l">past ${Math.round(d.warn_s)}s</div></div>
+    </div>`;
+
+  const callout = (k.danger > 0)
+    ? `<div class="callout"><b>${k.danger} regen${k.danger===1?"":"s"} (${dangerPct}%)</b> ran past ${Math.round(d.warn_s)}s; the stop limit is ${Math.round(d.timeout_s)}s.</div>`
+    : `<div class="callout ok">No regens crossed ${Math.round(d.warn_s)}s in this range.</div>`;
+
+  const drivers = `
+    <div class="card surface">
+      <h2>What drives wall-time?</h2>
+      <div class="sub">Average wall seconds, split by output tokens and by input tokens</div>
+      <div class="two">
+        <div>
+          ${barChart(d.output_buckets || [], {timeout: d.timeout_s, warn: d.warn_s, xlabel: "output tokens →", aria: "Wall time by output token bucket"})}
+          <div class="chart-cap">by output tokens</div>
+        </div>
+        <div>
+          ${barChart(d.input_buckets || [], {timeout: d.timeout_s, warn: d.warn_s, xlabel: "input tokens →", aria: "Wall time by input token bucket"})}
+          <div class="chart-cap">by input tokens</div>
+        </div>
+      </div>
+    </div>`;
+
+  const blocks = `
+    <div class="card surface">
+      <h2>Where the output bytes go</h2>
+      <div class="sub">Per-card share of rendered dashboards in range</div>
+      ${blockBreakdown(d.blocks || {})}
+    </div>`;
+
+  const ts = d.timeseries || [];
+  const over = `
+    <div class="card surface">
+      <h2>Over time</h2>
+      <div class="sub">Per ${d.bucket === "hour" ? "hour" : "day"}, successful regens</div>
+      <div class="two">
+        <div>${lineChart(ts, "avg_wall_s", {color: "var(--accent)", top: "avg wall ≤", aria: "Average wall seconds over time"})}
+          <div class="chart-cap">avg wall time</div></div>
+        <div>${lineChart(ts, "cost_usd", {color: "var(--ok)", top: "cost ≤ $", aria: "Cost over time"})}
+          <div class="chart-cap">cost per ${d.bucket === "hour" ? "hour" : "day"}</div></div>
+      </div>
+    </div>`;
+
+  const rows = (d.by_project || []).map(p => {
+    const label = p.label || LABELS[p.project] || p.project;
+    return `<tr>
+      <td class="proj" title="${esc(p.project)}">${esc(label)}</td>
+      <td>${p.regens}</td>
+      <td>${fmtS(p.avg_wall_s)}</td>
+      <td class="${p.failed ? "bad" : "zero"}">${p.failed}</td>
+      <td class="${p.superseded ? "" : "zero"}">${p.superseded}</td>
+      <td>${fmtUsd(p.cost_usd)}</td>
+    </tr>`;
+  }).join("");
+  const projects = `
+    <div class="card surface">
+      <h2>By project</h2>
+      <div class="sub">Where cost &amp; latency are spent</div>
+      <table class="stats-tbl">
+        <thead><tr><th>Project</th><th>Regens</th><th>Avg wall</th><th>Failed</th><th>Superseded</th><th>Cost</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="6" class="muted-note">No regens in range.</td></tr>`}</tbody>
+      </table>
+    </div>`;
+
+  const kinds = (d.kinds || []).map(x => `<span class="count-pill"><b>${x.n}</b> ${esc(x.kind)}</span>`).join("");
+  const att = (d.attempts || [])
+    .filter(x => x.attempts > 1)
+    .map(x => `<span class="count-pill"><b>${x.n}</b> needed ${x.attempts} tries</span>`).join("");
+  const failures = `
+    <div class="card surface">
+      <h2>Failures and retries</h2>
+      <div class="sub">What failed in this range, and how many runs needed more than one try</div>
+      <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
+        <div><div class="muted-note" style="margin-bottom:0.35rem">Failure kinds</div>
+          <span class="count-pills">${kinds || '<span class="muted-note">none</span>'}</span></div>
+        <div><div class="muted-note" style="margin-bottom:0.35rem">Retried runs</div>
+          <span class="count-pills">${att || '<span class="muted-note">none</span>'}</span></div>
+      </div>
+    </div>`;
+
+  $("body").innerHTML = kpis + callout + blocks + projects + drivers + over + failures;
+}
+
+async function loadLabels() {
+  try {
+    const r = await fetch("/api/projects.json", { cache: "no-store" });
+    if (!r.ok) return;
+    (await r.json()).forEach(p => { LABELS[p.hash] = p.label; });
+  } catch (_) { /* labels are a nicety */ }
+}
+
+async function refresh() {
+  try {
+    const r = await fetch("/api/stats.json?range=" + encodeURIComponent(RANGE), { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const d = await r.json();
+    render(d);
+    if (window.Freshness) {
+      window.Freshness.setPageStatus(true);
+      window.Freshness.stampUpdated();
+    }
+  } catch (e) {
+    if (window.Freshness) window.Freshness.setPageStatus(false);
+    $("body").innerHTML = `<div class="err">Could not load stats: ${esc(e.message)}. Is the server running?</div>`;
+  }
+}
+
+function setRange(rng) {
+  RANGE = rng;
+  document.querySelectorAll("#ranges button").forEach(b => {
+    const on = b.dataset.range === rng;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", String(on));
+  });
+  refresh();
+}
+
+document.querySelectorAll("#ranges button").forEach(b =>
+  b.addEventListener("click", () => setRange(b.dataset.range)));
+
+loadLabels().then(() => setRange("7d"));
+setInterval(refresh, 30_000);
+</script>

@@ -1,17 +1,9 @@
-<!doctype html>
-<html lang="en">
-<head>
-{{shared_head}}
-<title>Claude Code · projects</title>
 <style>
-  body { padding: 1rem; font-size: 13px; line-height: 1.5; }
-  .wrap { max-width: 100%; margin: 0 auto; }
-
   .projects { display: grid; grid-template-columns: 1fr; gap: 0.6rem; }
   @media (min-width: 720px) { .projects { grid-template-columns: 1fr 1fr; } }
   .project {
-    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-    padding: 0.85rem 1rem; box-shadow: var(--shadow-card);
+    min-width: 0;
+    padding: 0.85rem 1rem;
     text-decoration: none; color: inherit; display: block;
     transition: border-color 0.12s, transform 0.12s;
   }
@@ -21,7 +13,7 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .project .hash {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: var(--mono);
     font-size: 0.72rem; color: var(--muted); margin-bottom: 0.5rem;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
@@ -34,56 +26,25 @@
   .project .arrow { color: var(--accent); font-weight: 600; }
   .project .stats .wt-count {
     color: var(--muted);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: var(--mono);
   }
   .project .stats .wt-count strong { color: var(--fg); }
 </style>
-</head>
-<body>
-<div class="wrap">
-
-<div class="recents-strip" id="recents-strip" style="border-bottom:none;padding:0 0 0.55rem;background:transparent;"></div>
-
-<header class="page">
-  <div>
-    <h1>Claude Code · projects</h1>
-    <div class="subtitle">All projects with chat history · click one to see its chats</div>
-  </div>
-  <div class="meta">
-    <div class="actions" data-theme-slot style="justify-content: flex-end; margin-bottom: 0.3rem;"></div>
-    Served by <code>claude-dashboard</code><br/>
-    <span class="status live" id="status"><span class="dot"></span>live</span><br/>
-    Updated <span id="updated">—</span>
-  </div>
-</header>
 
 <div class="stat-row">
-  <div class="stat"><div class="stat-value" id="stat-projects">–</div><div class="stat-label">projects</div></div>
-  <div class="stat"><div class="stat-value" id="stat-chats">–</div><div class="stat-label">total chats</div></div>
-  <div class="stat"><div class="stat-value" style="color: var(--ok);" id="stat-dash">–</div><div class="stat-label">with dashboards</div></div>
-  <div class="stat"><div class="stat-value" id="stat-recent" style="font-size: 0.95rem; line-height: 1.2;">–</div><div class="stat-label">last activity</div></div>
+  <div class="stat surface"><div class="stat-value" id="stat-projects">–</div><div class="stat-label">projects</div></div>
+  <div class="stat surface"><div class="stat-value" id="stat-chats">–</div><div class="stat-label">total chats</div></div>
+  <div class="stat surface"><div class="stat-value stat-value--ok" id="stat-dash">–</div><div class="stat-label">with dashboards</div></div>
+  <div class="stat surface"><div class="stat-value stat-value--sm" id="stat-recent">–</div><div class="stat-label">last activity</div></div>
 </div>
 
 <div class="projects" id="projects">
   <div class="skeleton"></div>
-  <div class="skeleton" style="animation-delay: 0.1s;"></div>
-  <div class="skeleton" style="animation-delay: 0.2s;"></div>
-</div>
-
-<footer>Auto-refreshes every 30s · <code>/api/projects.json</code><span id="metrics-total"></span></footer>
-
+  <div class="skeleton"></div>
+  <div class="skeleton"></div>
 </div>
 
 <script>
-function fmtDate(iso) {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-    + " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
-}
-function escapeHtml(s) {
-  return (s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
 async function refresh() {
   try {
     const r = await fetch("/api/projects.json", { cache: "no-store" });
@@ -93,10 +54,12 @@ async function refresh() {
     document.getElementById("stat-projects").textContent = projects.length;
     document.getElementById("stat-chats").textContent = projects.reduce((s, p) => s + p.chatCount, 0);
     document.getElementById("stat-dash").textContent = projects.reduce((s, p) => s + p.withDashboards, 0);
-    document.getElementById("stat-recent").textContent = projects[0] ? fmtDate(projects[0].lastActivityIso) : "—";
-    document.getElementById("updated").innerHTML = `<strong>${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</strong>`;
-    document.getElementById("status").className = "status live";
-    document.getElementById("status").innerHTML = `<span class="dot"></span>live`;
+    document.getElementById("stat-recent").textContent =
+      projects[0] && window.Freshness ? window.Freshness.fmtDate(projects[0].lastActivityIso) : "—";
+    if (window.Freshness) {
+      window.Freshness.stampUpdated();
+      window.Freshness.setPageStatus(true);
+    }
 
     const container = document.getElementById("projects");
     if (projects.length === 0) {
@@ -109,15 +72,15 @@ async function refresh() {
         ? `<span class="wt-count">+<strong>${wtCount}</strong> ${wtCount === 1 ? "worktree" : "worktrees"}</span>`
         : "";
       return `
-        <a class="project" href="/${encodeURIComponent(p.hash)}/">
+        <a class="project surface" href="/${encodeURIComponent(p.hash)}/">
           <div class="label">${escapeHtml(p.label)}</div>
-          <div class="hash">${escapeHtml(p.hash)}</div>
+          <div class="hash">${escapeHtml(p.rootPath || p.hash)}</div>
           <div class="row">
             <div class="stats">
-              <span><strong>${p.chatCount}</strong> chats</span>
-              <span style="color: var(--ok);"><strong>${p.withDashboards}</strong> with dashboards</span>
+              <span><strong>${p.chatCount}</strong> chat${p.chatCount === 1 ? "" : "s"}</span>
+              <span class="ok-count"><strong>${p.withDashboards}</strong> with dashboard${p.withDashboards === 1 ? "" : "s"}</span>
               ${wtStat}
-              <span>${fmtDate(p.lastActivityIso)}</span>
+              <span>${window.Freshness ? window.Freshness.fmtDate(p.lastActivityIso) : ""}</span>
             </div>
             <div class="arrow">→</div>
           </div>
@@ -125,8 +88,7 @@ async function refresh() {
       `;
     }).join("");
   } catch (e) {
-    document.getElementById("status").className = "status dead";
-    document.getElementById("status").innerHTML = `<span class="dot"></span>server down`;
+    if (window.Freshness) window.Freshness.setPageStatus(false);
     document.getElementById("projects").innerHTML =
       `<div class="err">Server unreachable: ${escapeHtml(e.message)}. Run <code>atk start claude-dashboard</code></div>`;
   }
@@ -139,11 +101,11 @@ async function refreshMetrics() {
     const m = await r.json();
     const el = document.getElementById("metrics-total");
     if (!el) return;
-    if (!m || !m.regens) { el.textContent = ""; return; }
-    const fmtTok = n => (n == null ? "?" : (n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n)));
+    if (!m || !m.regens || !window.Freshness) { el.textContent = ""; return; }
     const cost = m.cost_usd != null && m.cost_usd > 0 ? " · $" + m.cost_usd.toFixed(2) : "";
     el.textContent = " · " + m.regens + " regens total · "
-      + fmtTok(m.input_tokens) + " in / " + fmtTok(m.output_tokens) + " out" + cost;
+      + window.Freshness.fmtTokens(m.input_tokens) + " in / "
+      + window.Freshness.fmtTokens(m.output_tokens) + " out" + cost;
   } catch (_) { /* totals are best-effort */ }
 }
 
@@ -151,9 +113,4 @@ refresh();
 refreshMetrics();
 setInterval(refresh, 30_000);
 setInterval(refreshMetrics, 30_000);
-
-// Recents strip self-boots from freshness.js.
 </script>
-
-</body>
-</html>

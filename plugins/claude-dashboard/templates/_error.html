@@ -1,0 +1,22 @@
+<style>
+  .ccd-error { max-width: 34rem; margin: 3rem auto; text-align: center; }
+  .ccd-error .code { font-size: 3rem; font-weight: 600; color: var(--muted); line-height: 1; }
+  .ccd-error h1 { margin: 0.4rem 0 0.6rem; font-size: 1.2rem; }
+  .ccd-error .msg {
+    color: var(--muted); font-size: 0.9rem; line-height: 1.6;
+    font-family: var(--mono); word-break: break-word;
+  }
+  .ccd-error .home {
+    display: inline-block; margin-top: 1.2rem;
+    color: var(--accent); text-decoration: none;
+    border: 1px solid var(--accent); border-radius: 6px;
+    padding: 0.35rem 0.9rem; font-size: 0.85rem;
+  }
+  .ccd-error .home:hover { background: var(--accent); color: var(--on-accent); }
+</style>
+<div class="ccd-error">
+  <div class="code">{{code}}</div>
+  <h1>{{label}}</h1>
+  <p class="msg">{{message}}</p>
+  <a class="home" href="/">Back to projects</a>
+</div>
