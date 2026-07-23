@@ -11,7 +11,7 @@ plugins:
     server that browses ~/.claude/projects/ and serves a top-level projects landing,
     a per-project chat index, and per-session dashboards the agent maintains. Claude-specific
     because it reads Claude Code's chat-history layout (project hash dirs + session
-    UUID JSONLs) and targets the Claude Code preview pane.
+    UUID JSONLs) and targets the Claude Code Browser pane.
 - name: codanna
   path: plugins/codanna
   description: Semantic code-intelligence tool — gives AI assistants instant call
