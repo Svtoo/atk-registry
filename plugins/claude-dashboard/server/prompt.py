@@ -180,6 +180,7 @@ class RegenPrompt(BaseModel):
     turns: list = Field(default_factory=list)       # all turns, oldest->newest (raw JSONL events)
     turn_no: int = 0                                # absolute conversation turn
     system_template: str = ""                       # SYSTEM.md content
+    verdicts: dict = Field(default_factory=dict)    # user clicks on items, already applied
 
 
 @dataclass
@@ -270,7 +271,7 @@ def assemble_prompt(rp: RegenPrompt) -> AssembledPrompt:
 
     system = f"{rp.system_template.strip()}\n\n{_output_format()}"
     user = (
-        f'<dashboard_state turn="{rp.turn_no}">\n{build_digest(rp.dashboard, now_turn=rp.turn_no)}\n</dashboard_state>\n\n'
+        f'<dashboard_state turn="{rp.turn_no}">\n{build_digest(rp.dashboard, now_turn=rp.turn_no, verdicts=rp.verdicts)}\n</dashboard_state>\n\n'
         f'<transcript note="recent conversation; the newest turn in full with tool calls, earlier turns as prose">\n'
         f"{transcript}\n</transcript>\n\n"
         f"<task>\n{_task(rp.turn_no)}\n</task>\n"

@@ -215,5 +215,61 @@ def test_apply_does_not_mutate_the_input_model():
     assert model.todo == [], "input model must not be mutated (non-destructive)"
 
 
+# ── created_turn + user verdicts ───────────────────────────────────────
+
+def test_cta_create_stamps_created_turn_and_edits_keep_it():
+    created_at_turn = 3
+    edited_at_turn = 9
+    seeded = apply_ops(DashboardModel(), _update(ops=[
+        {"op": "cta.upsert", "text": "confirm corpus", "reason": "gate"},
+    ]), {}, turn=created_at_turn)
+    cta_id = seeded.cta[0].id
+    assert seeded.cta[0].created_turn == created_at_turn, seeded.cta[0]
+
+    edited = apply_ops(seeded, _update(ops=[
+        {"op": "cta.upsert", "id": cta_id, "text": "confirm corpus provenance", "reason": "clarify"},
+    ]), {}, turn=edited_at_turn)
+    assert edited.cta[0].created_turn == created_at_turn, "edits must not reset the item's age"
+    assert edited.cta[0].changed_turn == edited_at_turn
+
+
+def _seeded_for_verdicts():
+    return apply_ops(DashboardModel(), _update(ops=[
+        {"op": "todo.upsert", "text": "task one", "status": "open", "reason": "r"},
+        {"op": "todo.upsert", "text": "task two", "status": "active", "reason": "r"},
+        {"op": "cta.upsert", "text": "answer me", "reason": "r"},
+    ]), {}, turn=2)
+
+
+def test_apply_verdicts_done_checks_the_todo():
+    from fold import apply_verdicts
+    m = _seeded_for_verdicts()
+    t1 = m.todo[0].id
+    out = apply_verdicts(m, {f"todo:{t1}": {"verdict": "done", "at": 1, "text": "task one"}})
+    assert out.todo[0].status == models.TodoStatus.done, out.todo[0]
+    assert out.todo[1].status == models.TodoStatus.active, "other items untouched"
+
+
+def test_apply_verdicts_dropped_and_dismissed_remove_items():
+    from fold import apply_verdicts
+    m = _seeded_for_verdicts()
+    t2, c1 = m.todo[1].id, m.cta[0].id
+    out = apply_verdicts(m, {
+        f"todo:{t2}": {"verdict": "dropped", "at": 1, "text": "task two"},
+        f"cta:{c1}": {"verdict": "dismissed", "at": 1, "text": "answer me"},
+    })
+    assert [t.id for t in out.todo] == [m.todo[0].id], "dropped todo vanishes"
+    assert out.cta == [], "dismissed cta vanishes"
+
+
+def test_apply_verdicts_ignores_unknown_ids_and_leaves_input_untouched():
+    from fold import apply_verdicts
+    m = _seeded_for_verdicts()
+    before = m.model_dump()
+    out = apply_verdicts(m, {"todo:zzz": {"verdict": "done", "at": 1, "text": "?"}})
+    assert m.model_dump() == before, "input model must not be mutated"
+    assert len(out.todo) == 2 and len(out.cta) == 1
+
+
 if __name__ == "__main__":
     run_module_tests(globals())

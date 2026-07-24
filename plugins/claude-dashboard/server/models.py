@@ -76,6 +76,8 @@ class CtaItem(_Base):
     text: str = Field(max_length=SHORT)
     order: int = 0
     changed_turn: int = 0
+    # Server-stamped at creation; drives the age display. 0 = unknown age.
+    created_turn: int = 0
     reason: str = Field("", max_length=SHORT)
 
 
@@ -248,3 +250,12 @@ class Update(_OpBase):
     tldr: Optional[TldrPatch] = Field(None, description="the glance lines; send only the fields that changed")
     ops: list[Op] = Field(default_factory=list, max_length=MAX_OPS,
                           description="the changes this turn; emit ONLY what materially changed, omit the rest")
+
+
+def verdict_key(section: str, item_id: str) -> str:
+    return f"{section}:{item_id}"
+
+
+def split_verdict_key(key: str) -> "tuple[str, str]":
+    section, _, item_id = key.partition(":")
+    return section, item_id

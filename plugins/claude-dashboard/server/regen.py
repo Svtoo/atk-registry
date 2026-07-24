@@ -373,13 +373,18 @@ def run_once(
         (str(e.get("aiTitle") or "").strip() for e in events if e.get("type") == "ai-title"),
         "",
     )
-    stored = chat_state.get_model(project_hash, session_uuid)
+    snap = chat_state.snapshot(project_hash, session_uuid) or {}
+    stored = snap.get("model")
     dash_model = DashboardModel.model_validate(stored) if stored else DashboardModel()
+    verdicts = snap.get("verdicts") or {}
+    if verdicts:
+        dash_model = _fold.apply_verdicts(dash_model, verdicts)
 
     assembled = assemble_prompt(RegenPrompt(
         dashboard=dash_model,
         turns=all_turns,
         turn_no=turn_no,
+        verdicts=verdicts,
         system_template=system_prompt_path.read_text(encoding="utf-8"),
     ))
     system_prompt, user_message = assembled.system, assembled.user
@@ -435,6 +440,9 @@ def run_once(
             )
 
         new_model = _fold.apply_ops(dash_model, update, bodies, turn_no)
+        if verdicts:
+            # A user click beats any same-turn agent op on the item.
+            new_model = _fold.apply_verdicts(new_model, verdicts)
         html = _render.render(new_model, ai_title)
         if len(html) < 200:
             raise OutputRejected(f"render too small ({len(html)} bytes) — refusing to overwrite")

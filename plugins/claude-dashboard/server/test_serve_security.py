@@ -146,6 +146,38 @@ def test_dashboard_status_ok_for_fresh_chat_without_subdir():
         serve.CHAT_STATE = None
 
 
+def test_verdict_endpoint_roundtrip_and_validation():
+    import json as _json
+    serve.CHAT_STATE = serve.ChatState(projects_root=Path(_tmp))
+    try:
+        item_id = "c9"
+        verdict = "dismissed"
+        base = f"/api/dashboard/{HASH}/{UUID}/verdict/cta/{item_id}"
+        status, _, body = _req(
+            "POST", base, headers={"Content-Type": "application/json"},
+            data=_json.dumps({"verdict": verdict}).encode())
+        assert status == 200, f"verdict POST returned {status}: {body!r}"
+        status, _, body = _req("GET", f"/api/dashboard/{HASH}/{UUID}.json")
+        d = _json.loads(body)
+        assert d["verdicts"][f"cta:{item_id}"]["verdict"] == verdict, d
+        status, _, _ = _req("DELETE", base, headers={"Content-Type": "application/json"})
+        assert status == 200, f"verdict undo returned {status}"
+        _, _, body = _req("GET", f"/api/dashboard/{HASH}/{UUID}.json")
+        assert _json.loads(body)["verdicts"] == {}, "undo must clear the verdict"
+
+        bad = [
+            (f"/api/dashboard/{HASH}/{UUID}/verdict/cta/c9", b'{"verdict": "done"}'),
+            (f"/api/dashboard/{HASH}/{UUID}/verdict/freeform/f1", b'{"verdict": "dropped"}'),
+            (f"/api/dashboard/{HASH}/{UUID}/verdict/todo/t1", b'{"verdict": "obliterated"}'),
+        ]
+        for path, payload in bad:
+            status, _, _ = _req("POST", path,
+                                headers={"Content-Type": "application/json"}, data=payload)
+            assert status == 400, f"{path} with {payload!r} must 400, got {status}"
+    finally:
+        serve.CHAT_STATE = None
+
+
 def main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:

@@ -73,12 +73,42 @@ def _header(m: DashboardModel, fallback_title: str = "") -> str:
     return "\n".join(lines)
 
 
+# The CTA number marker rots one visible step per turn of age, saturating
+# at CTA_AGE_MAX; the tooltip keeps the true count.
+CTA_AGE_MAX = 6
+
+_TRASH_SVG = ('<svg viewBox="0 0 24 24" width="14" height="14" fill="none" '
+              'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+              'aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6'
+              'M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>')
+
+def _trash_btn(verdict: str, label: str, title: str) -> str:
+    return (f'<button class="verdict-btn trash" data-verdict="{verdict}" '
+            f'type="button" aria-label="{label}" title="{title}">{_TRASH_SVG}</button>')
+
+
+_DISMISS_BTN = _trash_btn("dismissed", "dismiss", "dismiss")
+_DROP_BTN = _trash_btn("dropped", "drop", "drop (no longer relevant)")
+_CHECK_BTN = ('<button class="todo-check" data-verdict="done" type="button" '
+              'aria-label="mark done" title="mark done"></button>')
+
+
+def _cta_age_class(age: int) -> str:
+    return f"age-{min(max(age, 0), CTA_AGE_MAX)}"
+
+
 def _cta(m: DashboardModel) -> str:
     lines = ['<section class="card questions">', "  <h2>📌 Call to action</h2>"]
     if m.cta:
         lines.append('  <ol class="questions-list">')
         for c in m.cta:
-            lines.append(f'    <li><span class="label">{c.text}</span></li>')
+            age = max(0, m.turn - c.created_turn)
+            unit = "turn" if age == 1 else "turns"
+            lines.append(
+                f'    <li class="{_cta_age_class(age)}" data-item-id="{c.id}" '
+                f'title="waiting {age} {unit}">'
+                f'<span class="label">{c.text}</span>{_DISMISS_BTN}</li>'
+            )
         lines.append("  </ol>")
     else:
         lines.append('  <div class="all-clear">✓ Nothing pending</div>')
@@ -106,7 +136,14 @@ def _todo(m: DashboardModel) -> str:
             i = j
         else:
             t = items[i]
-            lines.append(f'    <li class="{t.status.value}"><span class="label">{t.text}</span></li>')
+            # .checkable suppresses the ::before status marker (CSS); blocked rows keep ✗.
+            checkable = t.status != TodoStatus.blocked
+            cls = t.status.value + (" checkable" if checkable else "")
+            check = _CHECK_BTN if checkable else ""
+            lines.append(
+                f'    <li class="{cls}" data-item-id="{t.id}">'
+                f'{check}<span class="label">{t.text}</span>{_DROP_BTN}</li>'
+            )
             i += 1
     lines += ["  </ul>", "</section>"]
     return "\n".join(lines)

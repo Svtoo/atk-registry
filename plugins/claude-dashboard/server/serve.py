@@ -16,6 +16,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import identity
+import models
 from chat_state import ChatState
 from config import Settings
 from failures import present as present_failure
@@ -837,6 +838,16 @@ def _is_error_ack_path(parts: list) -> bool:
     )
 
 
+def _is_verdict_path(parts: list) -> bool:
+    """/api/dashboard/<project>/<session>/verdict/<section>/<item-id>"""
+    return (
+        len(parts) == 7
+        and parts[0] == "api"
+        and parts[1] == "dashboard"
+        and parts[4] == "verdict"
+    )
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -925,6 +936,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._handle_settings_post()
         if _is_error_ack_path(parts):
             return self._handle_error_ack("POST")
+        if _is_verdict_path(parts):
+            return self._handle_verdict("POST")
         return self._handle_ack_mutation("POST")
 
     def do_DELETE(self):
@@ -934,6 +947,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         parts = [p for p in path.split("/") if p]
         if _is_error_ack_path(parts):
             return self._handle_error_ack("DELETE")
+        if _is_verdict_path(parts):
+            return self._handle_verdict("DELETE")
         return self._handle_ack_mutation("DELETE")
 
     def _read_json_body(self, max_bytes: int = 4096) -> "dict | None":
@@ -1017,6 +1032,35 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except FileNotFoundError:
             return self.send_error(404, "session not found")
         return self._send_json({"ok": True, "rowId": row_id, "state": state})
+
+    def _handle_verdict(self, method: str) -> None:
+        """POST/DELETE /api/dashboard/<project>/<session>/verdict/<section>/<id>.
+        POST body: {"verdict": "done"|"dropped"|"dismissed"}."""
+        path = urlparse(self.path).path
+        parts = [p for p in path.split("/") if p]
+        project_hash, session_uuid = parts[2], parts[3]
+        section, item_id = parts[5], parts[6]
+        if not self._guard_chat_route(project_hash, session_uuid):
+            return
+        if not ChatState.is_valid_section(section):
+            return self.send_error(400, "invalid section")
+        if not ChatState.is_valid_row_id(item_id):
+            return self.send_error(400, "invalid item id")
+        key = models.verdict_key(section, item_id)
+        try:
+            if method == "POST":
+                body = self._read_json_body()
+                verdict = (body or {}).get("verdict")
+                if not isinstance(verdict, str) \
+                        or not ChatState.is_valid_verdict(section, verdict):
+                    return self.send_error(400, "invalid verdict for section")
+                entry = CHAT_STATE.set_verdict(
+                    project_hash, session_uuid, section, item_id, verdict)
+                return self._send_json({"ok": True, "key": key, "state": entry})
+            CHAT_STATE.clear_verdict(project_hash, session_uuid, section, item_id)
+            return self._send_json({"ok": True, "key": key, "state": None})
+        except FileNotFoundError:
+            return self.send_error(404, "session not found")
 
     def _handle_error_ack(self, method: str) -> None:
         """POST/DELETE /api/dashboard/<project>/<session>/error/<id>/acknowledge:

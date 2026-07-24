@@ -14,7 +14,7 @@ everything.
   - Every mutable item shows "changed N turns ago: reason" so the agent sees
     trajectory and decides what actually needs touching.
 """
-from models import JOURNEY_MAX, DashboardModel
+from models import JOURNEY_MAX, DashboardModel, split_verdict_key
 
 
 def _ago(current_turn: int, when: int) -> str:
@@ -22,10 +22,14 @@ def _ago(current_turn: int, when: int) -> str:
     return "now" if delta <= 0 else f"{delta}t ago"
 
 
-def build_digest(m: DashboardModel, now_turn: "int | None" = None) -> str:
+def build_digest(m: DashboardModel, now_turn: "int | None" = None,
+                 verdicts: "dict | None" = None) -> str:
     """Render the model for the agent. `now_turn` is the current conversation
     turn; "changed Nt ago" is measured against it (regens can skip turns, so
-    the state's own turn may lag). Defaults to the state's turn."""
+    the state's own turn may lag). Defaults to the state's turn.
+
+    `verdicts` are the user's clicks on items ({"todo:<id>": {...}}), listed
+    as authoritative facts."""
     now = m.turn if now_turn is None else now_turn
     L = [
         f"# Dashboard state — as of conversation turn {m.turn}",
@@ -66,5 +70,16 @@ def build_digest(m: DashboardModel, now_turn: "int | None" = None) -> str:
     for f in m.freeform:
         L.append(f"- {f.id} [{_ago(now, f.changed_turn)}: {f.reason}]")
         L.append(f.html)
+
+    if verdicts:
+        L += ["", "## User verdicts — AUTHORITATIVE clicks by the user, already applied "
+                  "to the state above; never re-add a dropped/dismissed item and never "
+                  "uncheck a user-done one"]
+        for key, entry in verdicts.items():
+            section, item_id = split_verdict_key(key)
+            what = entry.get("verdict", "?")
+            text = entry.get("text") or "(text not recorded)"
+            L.append(f'- user {what}: "{text}" ({section} {item_id})')
+
     L.append("")
     return "\n".join(L)

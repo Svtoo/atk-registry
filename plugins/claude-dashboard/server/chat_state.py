@@ -14,6 +14,8 @@ import json
 import os
 import re
 import threading
+
+import models
 import time
 import uuid as uuid_module
 from pathlib import Path
@@ -24,6 +26,7 @@ _log = get_logger("chat-state")
 
 CURRENT_VERSION = 1
 MAX_ERRORS_PER_CHAT = 50
+MAX_VERDICTS_PER_CHAT = 50
 # With MAX_ERRORS_PER_CHAT this caps state.json at ~200 KB worst case.
 MAX_ERROR_MESSAGE_CHARS = 4096
 CURRENT_FILENAME = "state.json"
@@ -66,7 +69,8 @@ class ChatState:
     @staticmethod
     def empty_state() -> dict:
         """The default state shape."""
-        return {"version": CURRENT_VERSION, "acks": {}, "regenErrors": [], "model": None}
+        return {"version": CURRENT_VERSION, "acks": {}, "verdicts": {},
+                "regenErrors": [], "model": None}
 
     def _read_locked(self, path: Path) -> dict:
         """Load the per-chat state file, or an empty state if it's missing or
@@ -80,6 +84,10 @@ class ChatState:
         acks = data.get("acks")
         if not isinstance(acks, dict):
             acks = {}
+        verdicts = data.get("verdicts")
+        if not isinstance(verdicts, dict):
+            verdicts = {}
+        verdicts = {k: v for k, v in verdicts.items() if isinstance(v, dict)}
         errors = data.get("regenErrors")
         if not isinstance(errors, list):
             errors = []
@@ -89,6 +97,7 @@ class ChatState:
         return {
             "version": CURRENT_VERSION,
             "acks": acks,
+            "verdicts": verdicts,
             "regenErrors": errors,
             "model": model,
         }
@@ -139,13 +148,26 @@ class ChatState:
             return self._read_locked(path).get("model")
 
     def set_model(self, project_hash: str, session_uuid: str, model: dict) -> None:
-        """Persist the folded DashboardModel, preserving regenErrors and the
-        acks whose heads-up rows still exist."""
+        """Persist the folded DashboardModel, preserving regenErrors, the acks
+        whose heads-up rows still exist, and unabsorbed verdicts."""
         live_rows = {h.get("id") for h in (model.get("headsup") or [])}
+        todo_status = {t.get("id"): t.get("status") for t in (model.get("todo") or [])}
+
+        def absorbed(key: str, entry: dict) -> bool:
+            # A done verdict is spent once the model itself marks the item done
+            # (or the item is gone); dropped/dismissed entries stay as the
+            # never-re-add memory until the size cap evicts them.
+            if entry.get("verdict") != "done":
+                return False
+            _, item_id = models.split_verdict_key(key)
+            return todo_status.get(item_id) in (None, "done")
 
         def apply(data: dict) -> bool:
             data["model"] = model
             data["acks"] = {k: v for k, v in data["acks"].items() if k in live_rows}
+            kept = {k: v for k, v in data["verdicts"].items() if not absorbed(k, v)}
+            newest = sorted(kept, key=lambda k: kept[k].get("at", 0))[-MAX_VERDICTS_PER_CHAT:]
+            data["verdicts"] = {k: kept[k] for k in newest}
             return True
 
         self._mutate(project_hash, session_uuid, apply)
@@ -156,19 +178,59 @@ class ChatState:
     def is_valid_row_id(row_id: str) -> bool:
         return bool(_ACK_ID_RE.match(row_id))
 
-    def set_ack(self, project_hash: str, session_uuid: str, row_id: str) -> dict:
-        """Mark a heads-up row acknowledged. Returns the new entry."""
-        entry = {"ackedAt": int(time.time())}
-
+    def _set_entry(self, project_hash: str, session_uuid: str,
+                   bucket: str, key: str, entry: dict) -> dict:
         def apply(data: dict) -> dict:
-            data["acks"][row_id] = entry
+            data[bucket][key] = entry
             return entry
 
         return self._mutate(project_hash, session_uuid, apply)
 
-    def clear_ack(self, project_hash: str, session_uuid: str, row_id: str) -> None:
+    def _clear_entry(self, project_hash: str, session_uuid: str,
+                     bucket: str, key: str) -> None:
         self._mutate(project_hash, session_uuid,
-                     lambda data: data["acks"].pop(row_id, None) is not None)
+                     lambda data: data[bucket].pop(key, None) is not None)
+
+    def set_ack(self, project_hash: str, session_uuid: str, row_id: str) -> dict:
+        """Mark a heads-up row acknowledged. Returns the new entry."""
+        return self._set_entry(project_hash, session_uuid, "acks", row_id,
+                               {"ackedAt": int(time.time())})
+
+    def clear_ack(self, project_hash: str, session_uuid: str, row_id: str) -> None:
+        self._clear_entry(project_hash, session_uuid, "acks", row_id)
+
+    # ─── Verdicts API ──────────────────────────────────────────────
+    # One-bit user calls on items, keyed "<section>:<item-id>".
+
+    _VERDICTS = {"todo": {"done", "dropped"}, "cta": {"dismissed"}}
+
+    @classmethod
+    def is_valid_section(cls, section: str) -> bool:
+        return section in cls._VERDICTS
+
+    @classmethod
+    def is_valid_verdict(cls, section: str, verdict: str) -> bool:
+        return verdict in cls._VERDICTS.get(section, ())
+
+    def set_verdict(self, project_hash: str, session_uuid: str,
+                    section: str, item_id: str, verdict: str) -> dict:
+        """Record a user verdict; the item's wording is captured with it."""
+        def apply(data: dict) -> dict:
+            text = ""
+            for item in (data.get("model") or {}).get(section) or []:
+                if isinstance(item, dict) and item.get("id") == item_id:
+                    text = str(item.get("text") or "")
+                    break
+            entry = {"verdict": verdict, "at": int(time.time()), "text": text}
+            data["verdicts"][models.verdict_key(section, item_id)] = entry
+            return entry
+
+        return self._mutate(project_hash, session_uuid, apply)
+
+    def clear_verdict(self, project_hash: str, session_uuid: str,
+                      section: str, item_id: str) -> None:
+        self._clear_entry(project_hash, session_uuid, "verdicts",
+                          models.verdict_key(section, item_id))
 
     # ─── Errors API ────────────────────────────────────────────────
 
