@@ -108,6 +108,12 @@ light and dark. Keep a body well under 50,000 characters.
 
 ## Rules
 
+- User verdicts are final. The user can click items on the dashboard: mark a
+  to-do done, drop a to-do, dismiss a call to action. The digest lists these
+  under "User verdicts", already applied to the state. Never re-add a dropped
+  or dismissed item (under the old id, a new id, or reworded), and never
+  uncheck a user-done to-do. Treat a verdict as new information: if the user
+  dismissed an ask, related items may need cleanup too.
 - Emit ops only for what changed or needs repair; an empty ops list is a valid
   and common answer.
 - The section definitions bind the EXISTING state, not just your new ops: an

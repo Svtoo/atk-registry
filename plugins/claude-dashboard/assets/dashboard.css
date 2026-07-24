@@ -257,6 +257,63 @@ ol.questions-list li.resolved::before { background: var(--ok); content: "✓"; }
 ol.questions-list li.resolved { opacity: 0.6; }
 ol.questions-list li.resolved .label { text-decoration: line-through; }
 
+/* CTA age rot: the number marker cools when fresh and heats as the ask waits
+   unanswered (thresholds live in render.py). Hover the row for the exact age. */
+/* One rot step per turn of CTA age; warm-only mixes, cross-hue blends go muddy. */
+ol.questions-list li.age-0::before { background: var(--accent); }
+ol.questions-list li.age-1::before { background: var(--warn); }
+ol.questions-list li.age-2::before { background: color-mix(in srgb, var(--warn) 75%, var(--bad)); }
+ol.questions-list li.age-3::before { background: color-mix(in srgb, var(--warn) 50%, var(--bad)); }
+ol.questions-list li.age-4::before { background: color-mix(in srgb, var(--warn) 25%, var(--bad)); }
+ol.questions-list li.age-5::before { background: var(--bad); }
+ol.questions-list li.age-6::before {
+  background: var(--bad);
+  box-shadow: 0 0 0 2px var(--bad-soft-br);
+}
+
+/* ---- User verdicts (done / drop / dismiss) ---- */
+button.verdict-btn.trash {
+  background: transparent; border: 0; padding: 0.05rem 0.3rem;
+  border-radius: 4px; cursor: pointer; font: inherit; font-size: 0.74rem;
+  color: var(--bad); opacity: 0.6; vertical-align: -2px;
+  margin-left: 0.35rem; display: inline-flex; align-items: center; gap: 0.3rem;
+  transition: opacity 0.12s, background 0.12s;
+}
+li:hover button.verdict-btn.trash,
+button.verdict-btn.trash:focus-visible,
+button.verdict-btn.trash.undoing { opacity: 1; }
+button.verdict-btn.trash:hover { background: var(--bad-soft-bg); }
+button.verdict-btn.trash[disabled] { opacity: 0.4; cursor: wait; }
+li.user-done button.verdict-btn.trash { display: none; }
+
+ul.todo-list li.checkable::before { content: none; }
+button.todo-check {
+  position: absolute; left: 0.4rem; top: 0.45rem;
+  width: 1rem; height: 1rem; border-radius: 3px;
+  border: 1.5px solid var(--border); background: var(--card);
+  cursor: pointer; padding: 0; color: var(--on-accent);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 700; line-height: 1;
+  transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
+}
+button.todo-check:hover, button.todo-check:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft-bg);
+}
+button.todo-check.checked { background: var(--ok); border-color: var(--ok); }
+button.todo-check.checked::after { content: "✓"; }
+button.todo-check.checked:hover { border-color: var(--bad); }
+button.todo-check[disabled] { cursor: wait; opacity: 0.6; }
+
+/* A dropped/dismissed row stays as a struck, dimmed stub whose bin reads
+   "undo"; the next regen removes the row entirely. */
+li.verdict-stub .label { text-decoration: line-through; opacity: 0.5; }
+li.verdict-stub button.todo-check { display: none; }
+ol.questions-list li.verdict-stub::before { opacity: 0.4; }
+button.verdict-btn.trash.undoing svg { display: none; }
+button.verdict-btn.trash.undoing::after { content: "undo"; }
+button.verdict-btn.trash.undoing { color: var(--accent); }
+
 /* ---- Free-form canvas (agent-authored HTML) ---- */
 section.card.free-form a { color: var(--accent); }
 section.card.free-form svg { max-width: 100%; height: auto; }

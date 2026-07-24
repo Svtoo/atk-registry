@@ -79,5 +79,32 @@ def test_digest_shows_heads_up_in_full():
         assert f"h{i} " in digest, f"h{i} must appear — heads-up is fed in full to prevent duplicates"
 
 
+# ── user verdicts in the digest ────────────────────────────────────────
+
+def test_digest_reports_user_verdicts_as_authoritative_facts():
+    from models import DashboardModel
+    m = DashboardModel(title="T", turn=6)
+    done_text = "task one"
+    dropped_text = "task two"
+    dismissed_text = "answer me"
+    verdicts = {
+        "todo:t1": {"verdict": "done", "at": 1, "text": done_text},
+        "todo:t2": {"verdict": "dropped", "at": 2, "text": dropped_text},
+        "cta:c1": {"verdict": "dismissed", "at": 3, "text": dismissed_text},
+    }
+    d = build_digest(m, verdicts=verdicts)
+    assert "User verdicts" in d, d
+    assert "done" in d and done_text in d
+    assert "dropped" in d and dropped_text in d
+    assert "dismissed" in d and dismissed_text in d
+    assert "re-add" in d, "the never-re-add contract must be spelled out"
+
+
+def test_digest_without_verdicts_has_no_verdict_section():
+    from models import DashboardModel
+    d = build_digest(DashboardModel(title="T"))
+    assert "User verdicts" not in d
+
+
 if __name__ == "__main__":
     run_module_tests(globals())

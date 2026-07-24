@@ -13,6 +13,7 @@ from models import (
     TodoItem,
     TodoStatus,
     Update,
+    split_verdict_key,
 )
 
 
@@ -86,7 +87,8 @@ def apply_ops(model: DashboardModel, update: Update, bodies: dict, turn: int) ->
             if op.id is None:
                 m.cta.append(CtaItem(
                     id=mint("c"), text=op.text or "",
-                    order=m.seq, changed_turn=turn, reason=op.reason,
+                    order=m.seq, changed_turn=turn, created_turn=turn,
+                    reason=op.reason,
                 ))
             else:
                 it = _find(m.cta, op.id)
@@ -174,4 +176,23 @@ def apply_ops(model: DashboardModel, update: Update, bodies: dict, turn: int) ->
             m.freeform = [f for f in m.freeform if f.id != op.id]
 
     m.turn = turn
+    return m
+
+
+def apply_verdicts(model: DashboardModel, verdicts: dict) -> DashboardModel:
+    """Apply user verdicts to a copy of the model, without turn stamps;
+    unknown ids are ignored."""
+    m = model.model_copy(deep=True)
+    for key, entry in verdicts.items():
+        section, item_id = split_verdict_key(key)
+        verdict = entry.get("verdict")
+        if section == "todo":
+            if verdict == "done":
+                for t in m.todo:
+                    if t.id == item_id:
+                        t.status = TodoStatus.done
+            elif verdict == "dropped":
+                m.todo = [t for t in m.todo if t.id != item_id]
+        elif section == "cta" and verdict == "dismissed":
+            m.cta = [c for c in m.cta if c.id != item_id]
     return m

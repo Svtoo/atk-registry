@@ -83,7 +83,8 @@ def test_cta_renders_items_and_all_clear_when_empty():
     html = render(with_cta)
     assert '<section class="card questions">' in html
     assert '<ol class="questions-list">' in html
-    assert '<li><span class="label">confirm the schema</span></li>' in html
+    assert '<span class="label">confirm the schema</span>' in html
+    assert 'data-item-id="c1"' in html
 
     empty = render(DashboardModel())
     assert '<div class="all-clear">✓ Nothing pending</div>' in empty
@@ -99,7 +100,8 @@ def test_todo_renders_status_classes():
     assert '<ul class="todo-list">' in html
     # a lone done (run < DONE_FOLD_RUN) stays as its own row
     assert '<li class="done"><span class="label">did it</span></li>' in html
-    assert '<li class="active"><span class="label">doing it</span></li>' in html
+    assert '<li class="active checkable" data-item-id="t2">' in html
+    assert '<span class="label">doing it</span>' in html
 
 
 def test_todo_folds_long_done_runs_keeps_short_ones():
@@ -113,7 +115,8 @@ def test_todo_folds_long_done_runs_keeps_short_ones():
     html = render(model)
     assert "3 done" in html, "a run of DONE_FOLD_RUN+ done must collapse into a count summary"
     assert "beta" not in html, "the middle of a folded run is dropped from the summary"
-    assert '<li class="active"><span class="label">current work</span></li>' in html
+    assert '<li class="active checkable" data-item-id="t4">' in html
+    assert '<span class="label">current work</span>' in html
     assert '<li class="done"><span class="label">lone done</span></li>' in html
 
 
@@ -189,6 +192,54 @@ def test_minimal_model_is_a_valid_fragment():
     html = render(DashboardModel(title="Hello", phase=Phase.planning))
     assert html.startswith('<header class="session-header">')
     assert html.rstrip().endswith("</section>")
+
+
+# ── user verdicts + CTA age rot ────────────────────────────────────────
+
+def test_cta_items_rot_one_step_per_turn_and_saturate_at_max():
+    now_turn = 10
+    brand_new_turn = 10
+    one_turn_old = 9
+    five_turns_old = 5
+    nine_turns_old = 1
+    m = DashboardModel(title="T", turn=now_turn, cta=[
+        CtaItem(id="c0", text="brand new ask", created_turn=brand_new_turn),
+        CtaItem(id="c1", text="one turn old", created_turn=one_turn_old),
+        CtaItem(id="c2", text="five turns old", created_turn=five_turns_old),
+        CtaItem(id="c3", text="nine turns old", created_turn=nine_turns_old),
+    ])
+    html = render(m)
+    assert '<li class="age-0" data-item-id="c0"' in html, html
+    assert '<li class="age-1" data-item-id="c1"' in html
+    assert '<li class="age-5" data-item-id="c2"' in html
+    # 9 turns old caps at the saturation class: bright red, no deeper stage.
+    assert '<li class="age-6" data-item-id="c3"' in html
+    assert "age-9" not in html
+    assert 'title="waiting 1 turn"' in html
+    assert 'title="waiting 9 turns"' in html, "tooltip keeps the true age past the cap"
+    assert html.count('button class="verdict-btn trash" data-verdict="dismissed"') == 4, html
+
+
+def test_todo_rows_get_clickable_checkbox_and_drop_button():
+    open_text = "open task"
+    done_text = "finished"
+    blocked_text = "stuck"
+    m = DashboardModel(title="T", turn=4, todo=[
+        TodoItem(id="t1", text=open_text, status=TodoStatus.open),
+        TodoItem(id="t2", text=done_text, status=TodoStatus.done),
+        TodoItem(id="t3", text=blocked_text, status=TodoStatus.blocked),
+    ])
+    html = render(m)
+    open_li = [ln for ln in html.splitlines() if open_text in ln][0]
+    assert 'checkable' in open_li, open_li
+    assert 'button class="todo-check"' in open_li and 'data-verdict="done"' in open_li
+    assert 'verdict-btn trash' in open_li and 'data-verdict="dropped"' in open_li
+    done_li = [ln for ln in html.splitlines() if done_text in ln][0]
+    assert "todo-check" not in done_li and "trash" not in done_li, \
+        "done rows are not interactive"
+    blocked_li = [ln for ln in html.splitlines() if blocked_text in ln][0]
+    assert "todo-check" not in blocked_li, "blocked keeps its ✗ marker"
+    assert "verdict-btn trash" in blocked_li, "a blocked row can still be dropped"
 
 
 if __name__ == "__main__":

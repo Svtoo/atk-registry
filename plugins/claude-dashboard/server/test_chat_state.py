@@ -89,5 +89,69 @@ def test_resolve_errors_survives_a_missing_session_dir():
     cs.resolve_errors("no-such", "session")
 
 
+# ── user verdicts (done / dropped / dismissed) ─────────────────────────
+
+def test_verdict_set_captures_item_text_and_clear_removes_it():
+    cs, ph, su = _fresh_state(Path(tempfile.mkdtemp()))
+    item_id = "c3"
+    item_text = "answer me"
+    verdict = "dismissed"
+    cs.set_model(ph, su, {"cta": [{"id": item_id, "text": item_text}]})
+    entry = cs.set_verdict(ph, su, "cta", item_id, verdict)
+    assert entry["verdict"] == verdict and entry["text"] == item_text
+    snap = cs.snapshot(ph, su)
+    assert snap["verdicts"][f"cta:{item_id}"]["verdict"] == verdict, snap["verdicts"]
+    cs.clear_verdict(ph, su, "cta", item_id)
+    assert cs.snapshot(ph, su)["verdicts"] == {}
+
+
+def test_verdict_for_unknown_item_records_empty_text():
+    cs, ph, su = _fresh_state(Path(tempfile.mkdtemp()))
+    entry = cs.set_verdict(ph, su, "todo", "t404", "dropped")
+    assert entry["text"] == ""
+
+
+def test_set_model_prunes_absorbed_done_verdicts_and_caps_the_rest():
+    cs, ph, su = _fresh_state(Path(tempfile.mkdtemp()))
+    done_id = "t1"
+    dropped_id = "t2"
+    cs.set_model(ph, su, {"todo": [
+        {"id": done_id, "text": "a", "status": "open"},
+        {"id": dropped_id, "text": "b", "status": "open"},
+    ]})
+    cs.set_verdict(ph, su, "todo", done_id, "done")
+    cs.set_verdict(ph, su, "todo", dropped_id, "dropped")
+    # The fold marks the done item done and removes the dropped one.
+    cs.set_model(ph, su, {"todo": [{"id": done_id, "text": "a", "status": "done"}]})
+    verdicts = cs.snapshot(ph, su)["verdicts"]
+    assert f"todo:{done_id}" not in verdicts, "absorbed done verdict must be pruned"
+    assert f"todo:{dropped_id}" in verdicts, "dropped stays as never-re-add memory"
+
+    from chat_state import MAX_VERDICTS_PER_CHAT
+    for i in range(MAX_VERDICTS_PER_CHAT + 10):
+        cs.set_verdict(ph, su, "todo", f"x{i}", "dropped")
+    cs.set_model(ph, su, {"todo": []})
+    assert len(cs.snapshot(ph, su)["verdicts"]) == MAX_VERDICTS_PER_CHAT
+
+
+def test_verdict_validation_rejects_garbage():
+    cs, ph, su = _fresh_state(Path(tempfile.mkdtemp()))
+    assert cs.is_valid_verdict("todo", "done")
+    assert cs.is_valid_verdict("todo", "dropped")
+    assert cs.is_valid_verdict("cta", "dismissed")
+    assert not cs.is_valid_verdict("cta", "done"), "cta has exactly one verb"
+    assert not cs.is_valid_verdict("todo", "dismissed")
+    assert not cs.is_valid_verdict("freeform", "done"), "only todo and cta take verdicts"
+
+
+def test_legacy_state_files_normalize_verdicts_to_empty():
+    cs, ph, su = _fresh_state(Path(tempfile.mkdtemp()))
+    path = cs.state_path(ph, su)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"version": 1, "acks": {}, "regenErrors": []}')
+    snap = cs.snapshot(ph, su)
+    assert snap["verdicts"] == {}, snap
+
+
 if __name__ == "__main__":
     run_module_tests(globals())
