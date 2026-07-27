@@ -63,10 +63,12 @@ def apply_ops(model: DashboardModel, update: Update, bodies: dict, turn: int) ->
 
         if kind == "todo.upsert":
             if op.id is None:
+                status = op.status or TodoStatus.open
                 m.todo.append(TodoItem(
-                    id=mint("t"), text=op.text or "",
-                    status=op.status or TodoStatus.open,
-                    order=m.seq, changed_turn=turn, reason=op.reason,
+                    id=mint("t"), text=op.text or "", status=status,
+                    order=m.seq, created_turn=turn, changed_turn=turn,
+                    done_turn=turn if status == TodoStatus.done else 0,
+                    reason=op.reason,
                 ))
             else:
                 it = _find(m.todo, op.id)
@@ -75,13 +77,14 @@ def apply_ops(model: DashboardModel, update: Update, bodies: dict, turn: int) ->
                 if op.text is not None:
                     it.text = op.text
                 if op.status is not None:
+                    if op.status == TodoStatus.done and it.status != TodoStatus.done:
+                        it.done_turn = turn
+                    elif op.status != TodoStatus.done:
+                        it.done_turn = 0
                     it.status = op.status
                 it.changed_turn = turn
                 if op.reason:  # an omitted reason keeps the stored one (digest motion)
                     it.reason = op.reason
-
-        elif kind == "todo.remove":
-            m.todo = [t for t in m.todo if t.id != op.id]
 
         elif kind == "cta.upsert":
             if op.id is None:
@@ -108,7 +111,8 @@ def apply_ops(model: DashboardModel, update: Update, bodies: dict, turn: int) ->
                 m.headsup.append(HeadsupItem(
                     id=mint("h"), sev=op.sev, what=op.what or "",
                     why=op.why or "", where=op.where or "",
-                    order=m.seq, changed_turn=turn, reason=op.reason,
+                    order=m.seq, created_turn=turn, changed_turn=turn,
+                    reason=op.reason,
                 ))
             else:
                 it = _find(m.headsup, op.id)
@@ -191,8 +195,15 @@ def apply_verdicts(model: DashboardModel, verdicts: dict) -> DashboardModel:
                 for t in m.todo:
                     if t.id == item_id:
                         t.status = TodoStatus.done
+                        click_turn = int(entry.get("turn") or 0)
+                        if click_turn:
+                            t.done_turn = click_turn
             elif verdict == "dropped":
                 m.todo = [t for t in m.todo if t.id != item_id]
         elif section == "cta" and verdict == "dismissed":
             m.cta = [c for c in m.cta if c.id != item_id]
+        elif section == "freeform" and verdict == "dismissed":
+            for slot in m.freeform:
+                if slot.id == item_id and not slot.dismissed_turn:
+                    slot.dismissed_turn = int(entry.get("turn") or 0) or m.turn or 1
     return m

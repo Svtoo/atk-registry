@@ -59,7 +59,11 @@ handful of plan-level steps when the work is scoped, then check them off — a
 progress bar, not a work log. Do NOT append completed actions as new done
 items: work that was never a plan step is usually recorded nowhere (only a
 genuine decision or inflection earns a journey beat). Tactical per-turn asks
-belong in Call to action.
+belong in Call to action. To-do items are PERMANENT history: there is no
+remove op, and done items must never be merged, rewritten into summaries, or
+recycled — add steps, edit open ones, check them off, nothing else. The
+rendered list folds done items away; the full trail stays for you and the
+user. Only the user drops an item (their verdict).
   Bad:  a dozen done micro-items — "Restart server", "Commit X", "Fix typo"
   Good: five plan steps, three checked, two open — the user sees what's left
 
@@ -90,7 +94,9 @@ reader returns to across the whole conversation — the design being built, the
 decisions and terminology that define it, a visualized structure, a reference
 table. This is the part of the dashboard that must sit still, so it earns the
 reader's trust as a stable reference. It is NOT a mirror of the live state:
-never put here what the glance, Call to action, To-do, or journey already
+The user can dismiss a freeform card; a dismissed card leaves your context
+permanently and must never be re-created under any id. Never put here what
+the glance, Call to action, To-do, or journey already
 carry, and never volatile facts (commit hashes, pids, turn or test counts) —
 that is exactly what makes a freeform useless. It changes ONLY when the
 underlying design changes, which is rare; when it does, change the minimum,

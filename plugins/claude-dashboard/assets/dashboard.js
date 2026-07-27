@@ -200,10 +200,12 @@
   // Selectors stay scoped to the server-rendered lists; agent-authored
   // freeform HTML must never acquire verdict wiring.
   const VERDICT_ROWS =
-    "ul.todo-list > li[data-item-id], ol.questions-list > li[data-item-id]";
+    "ul.todo-list > li[data-item-id], ol.questions-list > li[data-item-id], " +
+    "div.freeform-slot[data-item-id]:not(.dismissed)";
 
-  function verdictSection(li) {
-    return li.closest("ol.questions-list") ? "cta" : "todo";
+  function verdictSection(el) {
+    if (el.classList.contains("freeform-slot")) return "freeform";
+    return el.closest("ol.questions-list") ? "cta" : "todo";
   }
 
   function setVerdict(s, li, verdict) {
@@ -216,16 +218,27 @@
   }
 
   function applyVerdictState(verdicts) {
-    document.querySelectorAll(VERDICT_ROWS).forEach((li) => {
-      const v = verdicts[verdictSection(li) + ":" + li.getAttribute("data-item-id")];
+    document.querySelectorAll(VERDICT_ROWS).forEach((el) => {
+      const v = verdicts[verdictSection(el) + ":" + el.getAttribute("data-item-id")];
+      const stubbed = Boolean(v) && v.verdict !== "done";
+      if (el.classList.contains("freeform-slot")) {
+        el.classList.toggle("verdict-stub", stubbed);
+        const x = el.querySelector("button.ff-dismiss");
+        if (x) {
+          x.textContent = stubbed ? "dismissed · undo" : "✕";
+          x.setAttribute("aria-label", stubbed ? "undo" : "dismiss");
+          x.setAttribute("title", stubbed ? "undo" : "dismiss");
+          x.classList.toggle("undoing", stubbed);
+        }
+        return;
+      }
       const userDone = Boolean(v && v.verdict === "done");
-      const stubbed = Boolean(v) && !userDone;
-      li.classList.toggle("done", userDone);
-      li.classList.toggle("user-done", userDone);
-      li.classList.toggle("verdict-stub", stubbed);
-      const check = li.querySelector("button.todo-check");
+      el.classList.toggle("done", userDone);
+      el.classList.toggle("user-done", userDone);
+      el.classList.toggle("verdict-stub", stubbed);
+      const check = el.querySelector("button.todo-check");
       if (check) check.classList.toggle("checked", userDone);
-      const trash = li.querySelector("button.verdict-btn.trash");
+      const trash = el.querySelector("button.verdict-btn.trash");
       if (trash) {
         trash.setAttribute("aria-label", stubbed ? "undo" : trash.dataset.verdict === "dismissed" ? "dismiss" : "drop");
         trash.setAttribute("title", stubbed ? "undo" : trash.dataset.verdict === "dismissed" ? "dismiss" : "drop (no longer relevant)");
@@ -236,7 +249,7 @@
 
   function wireVerdictButtons(s) {
     document.querySelectorAll(VERDICT_ROWS).forEach((li) => {
-      li.querySelectorAll("button.todo-check, button.verdict-btn.trash").forEach((btn) => {
+      li.querySelectorAll("button.todo-check, button.verdict-btn.trash, button.ff-dismiss").forEach((btn) => {
         btn.addEventListener("click", async () => {
           const undoing = btn.classList.contains("todo-check")
             ? btn.classList.contains("checked")
@@ -269,6 +282,57 @@
     initVerdicts(s, sidecar);
   }
 
+  // ─── Dismissed freeform fold ─────────────────────────────────────────
+  // Server-dismissed cards stay viewable history behind a toggle, out of
+  // the agent's context.
+  function foldDismissedFreeform() {
+    const old = document.querySelector(".ff-fold-toggle");
+    if (old) old.remove();
+    const dismissed = document.querySelectorAll("div.freeform-slot.dismissed");
+    if (dismissed.length === 0) return;
+    const label = (shown) => (shown ? "▾ Hide " : "▸ Show ") + dismissed.length +
+      " dismissed card" + (dismissed.length === 1 ? "" : "s");
+    const toggle = document.createElement("div");
+    toggle.className = "ff-fold-toggle";
+    let shown = false;
+    toggle.textContent = label(shown);
+    dismissed[0].parentNode.insertBefore(toggle, dismissed[0]);
+    toggle.addEventListener("click", () => {
+      shown = !shown;
+      dismissed.forEach((el) => el.classList.toggle("shown", shown));
+      toggle.textContent = label(shown);
+    });
+  }
+
+  // ─── Done to-dos fold ────────────────────────────────────────────────
+  // Done rows are permanent history; they collapse behind a count the same
+  // way acknowledged heads-up rows do. User-checked rows stay visible until
+  // a regen absorbs them.
+  function foldDoneTodos() {
+    document.querySelectorAll("ul.todo-list").forEach((ul) => {
+      const oldToggle = ul.querySelector("li.done-toggle");
+      if (oldToggle) oldToggle.remove();
+      const done = ul.querySelectorAll("li.done:not(.user-done)");
+      if (done.length === 0) {
+        ul.classList.remove("done-folded");
+        return;
+      }
+      const folded = ul.dataset.doneExpanded !== "1";   // default: folded
+      ul.classList.toggle("done-folded", folded);
+      const label = (f) => (f ? "▸ Show " : "▾ Hide ") + done.length +
+        " done item" + (done.length === 1 ? "" : "s");
+      const li = document.createElement("li");
+      li.className = "done-toggle";
+      li.textContent = label(folded);
+      ul.insertBefore(li, done[0]);
+      li.addEventListener("click", () => {
+        const nowFolded = ul.classList.toggle("done-folded");
+        ul.dataset.doneExpanded = nowFolded ? "0" : "1";
+        li.textContent = label(nowFolded);
+      });
+    });
+  }
+
   // ─── Theme toggle button (injected into `[data-theme-slot]`) ────────
   function wireThemeToggle() {
     let btn = document.querySelector(".theme-toggle");
@@ -293,6 +357,8 @@
     wireThemeToggle();
     loadMermaid();
     initSidecar();
+    foldDoneTodos();
+    foldDismissedFreeform();
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);

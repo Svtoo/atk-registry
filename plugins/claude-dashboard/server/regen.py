@@ -377,6 +377,7 @@ def run_once(
     stored = snap.get("model")
     dash_model = DashboardModel.model_validate(stored) if stored else DashboardModel()
     verdicts = snap.get("verdicts") or {}
+    acks = snap.get("acks") or {}
     if verdicts:
         dash_model = _fold.apply_verdicts(dash_model, verdicts)
 
@@ -385,6 +386,7 @@ def run_once(
         turns=all_turns,
         turn_no=turn_no,
         verdicts=verdicts,
+        acks=acks,
         system_template=system_prompt_path.read_text(encoding="utf-8"),
     ))
     system_prompt, user_message = assembled.system, assembled.user

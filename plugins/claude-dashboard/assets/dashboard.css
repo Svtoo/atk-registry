@@ -225,7 +225,13 @@ ul.todo-list li.active::before {
   content: "▸"; color: var(--accent); border-color: var(--accent); background: var(--card);
 }
 ul.todo-list li.done { background: var(--todo-done-bg); color: var(--muted); }
-ul.todo-list li.done > .label { text-decoration: line-through; }
+ul.todo-list.done-folded > li.done:not(.user-done) { display: none; }
+ul.todo-list li.done-toggle {
+  color: var(--muted); font-size: 0.85rem; cursor: pointer;
+  padding-left: 0.5rem; user-select: none;
+}
+ul.todo-list li.done-toggle::before { content: none; }
+ul.todo-list li.done-toggle:hover { color: var(--fg); }
 ul.todo-list li.done::before {
   content: "✓"; color: var(--on-accent); background: var(--ok); border-color: var(--ok);
 }
@@ -270,6 +276,37 @@ ol.questions-list li.age-6::before {
   background: var(--bad);
   box-shadow: 0 0 0 2px var(--bad-soft-br);
 }
+
+/* ---- Freeform dismiss ---- */
+div.freeform-slot { position: relative; }
+button.ff-dismiss {
+  position: absolute; top: 0.45rem; right: 0.45rem; z-index: 2;
+  background: transparent; border: 0; border-radius: 4px;
+  color: var(--muted); font: inherit; font-size: 0.9rem; line-height: 1;
+  padding: 0.15rem 0.4rem; cursor: pointer; opacity: 0.55;
+  transition: opacity 0.12s, color 0.12s, background 0.12s;
+}
+div.freeform-slot:hover button.ff-dismiss,
+button.ff-dismiss:focus-visible,
+button.ff-dismiss.undoing { opacity: 1; }
+button.ff-dismiss:hover { color: var(--bad); background: var(--bad-soft-bg); }
+button.ff-dismiss[disabled] { opacity: 0.4; cursor: wait; }
+div.freeform-slot.verdict-stub > :not(button.ff-dismiss) { display: none; }
+div.freeform-slot.verdict-stub {
+  border: 0.5px dashed var(--border); border-radius: 8px;
+  padding: 0.4rem 0.6rem; margin-bottom: 0.5rem;
+}
+div.freeform-slot.verdict-stub button.ff-dismiss {
+  position: static; color: var(--accent); font-size: 0.8rem;
+}
+div.freeform-slot.dismissed { display: none; }
+div.freeform-slot.dismissed.shown { display: block; opacity: 0.7; }
+div.freeform-slot.dismissed button.ff-dismiss { display: none; }
+.ff-fold-toggle {
+  color: var(--muted); font-size: 0.85rem; cursor: pointer;
+  margin: 0.4rem 0; user-select: none;
+}
+.ff-fold-toggle:hover { color: var(--fg); }
 
 /* ---- User verdicts (done / drop / dismiss) ---- */
 button.verdict-btn.trash {

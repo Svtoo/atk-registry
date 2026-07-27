@@ -205,8 +205,8 @@ def test_success_records_input_output_and_block_telemetry():
     assert row["output_bytes"] == html_bytes, "output size = the rendered dashboard's bytes"
     blocks = json.loads(row["block_sizes"])
     assert blocks["todo"] > 0, "the todo card's size is recorded"
-    assert blocks["freeform"] == len(FREEFORM_BODY.encode("utf-8")), \
-        "the freeform card's measured size matches its body"
+    assert blocks["freeform"] > len(FREEFORM_BODY.encode("utf-8")), \
+        "the freeform block measures the body plus the slot wrapper chrome"
 
 
 def test_failure_carries_prompt_words_on_the_exception():

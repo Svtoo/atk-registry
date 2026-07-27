@@ -66,7 +66,17 @@ def test_remove_deletes_the_item():
     assert result.cta == [], "remove must delete the item"
 
 
-def test_todo_remove_drops_the_step():
+def test_no_op_can_remove_a_todo():
+    import pydantic
+    try:
+        Update.model_validate({"ops": [{"op": "todo.remove", "id": "t1"}]})
+        raised = False
+    except pydantic.ValidationError:
+        raised = True
+    assert raised, "todo.remove must no longer exist in the op vocabulary"
+
+
+def _legacy_todo_remove_drops_the_step():
     # The plan may shrink: a step that is genuinely no longer needed (or a
     # work-log entry being consolidated into a real plan step) is removable.
     kept_text, dropped_text = "real plan step", "obsolete step"
@@ -269,6 +279,61 @@ def test_apply_verdicts_ignores_unknown_ids_and_leaves_input_untouched():
     out = apply_verdicts(m, {"todo:zzz": {"verdict": "done", "at": 1, "text": "?"}})
     assert m.model_dump() == before, "input model must not be mutated"
     assert len(out.todo) == 2 and len(out.cta) == 1
+
+
+
+
+def test_todo_creation_and_done_transitions_stamp_turns():
+    created_turn = 4
+    done_turn = 9
+    m0 = DashboardModel()
+    m1 = apply_ops(m0, Update.model_validate(
+        {"ops": [{"op": "todo.upsert", "text": "step"}]}), {}, created_turn)
+    item = m1.todo[0]
+    assert item.created_turn == created_turn
+    assert item.done_turn == 0, "not done yet"
+    m2 = apply_ops(m1, Update.model_validate(
+        {"ops": [{"op": "todo.upsert", "id": item.id, "status": "done"}]}), {}, done_turn)
+    assert m2.todo[0].created_turn == created_turn, "creation stamp never moves"
+    assert m2.todo[0].done_turn == done_turn
+    m3 = apply_ops(m2, Update.model_validate(
+        {"ops": [{"op": "todo.upsert", "id": item.id, "status": "open"}]}), {}, done_turn + 1)
+    assert m3.todo[0].done_turn == 0, "reopening clears the done stamp"
+
+
+def test_headsup_creation_stamps_created_turn():
+    created_turn = 6
+    m1 = apply_ops(DashboardModel(), Update.model_validate(
+        {"ops": [{"op": "headsup.upsert", "sev": "note", "what": "w", "why": "y"}]}),
+        {}, created_turn)
+    assert m1.headsup[0].created_turn == created_turn
+
+
+def test_done_verdict_carries_its_click_turn_onto_the_item():
+    from fold import apply_verdicts
+    from models import TodoStatus
+    click_turn = 7
+    m0 = apply_ops(DashboardModel(), Update.model_validate(
+        {"ops": [{"op": "todo.upsert", "text": "step"}]}), {}, 3)
+    item_id = m0.todo[0].id
+    verdicts = {f"todo:{item_id}": {"verdict": "done", "at": 1, "turn": click_turn}}
+    m1 = apply_verdicts(m0, verdicts)
+    assert m1.todo[0].status == TodoStatus.done
+    assert m1.todo[0].done_turn == click_turn
+
+
+
+def test_freeform_dismiss_verdict_stamps_but_keeps_the_slot():
+    from fold import apply_verdicts
+    click_turn = 8
+    m0 = apply_ops(DashboardModel(), Update.model_validate(
+        {"ops": [{"op": "freeform.upsert", "htmlRef": "b1"}]}),
+        {"b1": '<section class="card free-form">design</section>'}, 3)
+    slot_id = m0.freeform[0].id
+    verdicts = {f"freeform:{slot_id}": {"verdict": "dismissed", "at": 1, "turn": click_turn}}
+    m1 = apply_verdicts(m0, verdicts)
+    assert len(m1.freeform) == 1, "a dismissed slot is kept, never deleted"
+    assert m1.freeform[0].dismissed_turn == click_turn
 
 
 if __name__ == "__main__":
