@@ -20,7 +20,6 @@ SHORT = 400        # a short prose field
 HTML_MAX = 50000
 
 JOURNEY_MAX = 5        # total timeline rows, including the fold summary
-DONE_FOLD_RUN = 3      # consecutive done to-dos that fold into one line at render
 
 
 class Phase(str, Enum):
@@ -67,7 +66,9 @@ class TodoItem(_Base):
     text: str = Field(max_length=SHORT)
     status: TodoStatus
     order: int = 0
+    created_turn: int = 0    # 0 = unknown (item predates turn stamping)
     changed_turn: int = 0
+    done_turn: int = 0       # 0 = not done, or done before turn stamping
     reason: str = Field("", max_length=SHORT)
 
 
@@ -88,6 +89,7 @@ class HeadsupItem(_Base):
     why: str = Field(max_length=SHORT)
     where: str = Field("", max_length=SHORT)
     order: int = 0
+    created_turn: int = 0    # 0 = unknown (item predates turn stamping)
     changed_turn: int = 0
     reason: str = Field("", max_length=SHORT)
 
@@ -105,6 +107,7 @@ class FreeformSlot(_Base):
     html: str = Field(max_length=HTML_MAX)
     hash: str = ""
     changed_turn: int = 0
+    dismissed_turn: int = 0  # server-stamped from the user's dismiss; 0 = live
     reason: str = Field("", max_length=SHORT)
 
 
@@ -148,12 +151,6 @@ class TodoUpsert(_OpBase):
         if self.id is None and not self.text:
             raise ValueError("todo.upsert without id (create) requires text")
         return self
-
-
-class TodoRemove(_OpBase):
-    op: Literal["todo.remove"]
-    id: str = Field(description="id of the plan step to drop — only when it is genuinely no longer needed")
-    reason: str = Field("", max_length=SHORT, description="one-line motivation")
 
 
 class CtaUpsert(_OpBase):
@@ -231,7 +228,7 @@ class FreeformRemove(_OpBase):
 
 Op = Annotated[
     Union[
-        TodoUpsert, TodoRemove,
+        TodoUpsert,
         CtaUpsert, CtaRemove,
         HeadsupUpsert,
         JourneyAdd, JourneyUpdate, JourneyFold,

@@ -23,7 +23,8 @@ def test_block_sizes_covers_every_card_and_matches_the_rendered_bytes():
     )
     sizes = block_sizes(m)
     assert set(sizes) == {"header", "cta", "todo", "headsup", "freeform", "journey"}
-    assert sizes["freeform"] == len(slot_html.encode("utf-8")), "the freeform card's bytes match its body"
+    assert sizes["freeform"] > len(slot_html.encode("utf-8")), \
+        "the freeform block is the body plus the slot wrapper chrome"
     # whole = sum of non-empty card bytes + one newline between each
     whole = render(m)
     nonempty = [v for v in sizes.values() if v]
@@ -104,20 +105,21 @@ def test_todo_renders_status_classes():
     assert '<span class="label">doing it</span>' in html
 
 
-def test_todo_folds_long_done_runs_keeps_short_ones():
+def test_every_done_todo_renders_as_its_own_row():
+    texts = ["alpha", "beta", "gamma", "lone done"]
     model = DashboardModel(todo=[
-        TodoItem(id="t1", text="alpha", status=TodoStatus.done),
-        TodoItem(id="t2", text="beta", status=TodoStatus.done),
-        TodoItem(id="t3", text="gamma", status=TodoStatus.done),
+        TodoItem(id="t1", text=texts[0], status=TodoStatus.done),
+        TodoItem(id="t2", text=texts[1], status=TodoStatus.done),
+        TodoItem(id="t3", text=texts[2], status=TodoStatus.done),
         TodoItem(id="t4", text="current work", status=TodoStatus.active),
-        TodoItem(id="t5", text="lone done", status=TodoStatus.done),
+        TodoItem(id="t5", text=texts[3], status=TodoStatus.done),
     ])
     html = render(model)
-    assert "3 done" in html, "a run of DONE_FOLD_RUN+ done must collapse into a count summary"
-    assert "beta" not in html, "the middle of a folded run is dropped from the summary"
+    for text in texts:
+        assert f'<li class="done"><span class="label">{text}</span></li>' in html, \
+            f"done history row {text!r} must render whole"
+    assert "3 done" not in html, "done runs are never collapsed into a summary line"
     assert '<li class="active checkable" data-item-id="t4">' in html
-    assert '<span class="label">current work</span>' in html
-    assert '<li class="done"><span class="label">lone done</span></li>' in html
 
 
 def test_headsup_row_matches_ack_contract():
@@ -240,6 +242,42 @@ def test_todo_rows_get_clickable_checkbox_and_drop_button():
     blocked_li = [ln for ln in html.splitlines() if blocked_text in ln][0]
     assert "todo-check" not in blocked_li, "blocked keeps its ✗ marker"
     assert "verdict-btn trash" in blocked_li, "a blocked row can still be dropped"
+
+
+
+
+def test_todo_rows_tooltip_their_turn_stamps():
+    now_turn = 10
+    m = DashboardModel(title="T", turn=now_turn, todo=[
+        TodoItem(id="t1", text="open step", status=TodoStatus.open, created_turn=4),
+        TodoItem(id="t2", text="done step", status=TodoStatus.done,
+                 created_turn=2, done_turn=9),
+        TodoItem(id="t3", text="legacy", status=TodoStatus.open),
+    ])
+    html = render(m)
+    open_li = [ln for ln in html.splitlines() if "open step" in ln][0]
+    assert 'title="created 6 turns ago"' in open_li, open_li
+    done_li = [ln for ln in html.splitlines() if "done step" in ln][0]
+    assert 'title="created 8 turns ago · done 1 turn ago"' in done_li, done_li
+    legacy_li = [ln for ln in html.splitlines() if "legacy" in ln][0]
+    assert 'data-item-id="t3"><button' in legacy_li, \
+        "an li with unknown stamps carries no title attribute: " + legacy_li
+
+
+
+def test_freeform_slots_are_wrapped_with_dismiss_chrome():
+    live_body = '<section class="card free-form">live design</section>'
+    dismissed_body = '<section class="card free-form">old sketch</section>'
+    m = DashboardModel(title="T", freeform=[
+        FreeformSlot(id="f1", html=live_body),
+        FreeformSlot(id="f2", html=dismissed_body, dismissed_turn=3),
+    ])
+    html = render(m)
+    assert '<div class="freeform-slot" data-item-id="f1">' in html
+    assert live_body in html, "the body stays verbatim inside the wrapper"
+    assert '<div class="freeform-slot dismissed" data-item-id="f2">' in html
+    assert dismissed_body in html, "dismissed cards remain viewable history"
+    assert html.count('button class="ff-dismiss"') == 2
 
 
 if __name__ == "__main__":

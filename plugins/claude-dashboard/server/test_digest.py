@@ -106,5 +106,65 @@ def test_digest_without_verdicts_has_no_verdict_section():
     assert "User verdicts" not in d
 
 
+
+
+def test_digest_lines_carry_created_and_done_turn_stamps():
+    from models import DashboardModel, TodoItem, TodoStatus, HeadsupItem, CtaItem, Sev
+    now_turn = 10
+    m = DashboardModel(
+        title="T", turn=now_turn,
+        todo=[
+            TodoItem(id="t1", text="open step", status=TodoStatus.open,
+                     created_turn=4, changed_turn=8),
+            TodoItem(id="t2", text="done step", status=TodoStatus.done,
+                     created_turn=2, changed_turn=9, done_turn=9),
+            TodoItem(id="t3", text="legacy", status=TodoStatus.open, changed_turn=5),
+        ],
+        cta=[CtaItem(id="c1", text="ask", created_turn=6, changed_turn=6)],
+        headsup=[HeadsupItem(id="h1", sev=Sev.note, what="w", why="y",
+                             created_turn=3, changed_turn=3)],
+    )
+    d = build_digest(m)
+    t1 = [ln for ln in d.splitlines() if "t1" in ln][0]
+    assert "created 6t ago" in t1, t1
+    t2 = [ln for ln in d.splitlines() if "t2" in ln][0]
+    assert "created 8t ago" in t2 and "done 1t ago" in t2, t2
+    t3 = [ln for ln in d.splitlines() if ln.startswith("- t3")][0]
+    assert "created" not in t3, "unknown creation (legacy 0) is omitted: " + t3
+    c1 = [ln for ln in d.splitlines() if "c1" in ln][0]
+    assert "created 4t ago" in c1, c1
+    h1 = [ln for ln in d.splitlines() if "h1" in ln][0]
+    assert "created 7t ago" in h1, h1
+
+
+def test_digest_verdicts_and_acks_carry_turns():
+    from models import DashboardModel, HeadsupItem, Sev
+    m = DashboardModel(title="T", turn=9,
+                       headsup=[HeadsupItem(id="h1", sev=Sev.note, what="w", why="y")])
+    verdicts = {"todo:t9": {"verdict": "dropped", "at": 1, "turn": 5, "text": "old step"}}
+    acks = {"h1": {"ackedAt": 1, "turn": 6}}
+    d = build_digest(m, verdicts=verdicts, acks=acks)
+    v = [ln for ln in d.splitlines() if "old step" in ln][0]
+    assert "turn 5" in v, v
+    h = [ln for ln in d.splitlines() if "h1" in ln][0]
+    assert "acked turn 6" in h, h
+
+
+
+def test_dismissed_freeform_slots_leave_the_agents_context():
+    from models import DashboardModel, FreeformSlot
+    live_body = '<section class="card free-form">live design</section>'
+    dismissed_body = '<section class="card free-form">old sketch</section>'
+    m = DashboardModel(title="T", turn=9, freeform=[
+        FreeformSlot(id="f1", html=live_body),
+        FreeformSlot(id="f2", html=dismissed_body, dismissed_turn=7),
+    ])
+    d = build_digest(m)
+    assert live_body in d
+    assert dismissed_body not in d, "dismissed bodies must not reach the agent"
+    assert "f2" not in d, "not even the slot line"
+    assert "## Freeform (1)" in d, "the count reflects live slots only"
+
+
 if __name__ == "__main__":
     run_module_tests(globals())

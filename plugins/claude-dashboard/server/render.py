@@ -2,12 +2,12 @@
 
 Emits the class contract dashboard.css/dashboard.js expect (watch-deck ack
 buttons, todo-list, timeline). Text fields and freeform bodies are inlined raw
-(they may carry inline HTML). To-do folds runs of DONE_FOLD_RUN+ done items into
-one line; journey marks its last beat `current`; heads-up renders all rows.
+(they may carry inline HTML). Journey marks its last beat `current`; heads-up
+and to-do render all rows — done to-dos are permanent history the JS folds.
 """
 import re
 
-from models import DONE_FOLD_RUN, DashboardModel, TodoStatus
+from models import DashboardModel, TodoStatus
 
 _PHASE_CHIP = {
     "planning": ("info", "Planning"),
@@ -116,35 +116,36 @@ def _cta(m: DashboardModel) -> str:
     return "\n".join(lines)
 
 
+def _turns_ago(n: int) -> str:
+    return f"{n} turn{'' if n == 1 else 's'} ago"
+
+
+def _todo_tooltip(m: DashboardModel, t) -> str:
+    parts = []
+    if t.created_turn:
+        parts.append(f"created {_turns_ago(max(0, m.turn - t.created_turn))}")
+    if t.done_turn:
+        parts.append(f"done {_turns_ago(max(0, m.turn - t.done_turn))}")
+    return f' title="{" · ".join(parts)}"' if parts else ""
+
+
 def _todo(m: DashboardModel) -> str:
     if not m.todo:
         return ""
     lines = ['<section class="card todo">', "  <h2>📋 To-do</h2>", '  <ul class="todo-list">']
-    items, i, n = m.todo, 0, len(m.todo)
-    while i < n:
-        if items[i].status == TodoStatus.done:
-            j = i
-            while j < n and items[j].status == TodoStatus.done:
-                j += 1
-            run = items[i:j]
-            if len(run) >= DONE_FOLD_RUN:
-                label = f"{len(run)} done — {_plain(run[0].text)} … {_plain(run[-1].text)}"
-                lines.append(f'    <li class="done"><span class="label">{label[:200]}</span></li>')
-            else:
-                for t in run:
-                    lines.append(f'    <li class="done"><span class="label">{t.text}</span></li>')
-            i = j
-        else:
-            t = items[i]
-            # .checkable suppresses the ::before status marker (CSS); blocked rows keep ✗.
-            checkable = t.status != TodoStatus.blocked
-            cls = t.status.value + (" checkable" if checkable else "")
-            check = _CHECK_BTN if checkable else ""
-            lines.append(
-                f'    <li class="{cls}" data-item-id="{t.id}">'
-                f'{check}<span class="label">{t.text}</span>{_DROP_BTN}</li>'
-            )
-            i += 1
+    for t in m.todo:
+        tooltip = _todo_tooltip(m, t)
+        if t.status == TodoStatus.done:
+            lines.append(f'    <li class="done"{tooltip}><span class="label">{t.text}</span></li>')
+            continue
+        # .checkable suppresses the ::before status marker (CSS); blocked rows keep ✗.
+        checkable = t.status != TodoStatus.blocked
+        cls = t.status.value + (" checkable" if checkable else "")
+        check = _CHECK_BTN if checkable else ""
+        lines.append(
+            f'    <li class="{cls}" data-item-id="{t.id}"{tooltip}>'
+            f'{check}<span class="label">{t.text}</span>{_DROP_BTN}</li>'
+        )
     lines += ["  </ul>", "</section>"]
     return "\n".join(lines)
 
@@ -195,6 +196,16 @@ def _journey(m: DashboardModel) -> str:
     return "\n".join(lines)
 
 
+_FF_DISMISS_BTN = ('<button class="ff-dismiss" data-verdict="dismissed" '
+                   'type="button" aria-label="dismiss" title="dismiss">✕</button>')
+
+
 def _freeform(m: DashboardModel) -> "list[str]":
-    # Each body is a full <section> card, emitted verbatim.
-    return [f.html for f in m.freeform]
+    # Each body is a full <section> card, emitted verbatim inside a thin
+    # wrapper that carries the dismiss chrome and the slot id.
+    out = []
+    for f in m.freeform:
+        dismissed = " dismissed" if f.dismissed_turn else ""
+        out.append(f'<div class="freeform-slot{dismissed}" data-item-id="{f.id}">'
+                   f'{_FF_DISMISS_BTN}{f.html}</div>')
+    return out

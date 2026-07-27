@@ -153,5 +153,48 @@ def test_legacy_state_files_normalize_verdicts_to_empty():
     assert snap["verdicts"] == {}, snap
 
 
+
+
+def test_verdicts_and_acks_record_the_models_current_turn():
+    cs, ph, su = _fresh_state(Path(tempfile.mkdtemp()))
+    model_turn = 7
+    cs.set_model(ph, su, {"turn": model_turn,
+                          "cta": [{"id": "c1", "text": "ask"}],
+                          "headsup": [{"id": "h1"}]})
+    verdict_entry = cs.set_verdict(ph, su, "cta", "c1", "dismissed")
+    assert verdict_entry["turn"] == model_turn
+    ack_entry = cs.set_ack(ph, su, "h1")
+    assert ack_entry["turn"] == model_turn
+
+
+def test_verdict_turn_is_zero_without_a_persisted_model():
+    cs, ph, su = _fresh_state(Path(tempfile.mkdtemp()))
+    entry = cs.set_verdict(ph, su, "todo", "t1", "dropped")
+    assert entry["turn"] == 0
+
+
+
+def test_freeform_takes_only_the_dismissed_verdict():
+    cs, ph, su = _fresh_state(Path(tempfile.mkdtemp()))
+    assert cs.is_valid_verdict("freeform", "dismissed")
+    assert not cs.is_valid_verdict("freeform", "done")
+    assert not cs.is_valid_verdict("freeform", "dropped")
+
+
+def test_freeform_verdict_captures_the_slots_reason_and_absorbs_when_stamped():
+    cs, ph, su = _fresh_state(Path(tempfile.mkdtemp()))
+    slot_id = "f4"
+    slot_reason = "architecture sketch"
+    cs.set_model(ph, su, {"turn": 5, "freeform": [
+        {"id": slot_id, "html": "<section>x</section>", "reason": slot_reason}]})
+    entry = cs.set_verdict(ph, su, "freeform", slot_id, "dismissed")
+    assert entry["text"] == slot_reason, "reason is the slot's human handle"
+    # The regen folds the dismissal into the model; the verdict is then spent.
+    cs.set_model(ph, su, {"turn": 6, "freeform": [
+        {"id": slot_id, "html": "<section>x</section>", "reason": slot_reason,
+         "dismissed_turn": 5}]})
+    assert cs.snapshot(ph, su)["verdicts"] == {}
+
+
 if __name__ == "__main__":
     run_module_tests(globals())

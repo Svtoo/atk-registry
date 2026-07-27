@@ -152,15 +152,19 @@ class ChatState:
         whose heads-up rows still exist, and unabsorbed verdicts."""
         live_rows = {h.get("id") for h in (model.get("headsup") or [])}
         todo_status = {t.get("id"): t.get("status") for t in (model.get("todo") or [])}
+        ff_dismissed = {f.get("id"): f.get("dismissed_turn") or 0
+                        for f in (model.get("freeform") or [])}
 
         def absorbed(key: str, entry: dict) -> bool:
-            # A done verdict is spent once the model itself marks the item done
-            # (or the item is gone); dropped/dismissed entries stay as the
-            # never-re-add memory until the size cap evicts them.
-            if entry.get("verdict") != "done":
-                return False
-            _, item_id = models.split_verdict_key(key)
-            return todo_status.get(item_id) in (None, "done")
+            # A verdict is spent once the model itself carries its effect;
+            # dropped/dismissed todo and cta entries stay as the never-re-add
+            # memory until the size cap evicts them.
+            section, item_id = models.split_verdict_key(key)
+            if entry.get("verdict") == "done":
+                return todo_status.get(item_id) in (None, "done")
+            if section == "freeform":
+                return item_id not in ff_dismissed or ff_dismissed[item_id] > 0
+            return False
 
         def apply(data: dict) -> bool:
             data["model"] = model
@@ -178,9 +182,15 @@ class ChatState:
     def is_valid_row_id(row_id: str) -> bool:
         return bool(_ACK_ID_RE.match(row_id))
 
+    @staticmethod
+    def _model_turn(data: dict) -> int:
+        return int((data.get("model") or {}).get("turn") or 0)
+
     def _set_entry(self, project_hash: str, session_uuid: str,
-                   bucket: str, key: str, entry: dict) -> dict:
+                   bucket: str, key: str, entry_fn) -> dict:
+        """`entry_fn(data)` builds the entry under the same lock."""
         def apply(data: dict) -> dict:
+            entry = entry_fn(data)
             data[bucket][key] = entry
             return entry
 
@@ -193,8 +203,10 @@ class ChatState:
 
     def set_ack(self, project_hash: str, session_uuid: str, row_id: str) -> dict:
         """Mark a heads-up row acknowledged. Returns the new entry."""
-        return self._set_entry(project_hash, session_uuid, "acks", row_id,
-                               {"ackedAt": int(time.time())})
+        return self._set_entry(
+            project_hash, session_uuid, "acks", row_id,
+            lambda data: {"ackedAt": int(time.time()),
+                          "turn": self._model_turn(data)})
 
     def clear_ack(self, project_hash: str, session_uuid: str, row_id: str) -> None:
         self._clear_entry(project_hash, session_uuid, "acks", row_id)
@@ -202,7 +214,8 @@ class ChatState:
     # ─── Verdicts API ──────────────────────────────────────────────
     # One-bit user calls on items, keyed "<section>:<item-id>".
 
-    _VERDICTS = {"todo": {"done", "dropped"}, "cta": {"dismissed"}}
+    _VERDICTS = {"todo": {"done", "dropped"}, "cta": {"dismissed"},
+                 "freeform": {"dismissed"}}
 
     @classmethod
     def is_valid_section(cls, section: str) -> bool:
@@ -214,18 +227,19 @@ class ChatState:
 
     def set_verdict(self, project_hash: str, session_uuid: str,
                     section: str, item_id: str, verdict: str) -> dict:
-        """Record a user verdict; the item's wording is captured with it."""
-        def apply(data: dict) -> dict:
+        """Record a user verdict; the item's wording and the model's current
+        turn are captured with it."""
+        def entry_fn(data: dict) -> dict:
             text = ""
             for item in (data.get("model") or {}).get(section) or []:
                 if isinstance(item, dict) and item.get("id") == item_id:
-                    text = str(item.get("text") or "")
+                    text = str(item.get("text") or item.get("reason") or "")
                     break
-            entry = {"verdict": verdict, "at": int(time.time()), "text": text}
-            data["verdicts"][models.verdict_key(section, item_id)] = entry
-            return entry
+            return {"verdict": verdict, "at": int(time.time()),
+                    "turn": self._model_turn(data), "text": text}
 
-        return self._mutate(project_hash, session_uuid, apply)
+        return self._set_entry(project_hash, session_uuid, "verdicts",
+                               models.verdict_key(section, item_id), entry_fn)
 
     def clear_verdict(self, project_hash: str, session_uuid: str,
                       section: str, item_id: str) -> None:

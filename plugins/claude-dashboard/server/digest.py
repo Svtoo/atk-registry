@@ -22,8 +22,23 @@ def _ago(current_turn: int, when: int) -> str:
     return "now" if delta <= 0 else f"{delta}t ago"
 
 
+def _stamps(now: int, created: int, changed: int, done: int = 0) -> str:
+    """`created Xt ago, done/changed Yt ago`; a 0 stamp is unknown and omitted."""
+    parts = []
+    if created:
+        parts.append(f"created {_ago(now, created)}")
+    if done:
+        parts.append(f"done {_ago(now, done)}")
+    elif changed and changed != created:
+        parts.append(f"changed {_ago(now, changed)}")
+    elif not parts:
+        parts.append(_ago(now, changed))
+    return ", ".join(parts)
+
+
 def build_digest(m: DashboardModel, now_turn: "int | None" = None,
-                 verdicts: "dict | None" = None) -> str:
+                 verdicts: "dict | None" = None,
+                 acks: "dict | None" = None) -> str:
     """Render the model for the agent. `now_turn` is the current conversation
     turn; "changed Nt ago" is measured against it (regens can skip turns, so
     the state's own turn may lag). Defaults to the state's turn.
@@ -42,17 +57,22 @@ def build_digest(m: DashboardModel, now_turn: "int | None" = None,
         f"## CTA ({len(m.cta)}) — blockers/questions for the user; remove on resolve",
     ]
     for c in m.cta:
-        L.append(f"- {c.id} [{_ago(now, c.changed_turn)}: {c.reason}] {c.text}")
+        L.append(f"- {c.id} [{_stamps(now, c.created_turn, c.changed_turn)}: {c.reason}] {c.text}")
 
-    L += ["", f"## To-do ({len(m.todo)})"]
+    L += ["", f"## To-do ({len(m.todo)}) — full history; done steps never leave"]
     for t in m.todo:
-        L.append(f"- {t.id} {t.status.value} [{_ago(now, t.changed_turn)}: {t.reason}] {t.text}")
+        L.append(f"- {t.id} {t.status.value} "
+                 f"[{_stamps(now, t.created_turn, t.changed_turn, t.done_turn)}: {t.reason}] {t.text}")
 
     L += ["", f"## Heads-up ({len(m.headsup)}) — FULL list; update rows by id as facts change; never add a duplicate row"]
+    ack_map = acks or {}
     for h in m.headsup:
+        ack = ack_map.get(h.id)
+        acked = f" (acked turn {ack['turn']})" if ack and ack.get("turn") \
+            else (" (acked)" if ack else "")
         L.append(
-            f"- {h.id} {h.sev.value} [{_ago(now, h.changed_turn)}: {h.reason}] "
-            f"what={h.what} | why={h.why} | where={h.where}"
+            f"- {h.id} {h.sev.value} [{_stamps(now, h.created_turn, h.changed_turn)}: {h.reason}] "
+            f"what={h.what} | why={h.why} | where={h.where}{acked}"
         )
 
     over_cap = (
@@ -64,10 +84,11 @@ def build_digest(m: DashboardModel, now_turn: "int | None" = None,
     for j in m.journey:
         L.append(f"- {j.id} {j.kind.value} (turn {j.turn}) what={j.what} | why={j.why}")
 
-    L += ["", f"## Freeform ({len(m.freeform)}) — sticky reference cards, shown in full; "
+    live_freeform = [f for f in m.freeform if not f.dismissed_turn]
+    L += ["", f"## Freeform ({len(live_freeform)}) — sticky reference cards, shown in full; "
               "re-upsert a card by id ONLY when the design it shows actually changed, "
               "and then change the minimum"]
-    for f in m.freeform:
+    for f in live_freeform:
         L.append(f"- {f.id} [{_ago(now, f.changed_turn)}: {f.reason}]")
         L.append(f.html)
 
@@ -78,8 +99,10 @@ def build_digest(m: DashboardModel, now_turn: "int | None" = None,
         for key, entry in verdicts.items():
             section, item_id = split_verdict_key(key)
             what = entry.get("verdict", "?")
+            turn = int(entry.get("turn") or 0)
+            when = f" (turn {turn})" if turn else ""
             text = entry.get("text") or "(text not recorded)"
-            L.append(f'- user {what}: "{text}" ({section} {item_id})')
+            L.append(f'- user {what}{when}: "{text}" ({section} {item_id})')
 
     L.append("")
     return "\n".join(L)
