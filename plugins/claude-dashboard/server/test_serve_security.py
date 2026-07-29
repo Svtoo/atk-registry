@@ -178,12 +178,55 @@ def test_verdict_endpoint_roundtrip_and_validation():
         serve.CHAT_STATE = None
 
 
+def test_lineage_fills_the_header_slot_when_present():
+    import json as _json
+    serve.CHAT_STATE = serve.ChatState(projects_root=Path(_tmp))
+    parent_uuid = "17884243-1430-4c1d-9f58-ec24f487a259"
+    (Path(_tmp) / HASH / parent_uuid).mkdir(parents=True, exist_ok=True)
+    (Path(_tmp) / HASH / f"{parent_uuid}.jsonl").write_text(
+        _json.dumps({"type": "ai-title", "aiTitle": "Slotted parent"}) + "\n")
+    dash = Path(_tmp) / HASH / UUID / "dashboard.html"
+    dash.write_text('<header class="session-header">'
+                    '<div class="meta-strip"><span class="meta-lineage"></span></div>'
+                    "<h1>x</h1></header>")
+    try:
+        serve.CHAT_STATE.fork_from(HASH, UUID, parent_uuid, branch_turn=1)
+        _, _, body = _req("GET", f"/{HASH}/{UUID}/dashboard.html")
+        html = body.decode("utf-8", "replace")
+        assert '<span class="meta-lineage">continued from' in html, html[:400]
+        assert html.count("continued from") == 1, "never both placements"
+    finally:
+        serve.CHAT_STATE = None
+        dash.unlink(missing_ok=True)
+
+
 def main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:
         t()
     print(f"\nAll {len(tests)} security regression tests passed.")
     return 0
+
+
+
+def test_continued_from_link_renders_when_a_chat_has_a_parent():
+    import json as _json
+    serve.CHAT_STATE = serve.ChatState(projects_root=Path(_tmp))
+    parent_uuid = "17884243-1430-4c1d-9f58-ec24f487a258"
+    (Path(_tmp) / HASH / parent_uuid).mkdir(parents=True, exist_ok=True)
+    (Path(_tmp) / HASH / f"{parent_uuid}.jsonl").write_text(
+        _json.dumps({"type": "ai-title", "aiTitle": "The earlier chat"}) + "\n")
+    try:
+        serve.CHAT_STATE.fork_from(HASH, UUID, parent_uuid, branch_turn=3)
+        status, _, body = _req("GET", f"/{HASH}/{UUID}/dashboard.html")
+        assert status == 200, f"dashboard status {status}"
+        html = body.decode("utf-8", "replace")
+        assert "continued from" in html.lower(), \
+            "a pre-slot dashboard still shows the lineage line"
+        assert "The earlier chat" in html, "it names the parent chat"
+        assert f"/{HASH}/{parent_uuid}/dashboard.html" in html, "and links to it"
+    finally:
+        serve.CHAT_STATE = None
 
 
 if __name__ == "__main__":

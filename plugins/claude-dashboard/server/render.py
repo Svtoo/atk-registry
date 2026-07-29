@@ -49,27 +49,46 @@ def block_sizes(m: DashboardModel) -> "dict[str, int]":
     return {name: len(html.encode("utf-8")) for name, html in _blocks(m)}
 
 
-def _glance_row(key: str, val: str, extra: str = "") -> "list[str]":
-    cls = "glance-row" + (f" {extra}" if extra else "")
-    return [f'    <div class="{cls}">', f"      <dt>{key}</dt>", f"      <dd>{val}</dd>", "    </div>"]
+def _abs_turn(m: DashboardModel, turn: int) -> int:
+    return m.turn_base + turn
+
+
+def _age(m: DashboardModel, stamps: "list[tuple[str, int]]", prefix: str = "") -> str:
+    """Right-edge age cell: the newest stamp in turns, exact turns on hover."""
+    known = [(label, t) for label, t in stamps if t]
+    if not known:
+        return ""
+    now = _abs_turn(m, m.turn)
+    ago = max(0, now - _abs_turn(m, known[-1][1]))
+    detail = " · ".join(f"{lab} turn {_abs_turn(m, t)}" for lab, t in known)
+    unit = "turn" if ago == 1 else "turns"
+    text = "this turn" if ago == 0 else f"{prefix}{ago} {unit} ago"
+    return f'<span class="age" title="{detail} · now turn {now}">{text}</span>'
+
+
+def _meta_strip(m: DashboardModel) -> str:
+    """The quiet state line above the title: short metadata only — phase,
+    turn, and the slot the server fills with this chat's lineage."""
+    phase_cls, phase_label = _PHASE_CHIP[m.phase.value]
+    bits = [f'<span class="phase-chip {phase_cls}">{phase_label}</span>',
+            f'<span class="meta-turn">turn {_abs_turn(m, m.turn)}</span>']
+    bits.append('<span class="meta-lineage"></span>')
+    return '  <div class="meta-strip">' + "".join(bits) + "</div>"
 
 
 def _header(m: DashboardModel, fallback_title: str = "") -> str:
-    # Glance grid: what / where / your move. Values from tldr; labels + phase chip owned here.
-    phase_cls, phase_label = _PHASE_CHIP[m.phase.value]
-    where = f'<span class="phase-chip {phase_cls}">{phase_label}</span>'
-    if m.tldr.status:
-        where += f" {m.tldr.status}"
-
     title = m.title or fallback_title or "Session"
-    lines = ['<header class="session-header">', f"  <h1>{title}</h1>", '  <dl class="glance">']
-    lines += _glance_row("what", m.tldr.essence or "—")
-    lines += _glance_row("where", where)
+    lines = ['<header class="session-header">', _meta_strip(m), f"  <h1>{title}</h1>"]
+    description = m.tldr.essence or m.tldr.status
+    if description:
+        lines.append(f'  <p class="essence">{description}</p>')
     if m.tldr.next:
-        lines += _glance_row("your move", m.tldr.next, extra="move")
+        lines.append('  <div class="move"><span class="move-label">your move</span>'
+                     f'<span class="move-text">{m.tldr.next}</span></div>')
     else:
-        lines += _glance_row("your move", "Nothing pending right now.", extra="move clear")
-    lines += ["  </dl>", "</header>"]
+        lines.append('  <div class="move clear"><span class="move-label">your move</span>'
+                     '<span class="move-text">Nothing pending right now.</span></div>')
+    lines.append("</header>")
     return "\n".join(lines)
 
 
@@ -116,35 +135,23 @@ def _cta(m: DashboardModel) -> str:
     return "\n".join(lines)
 
 
-def _turns_ago(n: int) -> str:
-    return f"{n} turn{'' if n == 1 else 's'} ago"
-
-
-def _todo_tooltip(m: DashboardModel, t) -> str:
-    parts = []
-    if t.created_turn:
-        parts.append(f"created {_turns_ago(max(0, m.turn - t.created_turn))}")
-    if t.done_turn:
-        parts.append(f"done {_turns_ago(max(0, m.turn - t.done_turn))}")
-    return f' title="{" · ".join(parts)}"' if parts else ""
-
-
 def _todo(m: DashboardModel) -> str:
     if not m.todo:
         return ""
     lines = ['<section class="card todo">', "  <h2>📋 To-do</h2>", '  <ul class="todo-list">']
     for t in m.todo:
-        tooltip = _todo_tooltip(m, t)
+        age = _age(m, [("created", t.created_turn), ("done", t.done_turn)],
+                   prefix="done " if t.done_turn else "")
         if t.status == TodoStatus.done:
-            lines.append(f'    <li class="done"{tooltip}><span class="label">{t.text}</span></li>')
+            lines.append(f'    <li class="done"><span class="label">{t.text}</span>{age}</li>')
             continue
         # .checkable suppresses the ::before status marker (CSS); blocked rows keep ✗.
         checkable = t.status != TodoStatus.blocked
         cls = t.status.value + (" checkable" if checkable else "")
         check = _CHECK_BTN if checkable else ""
         lines.append(
-            f'    <li class="{cls}" data-item-id="{t.id}"{tooltip}>'
-            f'{check}<span class="label">{t.text}</span>{_DROP_BTN}</li>'
+            f'    <li class="{cls}" data-item-id="{t.id}">'
+            f'{check}<span class="label">{t.text}</span>{_DROP_BTN}{age}</li>'
         )
     lines += ["  </ul>", "</section>"]
     return "\n".join(lines)
@@ -166,7 +173,9 @@ def _headsup(m: DashboardModel) -> str:
                 f"        <td>{h.what}</td>",
                 f"        <td>{h.why}</td>",
                 f"        <td>{h.where}</td>",
-                '        <td class="ack-col"><button class="ack-btn" type="button">acknowledge</button></td>',
+                f'        <td class="ack-col">'
+                f'{_age(m, [("raised", h.created_turn)])}'
+                '<button class="ack-btn" type="button">acknowledge</button></td>',
                 "      </tr>",
             ]
         lines += ["    </tbody>", "  </table>"]
@@ -206,6 +215,7 @@ def _freeform(m: DashboardModel) -> "list[str]":
     out = []
     for f in m.freeform:
         dismissed = " dismissed" if f.dismissed_turn else ""
+        age = _age(m, [("updated", f.changed_turn)])
         out.append(f'<div class="freeform-slot{dismissed}" data-item-id="{f.id}">'
-                   f'{_FF_DISMISS_BTN}{f.html}</div>')
+                   f'{age}{_FF_DISMISS_BTN}{f.html}</div>')
     return out

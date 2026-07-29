@@ -196,5 +196,48 @@ def test_freeform_verdict_captures_the_slots_reason_and_absorbs_when_stamped():
     assert cs.snapshot(ph, su)["verdicts"] == {}
 
 
+
+def test_fork_state_copies_the_parents_whole_state_and_records_lineage():
+    cs, ph, su = _fresh_state(Path(tempfile.mkdtemp()))
+    parent = "11111111-1111-4111-8111-111111111111"
+    (cs._root / ph / parent).mkdir(parents=True, exist_ok=True)
+    cs.set_model(ph, parent, {"turn": 9, "title": "parent chat",
+                              "todo": [{"id": "t1", "text": "step", "status": "open"}]})
+    cs.set_verdict(ph, parent, "todo", "t1", "dropped")
+    cs.set_ack(ph, parent, "h1")
+    branch_turn = 9
+
+    cs.fork_from(ph, su, parent, branch_turn=branch_turn)
+
+    snap = cs.snapshot(ph, su)
+    assert snap["model"]["title"] == "parent chat", "the model comes across"
+    assert snap["verdicts"], "user verdicts come across"
+    assert snap["acks"], "acknowledgements come across"
+    assert snap["parent"] == {"session": parent, "branchTurn": branch_turn}
+    # The parent is untouched by the fork.
+    assert cs.snapshot(ph, parent)["parent"] is None
+
+
+def test_fork_is_a_one_time_seed_and_never_overwrites_live_state():
+    cs, ph, su = _fresh_state(Path(tempfile.mkdtemp()))
+    parent = "11111111-1111-4111-8111-111111111111"
+    (cs._root / ph / parent).mkdir(parents=True, exist_ok=True)
+    cs.set_model(ph, parent, {"turn": 1, "title": "parent"})
+    cs.fork_from(ph, su, parent, branch_turn=1)
+    cs.set_model(ph, su, {"turn": 4, "title": "child moved on"})
+    cs.fork_from(ph, su, parent, branch_turn=1)
+    snap = cs.snapshot(ph, su)
+    assert snap["model"]["title"] == "child moved on", "a seeded child is never re-seeded"
+    assert snap["parent"]["session"] == parent, "lineage stays recorded"
+
+
+def test_lineage_check_is_remembered_even_when_there_is_no_parent():
+    cs, ph, su = _fresh_state(Path(tempfile.mkdtemp()))
+    cs.fork_from(ph, su, None, branch_turn=0)
+    snap = cs.snapshot(ph, su)
+    assert snap["parent"] is None
+    assert snap["parentChecked"] is True, "a negative result is recorded once, not rescanned"
+
+
 if __name__ == "__main__":
     run_module_tests(globals())

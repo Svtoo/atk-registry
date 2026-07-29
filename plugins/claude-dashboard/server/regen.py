@@ -25,6 +25,7 @@ from logging_config import get_logger
 
 import agent_io
 import fold as _fold
+import lineage as _lineage
 import render as _render
 from models import DashboardModel
 from prompt import RegenPrompt, assemble_prompt
@@ -373,6 +374,23 @@ def run_once(
         (str(e.get("aiTitle") or "").strip() for e in events if e.get("type") == "ai-title"),
         "",
     )
+    # A resumed, compacted, or forked chat replays its parent's events; seed
+    # it once with the parent's state so the dashboard continues instead of
+    # starting blank. Telemetry stays with the parent.
+    if not (chat_state.snapshot(project_hash, session_uuid) or {}).get("parentChecked"):
+        parent = _lineage.find_parent(jsonl_path)
+        chat_state.fork_from(project_hash, session_uuid, parent,
+                             branch_turn=turn_no)
+        if parent:
+            parent_model = chat_state.get_model(project_hash, parent) or {}
+            parent_absolute = int(parent_model.get("turn_base") or 0) + \
+                int(parent_model.get("turn") or 0)
+            base = _fold.continuation_base(parent_absolute, turn_no)
+            if base:
+                chat_state.set_turn_base(project_hash, session_uuid, base)
+            _log.info("regen %s/%s — continued from %s (turn base %d)",
+                      project_hash, session_uuid, parent, base)
+
     snap = chat_state.snapshot(project_hash, session_uuid) or {}
     stored = snap.get("model")
     dash_model = DashboardModel.model_validate(stored) if stored else DashboardModel()

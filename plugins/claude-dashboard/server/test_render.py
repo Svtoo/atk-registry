@@ -38,20 +38,26 @@ def test_block_sizes_reports_zero_for_absent_cards():
     assert sizes["todo"] == 0 and sizes["journey"] == 0, "absent cards report 0, not missing keys"
 
 
-def test_header_glance_grid_has_three_slots():
+def test_header_puts_state_in_a_strip_above_the_title():
     title = "Glance grid"
-    model = DashboardModel(title=title, phase=Phase.building,
+    model = DashboardModel(title=title, phase=Phase.building, turn=12, turn_base=34,
                            tldr=Tldr(essence="server owns the state",
                                      status="phase-1 core done", next="review the header"))
     html = render(model)
     assert '<header class="session-header">' in html
-    assert f"<h1>{title}</h1>" in html
-    assert '<dl class="glance">' in html
-    # the three fixed slots, in order
-    assert html.index("<dt>what</dt>") < html.index("<dt>where</dt>") < html.index("<dt>your move</dt>")
-    assert "server owns the state" in html          # what
-    assert "phase-1 core done" in html              # where detail
-    assert "review the header" in html              # your move
+    assert '<div class="meta-strip">' in html
+    # strip first, then title, then essence, then the move
+    assert html.index("meta-strip") < html.index(f"<h1>{title}</h1>")
+    assert html.index(f"<h1>{title}</h1>") < html.index("server owns the state")
+    assert html.index("server owns the state") < html.index("review the header")
+    assert '<span class="phase-chip ok">Building</span>' in html
+    assert ">turn 46<" in html, "absolute turn in the strip"
+    strip = html.split('<div class="meta-strip">')[1].split("</div>")[0]
+    assert "phase-1 core done" not in strip, \
+        "the strip carries short metadata only, never a sentence: " + strip
+    assert len(strip) < 220, "the strip stays one quiet line: " + strip
+    assert '<span class="meta-lineage"></span>' in html, "server fills the lineage slot"
+    assert "<dt>what</dt>" not in html, "the four-row grid is gone"
 
 
 def test_header_falls_back_to_the_chats_own_title():
@@ -65,17 +71,22 @@ def test_header_falls_back_to_the_chats_own_title():
         "a model-set title must win over the fallback"
 
 
-def test_where_slot_carries_phase_chip():
-    review = DashboardModel(title="X", phase=Phase.review, tldr=Tldr(status="PR #1905 in draft"))
-    html = render(review)
+def test_the_line_under_the_title_prefers_essence_and_falls_back_to_status():
+    both = DashboardModel(title="X", phase=Phase.review,
+                          tldr=Tldr(essence="what we are building",
+                                    status="PR #1905 in draft"))
+    html = render(both)
     assert '<span class="phase-chip warn">Awaiting review</span>' in html
-    assert "PR #1905 in draft" in html
+    assert '<p class="essence">what we are building</p>' in html
+    assert "PR #1905 in draft" not in html, "one description line, not two"
+    only_status = DashboardModel(title="X", tldr=Tldr(status="PR #1905 in draft"))
+    assert '<p class="essence">PR #1905 in draft</p>' in render(only_status)
 
 
 def test_your_move_empty_reads_nothing_pending():
     html = render(DashboardModel(title="X", phase=Phase.planning))
     assert '<span class="phase-chip info">Planning</span>' in html
-    assert '<div class="glance-row move clear">' in html
+    assert '<div class="move clear">' in html
     assert "Nothing pending right now." in html
 
 
@@ -246,7 +257,7 @@ def test_todo_rows_get_clickable_checkbox_and_drop_button():
 
 
 
-def test_todo_rows_tooltip_their_turn_stamps():
+def test_todo_age_cells_state_created_and_done_turns():
     now_turn = 10
     m = DashboardModel(title="T", turn=now_turn, todo=[
         TodoItem(id="t1", text="open step", status=TodoStatus.open, created_turn=4),
@@ -256,12 +267,11 @@ def test_todo_rows_tooltip_their_turn_stamps():
     ])
     html = render(m)
     open_li = [ln for ln in html.splitlines() if "open step" in ln][0]
-    assert 'title="created 6 turns ago"' in open_li, open_li
+    assert 'title="created turn 4 · now turn 10">6 turns ago' in open_li, open_li
     done_li = [ln for ln in html.splitlines() if "done step" in ln][0]
-    assert 'title="created 8 turns ago · done 1 turn ago"' in done_li, done_li
+    assert 'title="created turn 2 · done turn 9 · now turn 10">done 1 turn ago' in done_li, done_li
     legacy_li = [ln for ln in html.splitlines() if "legacy" in ln][0]
-    assert 'data-item-id="t3"><button' in legacy_li, \
-        "an li with unknown stamps carries no title attribute: " + legacy_li
+    assert 'class="age"' not in legacy_li, "unknown stamps show no age cell: " + legacy_li
 
 
 
@@ -278,6 +288,47 @@ def test_freeform_slots_are_wrapped_with_dismiss_chrome():
     assert '<div class="freeform-slot dismissed" data-item-id="f2">' in html
     assert dismissed_body in html, "dismissed cards remain viewable history"
     assert html.count('button class="ff-dismiss"') == 2
+
+
+def test_header_anchors_the_current_turn():
+    m = DashboardModel(title="T", turn=18, turn_base=55)
+    assert ">turn 73<" in render(m), "absolute turn = base + local"
+
+
+def test_rows_carry_an_age_column_with_exact_turns_on_hover():
+    now, base = 18, 55            # absolute now = 73
+    m = DashboardModel(title="T", turn=now, turn_base=base,
+        todo=[TodoItem(id="t1", text="fresh step", status=TodoStatus.open,
+                       created_turn=17),
+              TodoItem(id="t2", text="old step", status=TodoStatus.open,
+                       created_turn=2),
+              TodoItem(id="t3", text="closed step", status=TodoStatus.done,
+                       created_turn=2, done_turn=16)],
+        headsup=[HeadsupItem(id="h1", sev=Sev.note, what="w", why="y",
+                             created_turn=4)],
+        freeform=[FreeformSlot(id="f1", html="<section>x</section>",
+                               changed_turn=12)])
+    html = render(m)
+    assert '<span class="age" title="created turn 72 · now turn 73">1 turn ago</span>' in html, html
+    # The base shifts absolute labels; a difference of turns is unaffected.
+    assert ">16 turns ago<" in html, "an old open step reports its age in turns"
+    assert 'title="created turn 57 · done turn 71 · now turn 73">done 2 turns ago' in html, html
+    assert 'title="raised turn 59 · now turn 73">14 turns ago' in html, "heads-up says raised"
+    assert 'title="updated turn 67 · now turn 73">6 turns ago' in html, "freeform says updated"
+
+
+def test_unknown_stamps_render_no_age_at_all():
+    m = DashboardModel(title="T", turn=9, todo=[
+        TodoItem(id="t1", text="legacy", status=TodoStatus.open)])
+    html = render(m)
+    row = [ln for ln in html.splitlines() if "legacy" in ln][0]
+    assert 'class="age"' not in row, row
+
+
+def test_a_fresh_item_reads_this_turn():
+    m = DashboardModel(title="T", turn=9, todo=[
+        TodoItem(id="t1", text="just added", status=TodoStatus.open, created_turn=9)])
+    assert ">this turn<" in render(m)
 
 
 if __name__ == "__main__":

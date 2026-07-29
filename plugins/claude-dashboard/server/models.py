@@ -128,6 +128,7 @@ class DashboardModel(_Base):
     title: str = Field("", max_length=SHORT)
     phase: Phase = Phase.planning
     turn: int = 0
+    turn_base: int = 0   # turns inherited from the chats this one continues
     seq: int = 0
     tldr: Tldr = Field(default_factory=Tldr)
     cta: list[CtaItem] = Field(default_factory=list)
