@@ -70,7 +70,8 @@ class ChatState:
     def empty_state() -> dict:
         """The default state shape."""
         return {"version": CURRENT_VERSION, "acks": {}, "verdicts": {},
-                "regenErrors": [], "model": None}
+                "regenErrors": [], "model": None, "parent": None,
+                "parentChecked": False}
 
     def _read_locked(self, path: Path) -> dict:
         """Load the per-chat state file, or an empty state if it's missing or
@@ -94,12 +95,17 @@ class ChatState:
         model = data.get("model")
         if not isinstance(model, dict):
             model = None
+        parent = data.get("parent")
+        if not isinstance(parent, dict) or not parent.get("session"):
+            parent = None
         return {
             "version": CURRENT_VERSION,
             "acks": acks,
             "verdicts": verdicts,
             "regenErrors": errors,
             "model": model,
+            "parent": parent,
+            "parentChecked": bool(data.get("parentChecked")),
         }
 
     def _write_locked(self, path: Path, data: dict) -> None:
@@ -172,6 +178,41 @@ class ChatState:
             kept = {k: v for k, v in data["verdicts"].items() if not absorbed(k, v)}
             newest = sorted(kept, key=lambda k: kept[k].get("at", 0))[-MAX_VERDICTS_PER_CHAT:]
             data["verdicts"] = {k: kept[k] for k in newest}
+            return True
+
+        self._mutate(project_hash, session_uuid, apply)
+
+    def fork_from(self, project_hash: str, session_uuid: str,
+                  parent_uuid: "str | None", branch_turn: int = 0) -> bool:
+        """Record which chat this one continues, seeding a blank chat with the
+        parent's state. `parent_uuid` None marks the lineage as checked and
+        found nothing. Regen telemetry stays with the parent, so spend is
+        never counted twice."""
+        parent_state = (self.snapshot(project_hash, parent_uuid)
+                        if parent_uuid else None)
+
+        def apply(data: dict) -> bool:
+            data["parentChecked"] = True
+            if parent_state is None:
+                return True
+            if data.get("model") is None and data.get("parent") is None:
+                data["model"] = parent_state.get("model")
+                data["acks"] = dict(parent_state.get("acks") or {})
+                data["verdicts"] = dict(parent_state.get("verdicts") or {})
+            data["parent"] = {"session": parent_uuid,
+                              "branchTurn": int(branch_turn)}
+            return True
+
+        return bool(self._mutate(project_hash, session_uuid, apply))
+
+    def set_turn_base(self, project_hash: str, session_uuid: str,
+                      base: int) -> None:
+        """Turns inherited from the chats this one continues."""
+        def apply(data: dict) -> bool:
+            model = data.get("model")
+            if not isinstance(model, dict):
+                return False
+            model["turn_base"] = int(base)
             return True
 
         self._mutate(project_hash, session_uuid, apply)

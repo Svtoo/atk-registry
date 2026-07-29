@@ -336,5 +336,14 @@ def test_freeform_dismiss_verdict_stamps_but_keeps_the_slot():
     assert m1.freeform[0].dismissed_turn == click_turn
 
 
+def test_turn_base_bridges_a_compacted_continuation():
+    from fold import continuation_base
+    # The child replayed everything: its own count already spans the history.
+    assert continuation_base(parent_absolute=80, child_turn=80) == 0
+    assert continuation_base(parent_absolute=80, child_turn=95) == 0
+    # Compaction truncated the replay: the gap is carried as a base.
+    assert continuation_base(parent_absolute=80, child_turn=17) == 63
+
+
 if __name__ == "__main__":
     run_module_tests(globals())

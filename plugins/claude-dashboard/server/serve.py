@@ -1386,6 +1386,34 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.send_error(404, "not found")
         return self._serve_file(target)
 
+    def _continued_from(self, project_hash: str, session_uuid: str) -> str:
+        """A link back to the chat this one continues, or empty."""
+        if CHAT_STATE is None:
+            return ""
+        snap = CHAT_STATE.snapshot(project_hash, session_uuid) or {}
+        parent = (snap.get("parent") or {}).get("session")
+        if not parent or not _SESSION_UUID_RE.match(parent):
+            return ""
+        jsonl = PROJECTS_ROOT / project_hash / f"{parent}.jsonl"
+        meta = _META_CACHE.get(jsonl)
+        label = meta.get("aiTitle") or meta.get("firstUser") or parent[:8]
+        href = f"/{project_hash}/{parent}/dashboard.html"
+        return ('continued from '
+                f'<a href="{html.escape(href)}">{html.escape(label[:60])}</a>')
+
+    def _with_lineage(self, project_hash: str, session_uuid: str,
+                      fragment: str) -> str:
+        """Fill the header's lineage slot. A dashboard rendered before the
+        slot existed gets the line prepended instead."""
+        link = self._continued_from(project_hash, session_uuid)
+        if not link:
+            return fragment
+        slot = '<span class="meta-lineage"></span>'
+        if slot in fragment:
+            return fragment.replace(
+                slot, f'<span class="meta-lineage">{link}</span>', 1)
+        return f'<div class="meta-strip">{link}</div>' + fragment
+
     def _render_dashboard(self, project_hash: str, session_uuid: str, *,
                           title: str, fragment: str) -> bytes:
         """Render a per-chat dashboard (real fragment or pending placeholder)
@@ -1408,7 +1436,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             nav_actions=nav_actions,
             # fragment goes LAST: substitutions apply in order, and agent-authored
             # HTML containing a literal {{project_hash}} must survive untouched.
-            session_uuid=session_uuid, project_hash=project_hash, fragment=fragment,
+            session_uuid=session_uuid, project_hash=project_hash,
+            fragment=self._with_lineage(project_hash, session_uuid, fragment),
         )
 
     def _serve_dashboard(self, project_hash: str, session_uuid: str) -> None:

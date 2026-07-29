@@ -183,6 +183,13 @@ def apply_ops(model: DashboardModel, update: Update, bodies: dict, turn: int) ->
     return m
 
 
+def continuation_base(parent_absolute: int, child_turn: int) -> int:
+    """Turns to add to a continued chat's own count so ages span the whole
+    conversation. A replayed transcript already counts its history; a
+    compacted one starts short and carries the difference."""
+    return max(0, parent_absolute - child_turn)
+
+
 def apply_verdicts(model: DashboardModel, verdicts: dict) -> DashboardModel:
     """Apply user verdicts to a copy of the model, without turn stamps;
     unknown ids are ignored."""

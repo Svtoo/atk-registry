@@ -164,22 +164,31 @@ header.session-header {
 }
 h1 { margin: 0 0 0.3rem; font-size: 1.4rem; font-weight: 600; letter-spacing: -0.02em; }
 
-/* ---- Header glance grid: fixed what / where / your move ---- */
-dl.glance { margin: 0.5rem 0 0; }
-dl.glance .glance-row {
-  display: grid; grid-template-columns: 5.5rem 1fr; gap: 0.75rem;
-  align-items: baseline; padding: 0.4rem 0; border-top: 1px solid var(--border);
+/* ---- Header: quiet state strip, title, essence, your move ---- */
+.meta-strip {
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  font-size: 0.72rem; color: var(--muted); margin-bottom: 0.35rem;
 }
-dl.glance .glance-row:first-child { border-top: none; }
-dl.glance dt {
+.meta-strip .meta-status { color: var(--muted); }
+.meta-strip .meta-turn::before,
+.meta-strip .meta-lineage:not(:empty)::before { content: "·"; margin-right: 0.5rem; opacity: 0.5; }
+.meta-strip .meta-lineage a { color: var(--accent); text-decoration: none; }
+.meta-strip .meta-lineage a:hover { text-decoration: underline; }
+header.session-header .essence {
+  margin: 0.15rem 0 0; font-size: 0.9rem; color: var(--fg); line-height: 1.5;
+}
+header.session-header .move {
+  margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border);
+  display: flex; gap: 0.75rem; align-items: baseline;
+}
+header.session-header .move-label {
   font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em;
-  color: var(--muted); font-weight: 500;
+  color: var(--warn-fg); font-weight: 500; flex-shrink: 0;
 }
-dl.glance dd { margin: 0; font-size: 0.9rem; color: var(--fg); line-height: 1.5; }
-dl.glance .glance-row.move dt { color: var(--warn-fg); }
-dl.glance .glance-row.move dd { font-weight: 500; }
-dl.glance .glance-row.move.clear dt { color: var(--muted); }
-dl.glance .glance-row.move.clear dd { font-weight: 400; color: var(--muted); }
+header.session-header .move-text { font-size: 0.9rem; font-weight: 500; }
+header.session-header .move.clear .move-label { color: var(--muted); }
+header.session-header .move.clear .move-text { font-weight: 400; color: var(--muted); }
+
 .phase-chip {
   display: inline-flex; align-items: center; padding: 0.1rem 0.5rem;
   border-radius: 999px; font-size: 0.7rem; font-weight: 500; border: 1px solid;
@@ -275,6 +284,19 @@ ol.questions-list li.age-5::before { background: var(--bad); }
 ol.questions-list li.age-6::before {
   background: var(--bad);
   box-shadow: 0 0 0 2px var(--bad-soft-br);
+}
+
+/* ---- Age cells: how long ago, in turns; hover gives exact turns ---- */
+.age {
+  color: var(--muted); font-size: 0.72rem; white-space: nowrap;
+  margin-left: auto; padding-left: 0.6rem; cursor: help;
+}
+ul.todo-list li { display: flex; align-items: baseline; gap: 0.1rem; }
+ul.todo-list li > .label { flex: 1; }
+ul.todo-list li.done .age { opacity: 0.7; }
+table.watch-deck td.ack-col .age { display: block; margin: 0 0 0.25rem; padding: 0; }
+div.freeform-slot > .age {
+  position: absolute; top: 0.6rem; right: 2.1rem; z-index: 2;
 }
 
 /* ---- Freeform dismiss ---- */
