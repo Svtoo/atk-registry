@@ -72,8 +72,24 @@ def test_open_instruction_carries_url_and_reopen_capability():
     assert "preview_start" in ctx
     assert "<system-reminder>" in ctx and "</system-reminder>" in ctx
     assert "reopen" in ctx.lower(), "the agent must know it can reopen on request"
-    # never hardcode an MCP server name
-    assert "Claude_Preview" not in ctx
+    # the callable name, so a literal tool lookup resolves
+    assert "mcp__Claude_Browser__preview_start" in ctx
+    # ...with a suffix fallback, so the next MCP rename degrades instead of breaking
+    assert "ends in `preview_start`" in ctx
+    assert "Claude_Preview" not in ctx, "the superseded MCP server name"
+
+
+def test_open_instruction_tells_a_paneless_surface_to_ignore_it():
+    ctx = session_open.open_instruction("http://localhost:7878/-Users-x--atk/sid/dashboard.html")
+    lowered = ctx.lower()
+    # a CLI/headless/subagent agent has no such tool; it must skip, not suspect
+    assert "cli" in lowered
+    assert "ignore" in lowered
+    assert "not suspicious" in lowered
+    # naming the source is what lets that agent verify the instruction's provenance
+    assert "claude-dashboard" in lowered
+    # the urgency for surfaces that DO have the pane stays
+    assert "do not skip just because" in lowered
 
 
 # ── main() ─────────────────────────────────────────────────────────────
