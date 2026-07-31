@@ -59,11 +59,11 @@ def test_install_migrates_sessionstart_to_userpromptsubmit():
         assert "SessionStart" not in hooks, hooks.get("SessionStart")
         # our open hook now on UserPromptSubmit, coexisting with the atk reminder
         ups = _commands(hooks["UserPromptSubmit"])
-        assert any("dashboard-open-hook.sh" in c for c in ups), ups
+        assert any("dashboard-open-hook.py" in c for c in ups), ups
         assert any("claude-code-atk-reminder.sh" in c for c in ups), ups
         # our regen hook still on Stop, coexisting with notification-tts
         stop = _commands(hooks["Stop"])
-        assert any("dashboard-update-hook.sh" in c for c in stop), stop
+        assert any("dashboard-update-hook.py" in c for c in stop), stop
         assert any("notification-tts.sh" in c for c in stop), stop
         # an unrelated event is untouched
         assert _commands(hooks["PermissionRequest"]) == ["bash /x/notification-tts.sh"]
@@ -79,7 +79,7 @@ def test_install_is_idempotent():
         twice = settings.read_text()
         assert once == twice
         ups = _commands(json.loads(twice)["hooks"]["UserPromptSubmit"])
-        assert sum("dashboard-open-hook.sh" in c for c in ups) == 1, ups
+        assert sum("dashboard-open-hook.py" in c for c in ups) == 1, ups
 
 
 def test_uninstall_removes_ours_keeps_others():
@@ -91,8 +91,8 @@ def test_uninstall_removes_ours_keeps_others():
         hooks = json.loads(settings.read_text()).get("hooks", {})
         all_cmds = [c for ev in hooks.values() for c in _commands(ev)]
         # ours gone everywhere (incl. the legacy SessionStart slot)
-        assert not any("dashboard-open-hook.sh" in c for c in all_cmds), all_cmds
-        assert not any("dashboard-update-hook.sh" in c for c in all_cmds), all_cmds
+        assert not any("dashboard-open-hook.py" in c for c in all_cmds), all_cmds
+        assert not any("dashboard-update-hook.py" in c for c in all_cmds), all_cmds
         # other plugins' entries preserved
         assert any("notification-tts.sh" in c for c in all_cmds), all_cmds
         assert any("claude-code-atk-reminder.sh" in c for c in all_cmds), all_cmds

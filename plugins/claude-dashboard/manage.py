@@ -23,6 +23,13 @@ HOOKS_DIR = CLAUDE_DIR / "hooks"
 SETTINGS_PATH = CLAUDE_DIR / "settings.json"
 
 HOOK_SCRIPTS = [
+    "dashboard-update-hook.py",
+    "dashboard-open-hook.py",
+]
+
+# The bash wrappers these replaced. Removed on install so upgrading from the
+# older layout doesn't leave a dead script and a stale registration behind.
+LEGACY_HOOK_SCRIPTS = [
     "dashboard-update-hook.sh",
     "dashboard-open-hook.sh",
 ]
@@ -30,7 +37,7 @@ HOOK_SCRIPTS = [
 # Our hook entries are matched by the script name in their command (independent
 # of the exact command string, which bakes in absolute paths). Matching on these
 # keeps install/uninstall idempotent and lets an upgrade replace an older form.
-HOOK_COMMAND_MARKERS = tuple(HOOK_SCRIPTS)
+HOOK_COMMAND_MARKERS = tuple(HOOK_SCRIPTS) + tuple(LEGACY_HOOK_SCRIPTS)
 
 # event -> the hook script that owns it. Stop fires the regen; UserPromptSubmit
 # injects the once-per-session Browser-pane open instruction. UserPromptSubmit
@@ -43,19 +50,29 @@ OWNED_EVENTS = ("Stop", "UserPromptSubmit")
 LEGACY_EVENTS = ("SessionStart",)
 
 
+def venv_python(plugin_dir: Path) -> Path:
+    """The plugin's pinned interpreter, which install.sh created."""
+    scripts = plugin_dir / ".venv" / "Scripts" / "python.exe"  # Windows layout
+    return scripts if scripts.exists() else plugin_dir / ".venv" / "bin" / "python"
+
+
 def owned_hook_command(event: str, plugin_dir: Path) -> str:
     # Absolute paths are baked in because the copied hook runs inside Claude
     # Code's process, outside atk's env injection, so it cannot otherwise find
-    # the plugin or the server's bound port. bash runs the copy in ~/.claude/hooks/.
+    # the plugin or the server's bound port.
+    #
+    # Values are passed as argv rather than as a `VAR=value cmd` prefix: that
+    # prefix is POSIX-shell syntax, and Claude Code runs hook commands through
+    # the platform shell, so it fails to parse on Windows. Invoking the plugin's
+    # own interpreter also drops the dependency on `bash` being on PATH.
+    py = venv_python(plugin_dir)
     if event == "Stop":
-        # DASHBOARD_PORT_FILE lets the regen hook read the server's actual port.
-        return (
-            f"DASHBOARD_PORT_FILE={plugin_dir / 'runtime' / 'port'} "
-            f"bash {HOOKS_DIR}/dashboard-update-hook.sh"
-        )
+        # argv[1] lets the regen hook read the server's actual port.
+        port_file = plugin_dir / "runtime" / "port"
+        return f'"{py}" "{HOOKS_DIR / "dashboard-update-hook.py"}" "{port_file}"'
     if event == "UserPromptSubmit":
-        # DASHBOARD_PLUGIN_DIR lets the open hook find preview/session_open.py.
-        return f"DASHBOARD_PLUGIN_DIR={plugin_dir} bash {HOOKS_DIR}/dashboard-open-hook.sh"
+        # argv[1] lets the open hook find preview/session_open.py.
+        return f'"{py}" "{HOOKS_DIR / "dashboard-open-hook.py"}" "{plugin_dir}"'
     raise ValueError(f"no hook command defined for event {event!r}")
 
 
@@ -93,7 +110,9 @@ def write_settings(data: dict) -> None:
     SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
     tmp = SETTINGS_PATH.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, indent=2) + "\n")
-    tmp.rename(SETTINGS_PATH)
+    # replace(), not rename(): both overwrite an existing target on POSIX, but
+    # the Windows os.rename underneath raises FileExistsError instead.
+    tmp.replace(SETTINGS_PATH)
 
 
 def hook_entry_matches(existing_entry: dict) -> bool:
@@ -112,6 +131,13 @@ def install(plugin_dir: Path) -> None:
     hooks_src = plugin_dir / "hooks"
 
     HOOKS_DIR.mkdir(parents=True, exist_ok=True)
+
+    for stale in LEGACY_HOOK_SCRIPTS:
+        path = HOOKS_DIR / stale
+        if path.exists():
+            path.unlink()
+            print(f"  Removed legacy hook: {stale}")
+
     for script in HOOK_SCRIPTS:
         src = hooks_src / script
         dst = HOOKS_DIR / script
@@ -163,7 +189,7 @@ def install(plugin_dir: Path) -> None:
 def uninstall(plugin_dir: Path) -> None:
     print("Uninstalling claude-dashboard hook...")
 
-    for script in HOOK_SCRIPTS:
+    for script in (*HOOK_SCRIPTS, *LEGACY_HOOK_SCRIPTS):
         path = HOOKS_DIR / script
         if path.exists():
             path.unlink()
