@@ -200,6 +200,16 @@ def test_lineage_fills_the_header_slot_when_present():
         dash.unlink(missing_ok=True)
 
 
+def test_project_hash_accepts_windows_hashes_but_still_blocks_traversal():
+    """Windows project hashes start with the drive letter, not a hyphen; the
+    regex must accept them while still rejecting anything path-like."""
+    assert serve._PROJECT_HASH_RE.match("-Users-sasha-code-myrepo")
+    assert serve._PROJECT_HASH_RE.match("C--Users-enalm-code-myrepo")
+
+    for hostile in ("..", "../etc", "a/b", "a\b", "a.b", "", "-" * 300):
+        assert not serve._PROJECT_HASH_RE.match(hostile), hostile
+
+
 def main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:

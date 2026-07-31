@@ -807,7 +807,10 @@ _SESSION_UUID_RE = re.compile(
 )
 # Project-hash dirs are sanitised paths starting with `-`; the tight charset
 # lets them be stitched straight into PROJECTS_ROOT / <hash> / …
-_PROJECT_HASH_RE = re.compile(r"^-[a-zA-Z0-9_\-]{1,255}$")
+# No leading "-": that is an artifact of POSIX absolute paths, and Windows
+# project hashes start with the drive letter (C--Users-...). Traversal is
+# still impossible - the class excludes dots and separators.
+_PROJECT_HASH_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,255}$")
 
 # The CSP contains a prompt-injected fragment, not remote attackers: anything
 # visual may render (inline script/style, SVG, Mermaid via jsdelivr), but every
