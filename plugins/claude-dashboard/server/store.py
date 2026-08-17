@@ -89,9 +89,10 @@ def _bucketize(rows: "list[tuple]", edges: "list[tuple]") -> "list[dict]":
 class DashboardStore:
     """Server-global recents queue + historical regen metrics in one SQLite db."""
 
-    def __init__(self, db_path: Path, *, max_recents: int = 5):
+    def __init__(self, db_path: Path, *, max_recents: int = 5, on_error=None):
         self._db_path = Path(db_path)
         self._max_recents = max_recents
+        self._on_error = on_error
         self._lock = threading.Lock()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         # Schema init must fail loudly, not swallow errors the way _db does.
@@ -127,6 +128,8 @@ class DashboardStore:
                 conn.commit()
             except sqlite3.Error as e:
                 _log.warning("store: %s failed: %s", op, e)
+                if self._on_error is not None:
+                    self._on_error(f"{op}: {e}")
             finally:
                 conn.close()
 

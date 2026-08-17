@@ -12,6 +12,7 @@ import threading
 import time
 from pathlib import Path
 
+import notices
 import regen
 import store
 
@@ -328,8 +329,9 @@ def test_probe_auth_ok_when_cli_returns_text():
     original = regen.subprocess.Popen
     try:
         regen.subprocess.Popen = lambda *a, **k: _FakePopen(rc=0, out="ok\n")
-        ok, detail = regen.probe_auth()
+        ok, kind, detail = regen.probe_auth()
         assert ok is True, "exit 0 + non-empty stdout means healthy"
+        assert kind == "", "a healthy probe names no failure"
         assert "ok" in detail
     finally:
         regen.subprocess.Popen = original
@@ -340,11 +342,40 @@ def test_probe_auth_reports_credit_failure():
     original = regen.subprocess.Popen
     try:
         regen.subprocess.Popen = lambda *a, **k: _FakePopen(rc=1, out=credit_msg)
-        ok, detail = regen.probe_auth()
+        ok, kind, detail = regen.probe_auth()
         assert ok is False, "non-zero exit means unhealthy"
+        assert kind == "SubprocessFailed", kind
         assert credit_msg in detail, "the CLI's own diagnostic must surface"
     finally:
         regen.subprocess.Popen = original
+
+
+def test_probe_auth_names_a_missing_cli_rather_than_describing_it():
+    # The caller knows which exception it caught; flattening that into prose
+    # so a matcher can guess it back is what this replaces.
+    original = regen.subprocess.Popen
+
+    def _absent(*a, **k):
+        raise FileNotFoundError(2, "No such file or directory", "claude")
+
+    try:
+        regen.subprocess.Popen = _absent
+        ok, kind, detail = regen.probe_auth()
+        assert ok is False
+        assert kind == "CliMissing", kind
+        assert notices.from_probe(ok, kind, detail) == "account.cli_missing"
+    finally:
+        regen.subprocess.Popen = original
+
+
+def test_a_credit_failure_from_the_probe_is_classified_as_our_bug():
+    credit_msg = "Credit balance is too low"
+    assert notices.from_probe(False, "SubprocessFailed", credit_msg) == \
+        "account.no_credit"
+
+
+def test_a_healthy_probe_raises_no_notice():
+    assert notices.from_probe(True, "", "ok") is None
 
 
 # ─── registry: vanished-session skip + subprocess cleanup ──────────────

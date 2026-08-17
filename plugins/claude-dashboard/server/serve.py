@@ -17,10 +17,12 @@ from urllib.parse import parse_qs, urlparse
 
 import identity
 import models
+import notices
+import notices_html
 from chat_state import ChatState
 from config import Settings
-from failures import present as present_failure
 from logging_config import configure_logging, get_logger, set_log_level
+from notice_center import NoticeCenter
 from regen import AMBIENT_AUTH_VARS, Registry, probe_auth
 from store import DashboardStore
 
@@ -51,8 +53,73 @@ _STATS_RANGES = {
     "all": (None, "day"),
 }
 
-# Filled by the startup probe in main(); served at /api/health.json.
-AUTH_HEALTH: dict = {"regenAuth": None, "detail": "probe not run yet", "checkedAt": None}
+NOTICES = NoticeCenter()
+
+
+def _app_notices() -> "tuple[int, str]":
+    """The app-scope notice set as (generation, rendered html)."""
+    snap = NOTICES.snapshot()
+    envs = [notices.envelope(n["code"], detail=n["detail"], at=n["at"])
+            for n in snap["notices"]]
+    envs.extend(notices.envelope(code) for code in notices.overlay_problems())
+    envs.sort(key=lambda e: notices.SEVERITY_RANK.get(e["severity"], 9))
+    return snap["generation"], notices_html.render_list(envs)
+
+
+def _refresh_account_notices(*, pending: bool) -> None:
+    """Probe whether `claude -p` can generate, and set the account.* notices to
+    match. Caller must hold the probe slot (NOTICES.begin_probe)."""
+    if pending:
+        NOTICES.raise_("account.check_pending")
+    try:
+        ok, kind, detail = probe_auth(model=SETTINGS.get("CCD_MODEL"))
+        code = notices.from_probe(ok, kind, detail)
+        NOTICES.clear(prefix="account.")
+        if code is None:
+            _log.info("account check: ok, summaries can generate")
+        else:
+            NOTICES.raise_(code, detail=detail)
+            _log.warning("account check failed (%s): %s", code, detail)
+    finally:
+        NOTICES.end_probe()
+
+
+def _open_error_summary(entries) -> dict:
+    """Chip fields for a session's unacked, unresolved rebuild failures."""
+    live = [e for e in entries or []
+            if e.get("ackedAt") is None and e.get("resolvedAt") is None]
+    if not live:
+        return {"openErrors": 0}
+    top = max(live, key=lambda e: e.get("at") or 0)
+    entry = notices.get(notices.classify(top.get("kind", ""), top.get("message", "")))
+    return {"openErrors": len(live),
+            "errorLabel": entry.label, "errorTitle": entry.title}
+
+
+def _chat_notices_html(project_hash: str, session_uuid: str,
+                       entries, typical_s) -> str:
+    """The per-chat notice cards: live entries first, resolved ones folded."""
+    def _env(entry: dict) -> dict:
+        code = notices.classify(entry.get("kind", ""), entry.get("message", ""))
+        timeout_s = SETTINGS.get("CCD_REGEN_TIMEOUT")
+        return notices.envelope(
+            code,
+            facts={"limit_s": timeout_s, "typical_s": typical_s},
+            detail=entry.get("message", ""),
+            measurements=(STORE.failure_row(session_uuid, entry.get("at") or 0)
+                          if STORE is not None else {}),
+            timeout_s=timeout_s,
+            id=entry["id"], at=entry.get("at") or 0,
+            acked_at=entry.get("ackedAt"), resolved_at=entry.get("resolvedAt"),
+            project=project_hash, session=session_uuid,
+        )
+
+    unacked = [e for e in entries or [] if e.get("ackedAt") is None]
+    newest_first = sorted(unacked, key=lambda e: e.get("at") or 0, reverse=True)
+    live = [_env(e) for e in newest_first if e.get("resolvedAt") is None]
+    resolved = [_env(e) for e in newest_first if e.get("resolvedAt") is not None]
+    return notices_html.render_list(live, group_label="Dashboard updates",
+                                    resolved=resolved)
 
 class _MtimeCache:
     """Memoise a per-file computation keyed on (path, mtime). Entries turn over
@@ -250,15 +317,19 @@ def read_template(name: str) -> str:
     return p.read_text(encoding="utf-8") if p.is_file() else ""
 
 
+_PLACEHOLDER_RE = re.compile(r"\{\{([a-zA-Z_]+)\}\}")
+
+
 def apply_substitutions(template: str, substitutions: dict) -> str:
-    """Replace `{{key}}` placeholders. `{{shared_head}}` and `{{shared_nav}}`
-    always pull templates/_head.html and _nav.html so every page renders the
-    same head bits and the same nav menu."""
+    """Replace `{{key}}` placeholders in one pass over the template, so a
+    substituted value is never rescanned for other keys' placeholders.
+    `{{shared_head}}` and `{{shared_nav}}` always pull templates/_head.html and
+    _nav.html so every page renders the same head bits and the same nav menu."""
     out = template.replace("{{shared_head}}", read_template("_head.html"))
     out = out.replace("{{shared_nav}}", read_template("_nav.html"))
-    for k, v in substitutions.items():
-        out = out.replace(f"{{{{{k}}}}}", str(v))
-    return out
+    values = {str(k): str(v) for k, v in substitutions.items()}
+    return _PLACEHOLDER_RE.sub(
+        lambda m: values.get(m.group(1), m.group(0)), out)
 
 
 def _breadcrumb(*parts: "tuple[str, str | None]") -> str:
@@ -329,20 +400,26 @@ def _page_chrome(content: str, *, page_title: str, subtitle: str,
 
 def render_page(content_template: str, *, title: str, breadcrumb: str,
                 section: str = "", body_class: str = "", nav_actions: str = "",
-                page: "dict | None" = None, **content_subs) -> bytes:
+                page: "dict | None" = None, notices_html_extra: str = "",
+                **content_subs) -> bytes:
     """Wrap a content-only template in base.html. base.html owns the <head>,
-    the app-nav bar, and the menu; `section` marks the current menu entry.
-    `page`, when given, wraps the content in the browse pages' shared shell
-    (_page_chrome kwargs). Returns the document as UTF-8 bytes."""
+    the app-nav bar, the menu, and the notice region; `section` marks the
+    current menu entry. `page`, when given, wraps the content in the browse
+    pages' shared shell (_page_chrome kwargs). `notices_html_extra` renders
+    into the region after the app-scope set. Returns UTF-8 bytes."""
     content = apply_substitutions(read_template(content_template), content_subs)
     if page is not None:
         content = _page_chrome(content, **page)
+    generation, app_notices = _app_notices()
     doc = apply_substitutions(read_template("base.html"), {
         "title": title,
         "body_class": body_class,
         "breadcrumb": breadcrumb,
         "nav_actions": nav_actions,
         "nav_items": _nav_items(section),
+        "app_notices_generation": str(generation),
+        "app_notices": app_notices + notices_html_extra,
+        "notice_templates": notices_html.render_client_templates(),
         "content": content,
     })
     return doc.encode("utf-8")
@@ -629,7 +706,7 @@ def _session_row(
         "dashboardMtime": dash_mtime,
         "lastTurnEndedAt": _LAST_TURN_CACHE.get(jsonl),
         "regen": regen_state,
-        "regenErrors": regen_errors,
+        **_open_error_summary(regen_errors),
         "sourceHash": source_dir.name,
         "worktreeName": worktree_name,
     }
@@ -827,6 +904,16 @@ _CSP = (
 )
 
 
+# Notice for a bare HTTP status raised without a more specific code.
+_STATUS_NOTICES = {
+    400: "page.bad_address",
+    403: "page.not_allowed",
+    404: "page.not_found",
+    415: "page.wrong_type",
+    503: "page.not_ready",
+}
+
+
 def _is_error_ack_path(parts: list) -> bool:
     """/api/dashboard/<project>/<session>/error/<id>/acknowledge"""
     return (
@@ -891,25 +978,36 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
-    def send_error(self, code, message=None, explain=None):
-        """Branded error page for browser routes; the default terse handler
-        for /api/ paths and HEAD requests."""
+    def send_notice(self, status: int, code: str, *, facts=None,
+                    log_detail: str = "") -> None:
+        """One failed response: a JSON notice envelope on /api/ paths, the
+        branded page elsewhere. `log_detail` stays in the log."""
+        if log_detail:
+            _log.info("%s %s %s: %s", status, code,
+                      getattr(self, "path", "?"), log_detail)
+        env = notices.envelope(code, facts=facts)
         path = urlparse(self.path).path if getattr(self, "path", None) else "/"
         if path.startswith("/api/") or getattr(self, "_head_only", False):
-            return super().send_error(code, message)
-        label = {400: "Bad request", 403: "Forbidden", 404: "Not found"}.get(code, "Error")
+            body = json.dumps({"ok": False, "notice": env}).encode("utf-8")
+            return self._respond(body, "application/json; charset=utf-8",
+                                 status=status)
+        entry = notices.get(code)
         try:
             body = render_page(
                 "_error.html",
-                title=f"{code} {label}",
+                title=f"{status} · {entry.label}",
                 section="projects",
-                breadcrumb=_breadcrumb(("Projects", "/"), (label, None)),
-                code=str(code), label=html.escape(label),
-                message=html.escape(message or ""),
+                breadcrumb=_breadcrumb(("Projects", "/"), (entry.label, None)),
+                notices_html_extra=notices_html.render_list([env]),
+                code=str(status),
             )
         except Exception:
-            return super().send_error(code, message)
-        self._respond(body, "text/html; charset=utf-8", status=code)
+            return super().send_error(status)
+        self._respond(body, "text/html; charset=utf-8", status=status)
+
+    def send_error(self, code, message=None, explain=None):
+        self.send_notice(code, _STATUS_NOTICES.get(code, "page.internal"),
+                         log_detail=message or "")
 
     def log_message(self, fmt, *args):
         sys.stderr.write(
@@ -926,6 +1024,26 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return True
 
     def do_POST(self):
+        self._dispatch(self._route_post)
+
+    def do_DELETE(self):
+        self._dispatch(self._route_delete)
+
+    def _dispatch(self, route) -> None:
+        """Serve one request; an unhandled fault renders page.internal instead
+        of dropping the connection."""
+        try:
+            route()
+        except (ConnectionError, BrokenPipeError):
+            raise
+        except Exception:
+            _log.exception("unhandled failure serving %s", getattr(self, "path", "?"))
+            try:
+                self.send_notice(500, "page.internal")
+            except Exception:
+                pass
+
+    def _route_post(self):
         if not self._require_json():
             return
         path = urlparse(self.path).path
@@ -940,7 +1058,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._handle_verdict("POST")
         return self._handle_ack_mutation("POST")
 
-    def do_DELETE(self):
+    def _route_delete(self):
         if not self._require_json():
             return
         path = urlparse(self.path).path
@@ -1087,6 +1205,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.send_error(404, "session not found")
 
     def do_GET(self):
+        self._dispatch(self._route_get)
+
+    def _route_get(self):
         path = urlparse(self.path).path
         parts = [p for p in path.split("/") if p]
 
@@ -1140,8 +1261,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self._send_json({"recents": list_recents()})
             if len(parts) == 2 and parts[1] == "latest.json":
                 return self._send_json({"latest": list_latest()})
-            if len(parts) == 2 and parts[1] == "health.json":
-                return self._send_json(AUTH_HEALTH)
+            if len(parts) == 2 and parts[1] == "notices.json":
+                return self._serve_notices()
             if len(parts) == 2 and parts[1] == "metrics.json":
                 return self._send_json(
                     STORE.totals() if STORE is not None else {}
@@ -1206,28 +1327,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 metrics = (
                     STORE.session_summary(session_uuid) if STORE is not None else None
                 )
-                # Failures are stored raw; failures.present decides at read time
-                # how each one reads, with this chat's live numbers.
+                # Failures are stored raw; the notice catalog decides at read
+                # time how each one reads, with this chat's live numbers.
                 typical_s = None
                 if metrics and metrics.get("avg_wall_ms"):
                     typical_s = metrics["avg_wall_ms"] / 1000.0
-                presented_errors = [
-                    {**entry, "presentation": present_failure(
-                        entry.get("kind", ""), entry.get("message", ""),
-                        timeout_s=SETTINGS.get("CCD_REGEN_TIMEOUT"),
-                        typical_s=typical_s,
-                        measurements=(
-                            STORE.failure_row(session_uuid, entry.get("at") or 0)
-                            if STORE is not None else {}
-                        ),
-                    )}
-                    for entry in (sidecar.get("regenErrors") or [])
-                ]
+                entries = sidecar.get("regenErrors") or []
                 # The DashboardModel stays server-side; the shell polls this
                 # endpoint every couple of seconds and never reads it.
                 payload = {
-                    **{k: v for k, v in sidecar.items() if k != "model"},
-                    "regenErrors": presented_errors,
+                    **{k: v for k, v in sidecar.items()
+                       if k not in ("model", "regenErrors")},
+                    "noticesHtml": _chat_notices_html(
+                        project_hash, session_uuid, entries, typical_s),
+                    **_open_error_summary(entries),
                     "session": session_uuid,
                     "project": project_hash,
                     "hasDashboard": has_dashboard,
@@ -1321,17 +1434,42 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         """Change one setting; config.SCHEMA is the allowlist."""
         data = self._read_json_body()
         if not data or "name" not in data or "value" not in data:
-            return self.send_error(400, 'expected {"name": ..., "value": ...}')
+            return self.send_notice(400, "page.wrong_type",
+                                    log_detail="settings POST without name/value")
         try:
             result = SETTINGS.update(str(data["name"]), data["value"])
         except ValueError as e:
-            return self._respond(
-                json.dumps({"ok": False, "error": str(e)}).encode("utf-8"),
-                "application/json; charset=utf-8", status=400)
+            return self.send_notice(400, "settings.rejected",
+                                    facts={"reason": str(e)})
         if result["name"] == "CCD_LOG_LEVEL":
             set_log_level(result["value"])
         _log.info("setting changed: %s = %s", result["name"], result["value"])
-        return self._send_json({"ok": True, **result})
+        payload = {"ok": True, **result}
+        if not result["persisted"]:
+            _log.warning("setting %s applied but could not be written to .env",
+                         result["name"])
+            payload["notice"] = notices.envelope("settings.not_saved")
+        return self._send_json(payload)
+
+    def _serve_notices(self) -> None:
+        """/api/notices.json: the app-scope notice set, pre-rendered. A stale
+        account.* notice triggers a background re-probe so recovery is seen
+        without a restart."""
+        if NOTICES.has("account.") and NOTICES.begin_probe():
+            threading.Thread(target=_refresh_account_notices,
+                             kwargs={"pending": False},
+                             name="account-reprobe", daemon=True).start()
+        generation, html_out = _app_notices()
+        body = json.dumps({"generation": generation, "html": html_out}).encode("utf-8")
+        etag = f'"{hashlib.md5(body).hexdigest()}"'
+        if self.headers.get("If-None-Match") == etag:
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self._respond(body, "application/json; charset=utf-8",
+                      headers={"ETag": etag})
 
     def _serve_stats(self) -> None:
         """/api/stats.json?range=1d|7d|30d|all: aggregated regen telemetry."""
@@ -1346,6 +1484,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         payload = STORE.stats(since=since, warn_ms=warn_ms, bucket=bucket)
         payload["by_project"] = rebucket_stats_projects(
             payload.get("by_project") or [])
+        # Stored failure kinds are exception class names; people read labels.
+        merged: Counter = Counter()
+        for row in payload.get("kinds") or []:
+            merged[notices.label(notices.classify(row["kind"], ""))] += row["n"]
+        payload["kinds"] = [{"kind": k, "n": n} for k, n in merged.most_common()]
         payload.update({
             "range": rng,
             "since": since,
@@ -1434,8 +1577,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             breadcrumb=_breadcrumb(("Projects", "/"), (label, f"/{crumb_slug}/"),
                                    (title, None)),
             nav_actions=nav_actions,
-            # fragment goes LAST: substitutions apply in order, and agent-authored
-            # HTML containing a literal {{project_hash}} must survive untouched.
             session_uuid=session_uuid, project_hash=project_hash,
             fragment=self._with_lineage(project_hash, session_uuid, fragment),
         )
@@ -1503,7 +1644,9 @@ def main() -> int:
         return 1
 
     global REGISTRY, STORE, CHAT_STATE
-    STORE = DashboardStore(RUNTIME_DIR / "dashboard.db")
+    STORE = DashboardStore(
+        RUNTIME_DIR / "dashboard.db",
+        on_error=lambda detail: NOTICES.raise_("store.degraded", detail=detail))
     CHAT_STATE = ChatState(projects_root=PROJECTS_ROOT)
 
     def _on_regen_failure(project_hash: str, session_uuid: str,
@@ -1511,6 +1654,9 @@ def main() -> int:
         entry = CHAT_STATE.record_error(
             project_hash, session_uuid, kind=kind, message=message,
         )
+        code = notices.classify(kind, message)
+        if code.startswith("account."):
+            NOTICES.raise_(code, detail=message)
         if entry is not None:
             _log.info(
                 "regen error persisted %s/%s id=%s kind=%s",
@@ -1520,6 +1666,7 @@ def main() -> int:
     def _on_regen_success(project_hash: str, session_uuid: str) -> None:
         STORE.touch_open(project_hash, session_uuid)
         CHAT_STATE.resolve_errors(project_hash, session_uuid)
+        NOTICES.clear(prefix="account.")
 
     REGISTRY = Registry(
         plugin_dir=PLUGIN_DIR,
@@ -1532,21 +1679,10 @@ def main() -> int:
         chat_state=CHAT_STATE,
     )
 
-    # Daemon thread: server start never blocks on the auth probe.
-    def _run_auth_probe() -> None:
-        ok, detail = probe_auth()
-        AUTH_HEALTH["regenAuth"] = "ok" if ok else "failed"
-        AUTH_HEALTH["detail"] = detail
-        AUTH_HEALTH["checkedAt"] = int(time.time())
-        if ok:
-            _log.info("startup auth probe: OK, regen can authenticate")
-        else:
-            _log.warning(
-                "startup auth probe FAILED, new dashboards will NOT generate: %s",
-                detail,
-            )
-
-    threading.Thread(target=_run_auth_probe, name="auth-probe", daemon=True).start()
+    # Daemon thread: server start never blocks on the account check.
+    NOTICES.begin_probe()
+    threading.Thread(target=_refresh_account_notices, kwargs={"pending": True},
+                     name="account-check", daemon=True).start()
 
     _log.info("claude-dashboard server starting")
     _log.info(

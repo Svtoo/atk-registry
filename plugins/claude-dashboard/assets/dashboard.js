@@ -13,7 +13,9 @@
       ? "dark" : "light";
   }
   function storedThemePref() {
-    return localStorage.getItem(THEME_STORAGE_KEY) || "system";
+    try {
+      return localStorage.getItem(THEME_STORAGE_KEY) || "system";
+    } catch (_) { return "system"; }
   }
   function effectiveTheme(pref) {
     return pref === "system" ? systemTheme() : pref;
@@ -31,7 +33,7 @@
   function cycleTheme() {
     const order = ["system", "light", "dark"];
     const next = order[(order.indexOf(storedThemePref()) + 1) % order.length];
-    localStorage.setItem(THEME_STORAGE_KEY, next);
+    try { localStorage.setItem(THEME_STORAGE_KEY, next); } catch (_) { /* private mode */ }
     applyTheme();
   }
   // Re-apply when system theme changes (only matters if pref === "system")
@@ -54,6 +56,9 @@
     }
     const s = document.createElement("script");
     s.src = MERMAID_SRC;
+    s.onerror = () => {
+      if (window.Notices) window.Notices.showLocal("net.diagram_failed");
+    };
     s.onload = () => {
       window.mermaid.initialize({
         startOnLoad: true,
@@ -181,6 +186,7 @@
           await refreshSidecar(s);
         } catch (e) {
           console.error("acknowledge failed", e);
+          if (window.Notices) window.Notices.showLocal("net.action_failed");
         } finally {
           btn.disabled = false;
         }
@@ -260,6 +266,7 @@
             await refreshSidecar(s);
           } catch (e) {
             console.error("verdict failed", e);
+            if (window.Notices) window.Notices.showLocal("net.action_failed");
           } finally {
             btn.disabled = false;
           }

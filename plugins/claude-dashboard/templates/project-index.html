@@ -94,7 +94,8 @@ async function rebuildSession(sourceHash, uuid, btn) {
     await window.Freshness.triggerRebuild(sourceHash, uuid);
     setTimeout(refresh, 500);
   } catch (e) {
-    btn.textContent = "failed";
+    btn.textContent =
+      (window.Notices && window.Notices.label("net.action_failed")) || "failed";
     setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 1800);
   }
 }
@@ -172,12 +173,12 @@ async function refresh() {
     }
     window.Freshness.stampUpdated();
     window.Freshness.setPageStatus(true);
+    if (window.Notices) window.Notices.clearLocal("net.server_down");
 
     renderSessions(sessions);
   } catch (e) {
     if (window.Freshness) window.Freshness.setPageStatus(false);
-    document.getElementById("sessions").innerHTML =
-      `<div class="err">Server unreachable: ${escapeHtml(e.message)}. Run <code>atk start claude-dashboard</code></div>`;
+    if (window.Notices) window.Notices.fetchFailed(e);
   }
 }
 

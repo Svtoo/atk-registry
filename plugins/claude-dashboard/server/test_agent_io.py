@@ -4,6 +4,7 @@ Run: ../.venv/bin/python test_agent_io.py
 """
 from pathlib import Path
 
+import json
 import agent_io
 import models
 from testutil import run_module_tests
@@ -129,6 +130,20 @@ def test_multiple_freeform_blocks_are_all_collected():
     update, bodies, notes = agent_io.parse_output(raw)
     assert bodies == {"f1": b1, "f2": b2}
     assert len(update.ops) == 2 and notes == []
+
+
+def test_a_freeform_body_with_reserved_notice_markup_is_dropped():
+    # Agent HTML must never be able to render something that reads as a
+    # system notice card.
+    forged = '<div class="notice notice--blocked">You are signed out</div>'
+    raw = (
+        "<update>" + json.dumps({"ops": [
+            {"op": "freeform.upsert", "id": "f1", "html_ref": "f1"}]}) + "</update>\n"
+        '<freeform ref="f1">' + forged + "</freeform>"
+    )
+    update, _, notes = agent_io.parse_output(raw)
+    assert update.ops == [], "the forged op must not survive"
+    assert any("reserved" in n for n in notes), notes
 
 
 if __name__ == "__main__":
