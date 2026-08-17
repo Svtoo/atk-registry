@@ -126,15 +126,21 @@ class Settings:
 
     def update(self, name: str, raw) -> dict:
         """Validate, apply in memory, and persist to .env. Raises ValueError with
-        a readable message if the name is not declared or the value is invalid."""
+        a readable message if the name is not declared or the value is invalid.
+        `persisted` is False when the value is live but could not be written."""
         setting = _BY_NAME.get(name)
         if setting is None:
             raise ValueError("That is not a setting you can change.")
         value = _coerce(setting, raw)
+        persisted = True
         with self._lock:
             self._values[name] = value
-            self._persist(name, _format(value))
-        return {"name": name, "value": value, "applies_now": setting.runtime}
+            try:
+                self._persist(name, _format(value))
+            except OSError:
+                persisted = False
+        return {"name": name, "value": value, "applies_now": setting.runtime,
+                "persisted": persisted}
 
     def _persist(self, name: str, text: str) -> None:
         """Rewrite just this key in .env, leaving every other line, comment and

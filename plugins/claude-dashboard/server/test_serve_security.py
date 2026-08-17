@@ -138,7 +138,8 @@ def test_dashboard_status_ok_for_fresh_chat_without_subdir():
         assert status == 200, f"fresh dashboard-less chat status {status}"
         d = _json.loads(body)
         assert d["hasDashboard"] is False, d
-        assert d["regenErrors"] == [] and d["acks"] == {}, d
+        assert d["noticesHtml"] == "" and d["openErrors"] == 0, d
+        assert d["acks"] == {}, d
         ghost = "bbbbbbbb-2222-4333-8444-555555555555"  # no transcript at all
         status2, _, _ = _req("GET", f"/api/dashboard/{HASH}/{ghost}.json")
         assert status2 == 404, f"nonexistent chat status {status2}"
@@ -198,6 +199,81 @@ def test_lineage_fills_the_header_slot_when_present():
     finally:
         serve.CHAT_STATE = None
         dash.unlink(missing_ok=True)
+
+
+def test_api_errors_are_json_notice_envelopes():
+    import json as _json
+    status, headers, body = _req("GET", "/api/nothing-here.json")
+    assert status == 404, f"unknown api endpoint returned {status}"
+    assert "application/json" in headers.get("Content-Type", ""), headers
+    d = _json.loads(body)
+    assert d["ok"] is False, d
+    assert d["notice"]["title"], "the envelope must carry readable copy"
+
+
+def test_browser_error_pages_never_leak_internal_strings():
+    status, _, body = _req("GET", "/../etc/passwd")
+    text = body.decode("utf-8", "replace")
+    for internal in ("path escapes", "invalid project or session id",
+                     "not found under projects root"):
+        assert internal not in text, f"internal string {internal!r} leaked"
+    assert status in (400, 403, 404), status
+
+
+def test_a_route_fault_renders_a_page_instead_of_dropping_the_connection():
+    original = serve.Handler._serve_stats
+    serve.Handler._serve_stats = lambda self: (_ for _ in ()).throw(RuntimeError("boom"))
+    try:
+        status, headers, body = _req("GET", "/api/stats.json")
+        assert status == 500, f"fault returned {status}"
+        assert b"boom" not in body, "the exception text must not reach the browser"
+    finally:
+        serve.Handler._serve_stats = original
+
+
+def test_substituted_values_are_never_rescanned_for_placeholders():
+    # A placeholder-shaped literal inside any substituted value (a notice's
+    # raw CLI detail, an agent fragment) must reach the page as text, not be
+    # expanded by a later substitution pass.
+    hostile_detail = "probe said {{content}} and {{notice_templates}}"
+    serve.NOTICES.raise_("account.signed_out", detail=hostile_detail)
+    try:
+        body = serve.render_page(
+            "_pending.html", title="x", breadcrumb="", section="projects")
+        html = body.decode("utf-8")
+        assert html.count('id="ccd-notices"') == 1, "exactly one notice region"
+        assert html.count("ccd-pending-lead") == 1,             "the content must render exactly once"
+        assert "{{content}}" in html, "the braces must survive as literal text"
+    finally:
+        serve.NOTICES.clear(prefix="account.")
+
+
+def test_the_notices_endpoint_serves_the_app_scope_set():
+    import json as _json
+    serve.NOTICES.raise_("account.signed_out", detail="probe said no")
+    try:
+        status, headers, body = _req("GET", "/api/notices.json")
+        assert status == 200, status
+        d = _json.loads(body)
+        assert "signed out" in d["html"], d["html"][:200]
+        assert headers.get("ETag"), "notices poll must support caching"
+        status2, _, body2 = _req("GET", "/api/notices.json",
+                                 headers={"If-None-Match": headers["ETag"]})
+        assert status2 == 304 and body2 == b"", (status2, body2)
+    finally:
+        serve.NOTICES.clear(prefix="account.")
+
+
+def test_an_active_app_notice_is_server_rendered_into_every_page():
+    serve.NOTICES.raise_("account.signed_out", detail="probe said no")
+    try:
+        for path in ("/", "/stats", "/settings"):
+            _, _, body = _req("GET", path)
+            text = body.decode("utf-8", "replace")
+            assert "signed out" in text, f"{path} misses the app notice"
+            assert "claude auth login" in text, f"{path} misses the remediation"
+    finally:
+        serve.NOTICES.clear(prefix="account.")
 
 
 def main():

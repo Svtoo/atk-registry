@@ -439,16 +439,11 @@ header.page .subtitle {
 }
 .ok-count { color: var(--ok); }
 
-.empty, .err {
+.empty {
   text-align: center; padding: 1.5rem; font-size: 0.85rem;
   color: var(--muted); background: var(--card);
   border: 1px dashed var(--border); border-radius: 10px;
 }
-.err {
-  color: var(--bad-fg); background: var(--bad-soft-bg);
-  border-color: var(--bad-soft-br); border-style: solid;
-}
-
 .skeleton {
   background: var(--card); border: 1px solid var(--border); border-radius: 10px;
   height: 60px; animation: pulse 1.5s ease-in-out infinite;
@@ -537,7 +532,17 @@ table.watch-deck th, table.watch-deck td {
   padding: 0.4rem 0.55rem;
   text-align: left; vertical-align: top;
   border: 1px solid var(--border);
-  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+/* Long unbreakable runs in one column must not crush the guidance columns
+   into one-word towers. */
+table.watch-deck th:nth-child(3), table.watch-deck td:nth-child(3),
+table.watch-deck th:nth-child(4), table.watch-deck td:nth-child(4) {
+  min-width: 8.5rem;
+}
+table.watch-deck pre, table.watch-deck code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 table.watch-deck th.sev-col, table.watch-deck td.sev-col {
   width: 4.5rem; white-space: nowrap;
@@ -696,24 +701,6 @@ table.watch-deck tr.acked td.sev-col span {
   font-weight: 500;
 }
 
-/* ---- Auth-health banner (injected at the top of <body> by freshness.js) ---- */
-.auth-banner {
-  background: var(--bad-soft-bg);
-  border-bottom: 1px solid var(--bad-soft-br);
-  color: var(--bad-fg);
-  padding: 0.5rem 1rem;
-  font-size: 0.8rem;
-  line-height: 1.5;
-}
-.auth-banner .auth-banner-detail {
-  display: block;
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  margin-top: 0.15rem;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
 .recents-strip a.chip {
   display: inline-flex;
   align-items: center;
@@ -838,16 +825,19 @@ table.watch-deck tr.acked td.sev-col span {
   to   { opacity: 1; transform: translateX(0); }
 }
 
-/* ---- Regen-errors banner (per-chat layout, below the nav bar) ---- */
-.regen-errors-banner {
+/* ---- Notice regions: the app-wide strip and the per-chat banner ---- */
+.notices:empty { display: none; }
+#ccd-notices { margin: 0.6rem auto 0; max-width: 1160px; padding: 0 1.25rem; }
+#ccd-notices:empty { margin: 0; }
+.notices--chat {
   margin: 0.55rem 0 0.75rem;
   border: 1px solid var(--border);
   background: var(--card);
   border-radius: 10px;
   padding: 0.6rem 0.85rem 0.65rem;
 }
-.regen-errors-banner[hidden] { display: none; }
-.regen-errors-title {
+.notices--chat[hidden] { display: none; }
+.notices__group {
   margin: 0 0 0.4rem;
   font-size: 0.82rem;
   font-weight: 600;
@@ -855,7 +845,7 @@ table.watch-deck tr.acked td.sev-col span {
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
-.regen-errors-list {
+.notices__list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -863,45 +853,69 @@ table.watch-deck tr.acked td.sev-col span {
   flex-direction: column;
   gap: 0.4rem;
 }
-.regen-error {
+.notice {
   border: 1px solid var(--border);
   border-left: 3px solid var(--muted);
   background: var(--card);
   border-radius: 6px;
   padding: 0.5rem 0.65rem;
 }
-.regen-error.sev-action  { border-left-color: var(--bad);    background: var(--bad-soft-bg); }
-.regen-error.sev-warning { border-left-color: var(--warn);   background: var(--warn-soft-bg); }
-.regen-error.sev-bug     { border-left-color: var(--accent); background: var(--accent-soft-bg); }
+.notice--blocked  { border-left-color: var(--bad);    background: var(--bad-soft-bg); }
+.notice--degraded { border-left-color: var(--warn);   background: var(--warn-soft-bg); }
+.notice--bug      { border-left-color: var(--accent); background: var(--accent-soft-bg); }
+.notice--info     { border-left-color: var(--border); background: transparent; }
 
-.regen-error-title {
+.notice__head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+.notice__title {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--fg);
   line-height: 1.4;
 }
-.regen-error-body {
+.notice__when { font-variant-numeric: tabular-nums; }
+.notice__dismiss { margin-left: auto; }
+.notice__what {
   margin: 0.25rem 0 0;
   font-size: 0.8rem;
   line-height: 1.5;
   color: var(--fg);
   opacity: 0.9;
 }
-.regen-error-actions {
+.notice__steps {
+  margin: 0.35rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--fg);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.notice__steps li::marker { color: var(--muted); }
+.notice__step-text { margin-right: 0.45rem; }
+.notice__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
   margin-top: 0.5rem;
 }
-.regen-error-cmd {
+.notice__cmd {
   display: inline-flex;
   align-items: stretch;
   background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: 5px;
   overflow: hidden;
+  vertical-align: middle;
+  margin-right: 0.45rem;
 }
-.regen-error-cmd code {
+.notice__cmd code {
   font-family: var(--mono);
   font-size: 0.76rem;
   color: var(--fg);
@@ -910,40 +924,57 @@ table.watch-deck tr.acked td.sev-col span {
   border-radius: 0;
   white-space: nowrap;
 }
-.regen-error-copy, .regen-error-link, .regen-error-dismiss {
-  font-size: 0.72rem; padding: 0.25rem 0.55rem; border-radius: 5px;
+.notice__copy, .notice__link, .notice__action, .notice__dismiss {
+  font-size: 0.72rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 5px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  cursor: pointer;
+  font-family: inherit;
 }
-.regen-error-link { color: var(--accent); text-decoration: none; }
-.regen-error-cmd .regen-error-copy {
+.notice__link, .notice__action { text-decoration: none; }
+a.notice__link, a.notice__action { color: var(--accent); }
+.notice__copy:hover, .notice__link:hover, .notice__action:hover,
+.notice__dismiss:hover { border-color: var(--accent); }
+.notice__cmd .notice__copy {
   border: none;
   border-left: 1px solid var(--border);
   border-radius: 0;
 }
-.regen-error-detail { margin-top: 0.45rem; }
-.regen-error-detail summary {
+.notice__explain, .notice__detail { margin-top: 0.45rem; }
+.notice__explain summary, .notice__detail summary {
   font-size: 0.72rem;
   color: var(--muted);
   cursor: pointer;
 }
-.regen-error-detail summary .regen-error-copy {
+.notice__explain p {
+  margin: 0.3rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--fg);
+  opacity: 0.9;
+}
+.notice__detail summary .notice__copy {
   margin-left: 0.6rem;
   font-size: 0.68rem;
   padding: 0.1rem 0.4rem;
   vertical-align: 1px;
 }
-.regen-error-diag {
+.notice__diag {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 0.15rem 0.8rem;
   margin: 0.4rem 0 0;
   font-size: 0.72rem;
 }
-.regen-error-diag dt { color: var(--muted); white-space: nowrap; }
-.regen-error-diag dd {
+.notice__diag dt { color: var(--muted); white-space: nowrap; }
+.notice__diag dd {
   margin: 0; color: var(--fg);
   font-family: var(--mono);
 }
-.regen-error-detail pre {
+.notice__detail pre {
   margin: 0.3rem 0 0;
   font-size: 0.7rem;
   line-height: 1.4;
@@ -952,18 +983,10 @@ table.watch-deck tr.acked td.sev-col span {
   max-height: 11rem;
   overflow: auto;
 }
-.regen-error-head {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  font-size: 0.74rem;
-  color: var(--muted);
-}
-.regen-error-when { font-variant-numeric: tabular-nums; }
-.regen-error-dismiss { margin-left: auto; }
-.regen-error.resolved { opacity: 0.65; }
-.regen-errors-fold { list-style: none; }
-.regen-errors-resolved {
+.notice.resolved { opacity: 0.65; }
+.notices__fold { list-style: none; }
+.notices__fold > .btn-quiet { font-size: 0.74rem; }
+.notices__resolved {
   list-style: none;
   margin: 0.4rem 0 0;
   padding: 0;
@@ -971,4 +994,4 @@ table.watch-deck tr.acked td.sev-col span {
   flex-direction: column;
   gap: 0.4rem;
 }
-.regen-errors-resolved[hidden] { display: none; }
+.notices__resolved[hidden] { display: none; }
