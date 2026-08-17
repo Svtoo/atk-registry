@@ -60,6 +60,7 @@ async function refresh() {
       window.Freshness.stampUpdated();
       window.Freshness.setPageStatus(true);
     }
+    if (window.Notices) window.Notices.clearLocal("net.server_down");
 
     const container = document.getElementById("projects");
     if (projects.length === 0) {
@@ -89,8 +90,7 @@ async function refresh() {
     }).join("");
   } catch (e) {
     if (window.Freshness) window.Freshness.setPageStatus(false);
-    document.getElementById("projects").innerHTML =
-      `<div class="err">Server unreachable: ${escapeHtml(e.message)}. Run <code>atk start claude-dashboard</code></div>`;
+    if (window.Notices) window.Notices.fetchFailed(e);
   }
 }
 

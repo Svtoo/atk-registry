@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-import failures
+import notices
 from config import DEFAULT_MODEL, DEFAULT_REGEN_TIMEOUT
 from logging_config import get_logger
 
@@ -276,9 +276,11 @@ def invoke_claude(
     )
 
 
-def probe_auth(model: str = DEFAULT_MODEL, timeout_s: float = 25.0) -> "tuple[bool, str]":
+def probe_auth(model: str = DEFAULT_MODEL,
+               timeout_s: float = 25.0) -> "tuple[bool, str, str]":
     """Startup health check: run a tiny `claude -p` under the real auth policy.
-    Returns (ok, detail); on failure detail carries the CLI's own diagnostic."""
+    Returns (ok, kind, detail). `kind` names which way it failed so the notice
+    catalog classifies it directly instead of parsing the diagnostic back."""
     cmd = [
         "claude", "-p",
         "--setting-sources", "local",
@@ -290,14 +292,14 @@ def probe_auth(model: str = DEFAULT_MODEL, timeout_s: float = 25.0) -> "tuple[bo
         proc = _spawn_claude(cmd)
         stdout, stderr = proc.communicate(input="Reply with: ok", timeout=timeout_s)
     except FileNotFoundError:
-        return False, "claude CLI not found on PATH"
+        return False, "CliMissing", "claude CLI not found on PATH"
     except subprocess.TimeoutExpired:
         _kill_and_reap(proc)
-        return False, f"probe timed out after {timeout_s:.0f}s"
+        return False, "ProbeTimeout", f"probe timed out after {timeout_s:.0f}s"
     if proc.returncode == 0 and stdout.strip():
-        return True, stdout.strip()[:200]
+        return True, "", stdout.strip()[:200]
     detail = (stderr.strip() or stdout.strip() or f"claude -p exited {proc.returncode}")
-    return False, detail[:300]
+    return False, "SubprocessFailed", detail[:300]
 
 
 # ─── One full attempt ──────────────────────────────────────────────────
@@ -802,4 +804,4 @@ def _is_retryable(e: BaseException) -> bool:
         return False
     if not isinstance(e, SubprocessFailed):
         return False
-    return not failures.is_permanent(type(e).__name__, str(e))
+    return not notices.is_permanent(notices.classify(type(e).__name__, str(e)))
