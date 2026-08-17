@@ -6,6 +6,10 @@
 </head>
 <body class="{{body_class}}">
 
+<div id="ccd-notices" class="notices" role="status" aria-live="polite"
+     data-generation="{{app_notices_generation}}">{{app_notices}}</div>
+{{notice_templates}}
+
 <nav class="appnav">
   <div class="crumb">{{breadcrumb}}</div>
   <div class="appnav-right">{{nav_actions}}{{shared_nav}}</div>

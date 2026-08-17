@@ -10,6 +10,7 @@ or over the size limit drops only its own op; the rest of the update still
 applies.
 """
 import json
+import re
 
 from pydantic import ValidationError
 
@@ -64,6 +65,10 @@ def _extract_freeform_bodies(raw: str) -> "dict[str, str]":
     return bodies
 
 
+# The notice namespace: agent HTML must never be able to forge a system card.
+_RESERVED_RE = re.compile(r"ccd-notices|notices__|notice--|notice__|data-notice-")
+
+
 def parse_output(raw: str) -> "tuple[Update, dict[str, str], list[str]]":
     """Split the agent output into a validated `Update`, a `{ref: raw_html}`
     map, and a list of human-readable notes about anything gracefully dropped.
@@ -104,6 +109,12 @@ def parse_output(raw: str) -> "tuple[Update, dict[str, str], list[str]]":
             notes.append(
                 f"dropped freeform.upsert ref={op.html_ref!r}: body {len(body)} chars "
                 f"over the {HTML_MAX} limit"
+            )
+            continue
+        if _RESERVED_RE.search(body):
+            notes.append(
+                f"dropped freeform.upsert ref={op.html_ref!r}: body uses markup "
+                "reserved for system notices"
             )
             continue
         kept_ops.append(op)

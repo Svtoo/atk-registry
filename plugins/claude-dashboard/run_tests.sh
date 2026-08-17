@@ -41,7 +41,10 @@ run server  test_regen
 run server  test_run_once
 run server  test_store
 run server  test_config
-run server  test_failures
+run server  test_notices
+run server  test_notices_html
+run server  test_notice_center
+run server  test_notice_discipline
 run server  test_identity
 run server  test_lineage
 run server  test_nav

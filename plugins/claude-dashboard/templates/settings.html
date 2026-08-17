@@ -99,14 +99,6 @@ function render(data) {
   document.querySelectorAll("[data-save]").forEach(btn => {
     btn.addEventListener("click", () => save(btn.dataset.save, btn));
   });
-  document.querySelectorAll("[data-copy]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      try { await navigator.clipboard.writeText(btn.dataset.copy); } catch (_) { /* not fatal */ }
-      const original = btn.textContent;
-      btn.textContent = "Copied";
-      setTimeout(() => { btn.textContent = original; }, 1200);
-    });
-  });
 }
 
 async function save(name, btn) {
@@ -123,9 +115,16 @@ async function save(name, btn) {
       body: JSON.stringify({ name, value: input.value }),
     });
     const out = await r.json().catch(() => ({}));
-    if (!r.ok || !out.ok) throw new Error(out.error || ("HTTP " + r.status));
-    note.className = "note ok";
-    note.textContent = out.applies_now ? "Saved, in effect now" : "Saved, applies after a restart";
+    if (!r.ok || !out.ok) {
+      throw new Error((out.notice && out.notice.title) || ("HTTP " + r.status));
+    }
+    if (out.notice) {
+      note.className = "note bad";
+      note.textContent = out.notice.title;
+    } else {
+      note.className = "note ok";
+      note.textContent = out.applies_now ? "Saved, in effect now" : "Saved, applies after a restart";
+    }
     if (window.Freshness) window.Freshness.setPageStatus(true);
   } catch (e) {
     note.className = "note bad";
@@ -145,9 +144,8 @@ async function load() {
       window.Freshness.stampUpdated();
     }
   } catch (e) {
-    document.getElementById("body").innerHTML =
-      `<div class="err">Could not load settings: ${esc(e.message)}</div>`;
     if (window.Freshness) window.Freshness.setPageStatus(false);
+    if (window.Notices) window.Notices.fetchFailed(e);
   }
 }
 

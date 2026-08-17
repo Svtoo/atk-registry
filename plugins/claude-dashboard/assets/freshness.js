@@ -1,4 +1,4 @@
-/* Freshness chips, rebuild trigger, recents strip, toasts, auth banner:
+/* Freshness chips, rebuild trigger, recents strip, toasts:
  * the `window.Freshness` namespace, loaded on every page. */
 (function () {
   "use strict";
@@ -40,7 +40,8 @@
     const el = document.getElementById("status");
     if (!el) return;
     el.className = ok ? "status live" : "status dead";
-    el.innerHTML = '<span class="dot"></span>' + (ok ? "live" : "server down");
+    const down = (window.Notices && window.Notices.label("net.server_down")) || "server down";
+    el.innerHTML = '<span class="dot"></span>' + (ok ? "live" : down);
   }
 
   function stampUpdated() {
@@ -50,12 +51,27 @@
       "en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + "</strong>";
   }
 
+  // The chip's failure words come from the notice catalog, delivered as
+  // openErrors / errorLabel / errorTitle on every session row.
+  function failedChip(info) {
+    const n = info.openErrors || 0;
+    const label = info.errorLabel
+      || (window.Notices && window.Notices.label("rebuild.failed")) || "did not finish";
+    const title = info.errorTitle
+      || (window.Notices && window.Notices.title("rebuild.failed")) || "";
+    return {
+      state: "failed",
+      label: "⚠ " + (n > 1 ? n + " × " + label : label),
+      title: title,
+    };
+  }
+
   // `info` per session: hasDashboard, regen ({state, since|error} | null),
-  // mtime, dashboardMtime, lastTurnEndedAt, regenErrors.
+  // mtime, dashboardMtime, lastTurnEndedAt, openErrors, errorLabel, errorTitle.
   //
   // Precedence (highest wins):
   //   1. running:  a regen is in flight right now
-  //   2. failed (persistent):  one or more un-acked regenErrors exist
+  //   2. failed (persistent):  one or more open rebuild failures exist
   //   3. failed (transient):  the Registry's in-memory failed record
   //   4. behind:  the dashboard predates the last completed turn
   //   5. current:  everything caught up
@@ -73,13 +89,8 @@
           title: "The first dashboard is being generated.",
         };
       }
-      const errs0 = ((info && info.regenErrors) || []).filter(e => e.ackedAt == null && e.resolvedAt == null);
-      if (errs0.length > 0 || (r0 && r0.state === "failed")) {
-        return {
-          state: "failed",
-          label: "⚠ generation failed",
-          title: "First dashboard generation failed. Open the chat to see why, or rebuild.",
-        };
+      if ((info && info.openErrors > 0) || (r0 && r0.state === "failed")) {
+        return failedChip(info || {});
       }
       return { state: "no-dashboard", label: "no dashboard", title: "" };
     }
@@ -93,21 +104,8 @@
         title: "Subagent is regenerating the dashboard.",
       };
     }
-    const unackedErrors = (info.regenErrors || []).filter(e => e.ackedAt == null && e.resolvedAt == null);
-    if (unackedErrors.length > 0) {
-      const noun = unackedErrors.length === 1 ? "error" : "errors";
-      return {
-        state: "failed",
-        label: "⚠ " + unackedErrors.length + " regen " + noun,
-        title: "Click rebuild or dismiss the entries in the banner below.",
-      };
-    }
-    if (r && r.state === "failed") {
-      return {
-        state: "failed",
-        label: "⚠ last update failed",
-        title: (r.error || "(no detail)") + "; check runtime/server.log",
-      };
+    if (info.openErrors > 0 || (r && r.state === "failed")) {
+      return failedChip(info);
     }
     // lastTurnEndedAt == null means a turn is in flight or none ever finished;
     // "behind" is meaningless then.
@@ -170,7 +168,7 @@
       const cls = "chip" + (isHere ? " here" : "");
       const klass = classify(r);
       const dot = klass.state === "running" ? '<span class="dot running" title="updating"></span>'
-                : klass.state === "failed"  ? '<span class="dot failed"  title="last update failed"></span>'
+                : klass.state === "failed"  ? '<span class="dot failed"  title="' + escapeHtml(klass.label) + '"></span>'
                 : klass.state === "behind"  ? '<span class="dot behind"  title="behind"></span>'
                 : klass.state === "current" ? '<span class="dot current" title="current"></span>'
                 : '';
@@ -208,32 +206,6 @@
     if (!r.ok) throw new Error("HTTP " + r.status);
     const j = await r.json();
     return j.latest || [];
-  }
-
-  // ── Auth-health banner ─────────────────────────────────────────────
-  // When the regen subagent cannot authenticate, no dashboards generate;
-  // the banner clears itself once /api/health.json recovers.
-  async function checkAuthHealth() {
-    let h;
-    try {
-      const r = await fetch("/api/health.json", { cache: "no-store" });
-      h = r.ok ? await r.json() : null;
-    } catch (_) { return; }
-    const existing = document.getElementById("ccd-auth-banner");
-    if (!h || h.regenAuth !== "failed") {
-      if (existing) existing.remove();
-      return;
-    }
-    const banner = existing || document.createElement("div");
-    if (!existing) {
-      banner.id = "ccd-auth-banner";
-      banner.className = "auth-banner";
-      document.body.insertBefore(banner, document.body.firstChild);
-    }
-    banner.innerHTML =
-      '<strong>⚠ Dashboard generation can’t authenticate.</strong> ' +
-      'New dashboards won’t generate until this is resolved. ' +
-      '<span class="auth-banner-detail">' + escapeHtml(h.detail || "") + '</span>';
   }
 
   // ── Toast notifications ────────────────────────────────────────
@@ -324,7 +296,8 @@
           if (curRegen === "failed") {
             _showToast({
               kind: "failed",
-              message: "⚠ regen failed",
+              message: "⚠ " + ((window.Notices && window.Notices.label("rebuild.failed"))
+                               || "did not finish"),
               title: title, project: project, href: href,
             });
           } else if (curRegen !== "running"
@@ -433,16 +406,8 @@
     tick();
   }
 
-  // Page-wide, independent of the strip: Stats and Settings have no strip but
-  // still need an expired sign-in announced.
-  function bootAuthBanner() {
-    checkAuthHealth();
-    setInterval(checkAuthHealth, 60000);
-  }
-
   function boot() {
     bootRecentsStrip();
-    bootAuthBanner();
   }
 
   if (document.readyState === "loading") {
