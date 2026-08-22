@@ -58,6 +58,34 @@ def test_set_model_prunes_acks_with_no_matching_row():
     assert orphan_row not in acks, "an ack with no matching row must be pruned"
 
 
+def test_record_error_merges_a_same_code_open_entry():
+    tmp = Path(tempfile.mkdtemp())
+    cs, h, s = _fresh_state(tmp)
+    code = "rebuild.timeout"
+    first_message = "claude -p exceeded 180s after 181.0s"
+    second_message = "claude -p exceeded 180s after 240.2s"
+    first = cs.record_error(h, s, kind="RegenTimeout", message=first_message, code=code)
+    merged = cs.record_error(h, s, kind="RegenTimeout", message=second_message, code=code)
+    errors = cs.snapshot(h, s)["regenErrors"]
+    assert len(errors) == 1, "a repeat of the same open problem must not add a card"
+    assert merged["id"] == first["id"], "the episode keeps its original id"
+    assert merged["count"] == 2, merged
+    assert merged["message"] == second_message, "the card shows the latest failure"
+    assert merged["lastAt"] >= first["at"], merged
+
+
+def test_record_error_starts_a_new_episode_after_an_ack():
+    tmp = Path(tempfile.mkdtemp())
+    cs, h, s = _fresh_state(tmp)
+    code = "rebuild.timeout"
+    dismissed = cs.record_error(h, s, kind="RegenTimeout", message="run 1", code=code)
+    cs.ack_error(h, s, dismissed["id"])
+    fresh = cs.record_error(h, s, kind="RegenTimeout", message="run 2", code=code)
+    assert fresh["id"] != dismissed["id"], \
+        "a failure after a dismissal is a new episode, not a bump of the dismissed one"
+    assert fresh["count"] == 1, fresh
+
+
 def test_resolve_errors_stamps_open_entries_only():
     tmp = Path(tempfile.mkdtemp())
     cs, h, s = _fresh_state(tmp)

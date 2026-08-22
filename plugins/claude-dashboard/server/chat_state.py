@@ -304,22 +304,38 @@ class ChatState:
         *,
         kind: str,
         message: str,
+        code: str = "",
     ) -> "dict | None":
-        """Append a new regen error. Returns the entry, or None if the session
-        dir does not exist (a missing sidecar must not crash the regen runner)."""
+        """Record a regen error, merging a repeat of an open same-code entry
+        (count/lastAt bump, kind/message track the latest failure) instead of
+        appending; uncoded entries always append. Returns the entry, or None
+        when the session dir is missing."""
         msg = message or ""
         if len(msg) > MAX_ERROR_MESSAGE_CHARS:
             msg = msg[:MAX_ERROR_MESSAGE_CHARS] + "\n…[truncated, full text in server.log]"
-        entry = {
-            "id": self._mint_error_id(),
-            "at": int(time.time()),
-            "kind": kind,
-            "message": msg,
-            "ackedAt": None,
-            "resolvedAt": None,
-        }
+        now = int(time.time())
 
         def apply(data: dict) -> dict:
+            if code:
+                for e in reversed(data["regenErrors"]):
+                    if (e.get("code") == code and e.get("ackedAt") is None
+                            and e.get("resolvedAt") is None):
+                        e["count"] = int(e.get("count") or 1) + 1
+                        e["lastAt"] = now
+                        e["kind"] = kind
+                        e["message"] = msg
+                        return e
+            entry = {
+                "id": self._mint_error_id(),
+                "at": now,
+                "lastAt": now,
+                "count": 1,
+                "code": code,
+                "kind": kind,
+                "message": msg,
+                "ackedAt": None,
+                "resolvedAt": None,
+            }
             data["regenErrors"].append(entry)
             if len(data["regenErrors"]) > MAX_ERRORS_PER_CHAT:
                 data["regenErrors"] = data["regenErrors"][-MAX_ERRORS_PER_CHAT:]
