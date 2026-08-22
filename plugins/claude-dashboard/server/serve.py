@@ -84,13 +84,18 @@ def _refresh_account_notices(*, pending: bool) -> None:
         NOTICES.end_probe()
 
 
+def _entry_at(entry: dict) -> int:
+    """The entry's most recent failure time."""
+    return entry.get("lastAt") or entry.get("at") or 0
+
+
 def _open_error_summary(entries) -> dict:
     """Chip fields for a session's unacked, unresolved rebuild failures."""
     live = [e for e in entries or []
             if e.get("ackedAt") is None and e.get("resolvedAt") is None]
     if not live:
         return {"openErrors": 0}
-    top = max(live, key=lambda e: e.get("at") or 0)
+    top = max(live, key=_entry_at)
     entry = notices.get(notices.classify(top.get("kind", ""), top.get("message", "")))
     return {"openErrors": len(live),
             "errorLabel": entry.label, "errorTitle": entry.title}
@@ -98,26 +103,35 @@ def _open_error_summary(entries) -> dict:
 
 def _chat_notices_html(project_hash: str, session_uuid: str,
                        entries, typical_s) -> str:
-    """The per-chat notice cards: live entries first, resolved ones folded."""
-    def _env(entry: dict) -> dict:
-        code = notices.classify(entry.get("kind", ""), entry.get("message", ""))
+    """The per-chat notice cards: live chat-scope entries first, resolved ones
+    folded."""
+    def _env(entry: dict, code: str) -> dict:
         timeout_s = SETTINGS.get("CCD_REGEN_TIMEOUT")
-        return notices.envelope(
+        last_at = _entry_at(entry)
+        env = notices.envelope(
             code,
             facts={"limit_s": timeout_s, "typical_s": typical_s},
             detail=entry.get("message", ""),
-            measurements=(STORE.failure_row(session_uuid, entry.get("at") or 0)
+            measurements=(STORE.failure_row(session_uuid, last_at)
                           if STORE is not None else {}),
             timeout_s=timeout_s,
-            id=entry["id"], at=entry.get("at") or 0,
+            id=entry["id"], at=last_at,
             acked_at=entry.get("ackedAt"), resolved_at=entry.get("resolvedAt"),
             project=project_hash, session=session_uuid,
         )
+        env["count"] = int(entry.get("count") or 1)
+        return env
 
     unacked = [e for e in entries or [] if e.get("ackedAt") is None]
-    newest_first = sorted(unacked, key=lambda e: e.get("at") or 0, reverse=True)
-    live = [_env(e) for e in newest_first if e.get("resolvedAt") is None]
-    resolved = [_env(e) for e in newest_first if e.get("resolvedAt") is not None]
+    newest_first = sorted(unacked, key=_entry_at, reverse=True)
+    live, resolved = [], []
+    for e in newest_first:
+        code = notices.classify(e.get("kind", ""), e.get("message", ""))
+        if e.get("resolvedAt") is not None:
+            resolved.append(_env(e, code))
+        elif notices.get(code).scope != "app":
+            # the top banner owns live app-scope problems
+            live.append(_env(e, code))
     return notices_html.render_list(live, group_label="Dashboard updates",
                                     resolved=resolved)
 
@@ -1654,10 +1668,10 @@ def main() -> int:
 
     def _on_regen_failure(project_hash: str, session_uuid: str,
                           kind: str, message: str) -> None:
-        entry = CHAT_STATE.record_error(
-            project_hash, session_uuid, kind=kind, message=message,
-        )
         code = notices.classify(kind, message)
+        entry = CHAT_STATE.record_error(
+            project_hash, session_uuid, kind=kind, message=message, code=code,
+        )
         if code.startswith("account."):
             NOTICES.raise_(code, detail=message)
         if entry is not None:

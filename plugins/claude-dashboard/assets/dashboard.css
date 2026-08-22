@@ -879,6 +879,11 @@ table.watch-deck tr.acked td.sev-col span {
   line-height: 1.4;
 }
 .notice__when { font-variant-numeric: tabular-nums; }
+.notice__count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .notice__dismiss { margin-left: auto; }
 .notice__what {
   margin: 0.25rem 0 0;

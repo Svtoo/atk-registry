@@ -34,6 +34,18 @@ def test_a_group_label_is_shown_only_when_asked_for():
     assert "notices__group" not in render_list([envelope("rebuild.timeout")])
 
 
+def test_a_repeated_problem_shows_its_occurrence_count():
+    count = 4
+    env = envelope("rebuild.timeout")
+    env["count"] = count
+    html = render_one(env)
+    assert f"× {count}" in html, html
+
+
+def test_a_single_occurrence_shows_no_count_badge():
+    assert "notice__count" not in _one("rebuild.timeout")
+
+
 # ─── one card ──────────────────────────────────────────────────────────
 
 def test_a_card_carries_its_code_and_severity_for_styling_and_tests():

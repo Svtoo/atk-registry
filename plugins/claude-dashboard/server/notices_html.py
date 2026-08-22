@@ -60,6 +60,10 @@ def render_one(env: dict) -> str:
     severity = _esc(env["severity"])
     resolved = env.get("resolvedAt") is not None
     head = [f'<span class="notice__title">{_esc(env["title"])}</span>']
+    count = int(env.get("count") or 1)
+    if count > 1:
+        head.append(f'<span class="notice__count" title="happened {count} times">'
+                    f"× {count}</span>")
     if env.get("at"):
         when = f'<time class="notice__when" data-at="{_esc(env["at"])}"'
         if resolved:
