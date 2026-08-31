@@ -182,6 +182,14 @@ def test_digest_shows_the_last_turn_line():
     assert "last_turn: (none)" in build_digest(DashboardModel())
 
 
+def test_a_flagged_diagram_tells_the_agent_to_repair_it():
+    m = DashboardModel(freeform=[FreeformSlot(id="f5", html="<section>x</section>")])
+    flagged = build_digest(m, diagram_errors={"f5": {"at": 1}})
+    assert "failed to parse" in flagged and "repair the diagram" in flagged
+    assert "failed to parse" not in build_digest(m), \
+        "no flag, no repair instruction"
+
+
 def test_journey_off_omits_the_journey_block():
     beats = [JourneyItem(id="j1", kind=JourneyKind.joint, what="the beat", why="w", turn=1)]
     digest = build_digest(DashboardModel(turn=1, journey=beats), journey=False)

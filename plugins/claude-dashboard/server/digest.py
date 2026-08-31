@@ -39,7 +39,8 @@ def _stamps(now: int, created: int, changed: int, done: int = 0) -> str:
 def build_digest(m: DashboardModel, now_turn: "int | None" = None,
                  verdicts: "dict | None" = None,
                  acks: "dict | None" = None,
-                 journey: bool = True) -> str:
+                 journey: bool = True,
+                 diagram_errors: "dict | None" = None) -> str:
     """Render the model for the agent. `now_turn` is the current conversation
     turn; "changed Nt ago" is measured against it (regens can skip turns, so
     the state's own turn may lag). Defaults to the state's turn.
@@ -97,6 +98,9 @@ def build_digest(m: DashboardModel, now_turn: "int | None" = None,
               "and then change the minimum"]
     for f in live_freeform:
         L.append(f"- {f.id} [{_ago(now, f.changed_turn)}: {f.reason}]")
+        if f.id in (diagram_errors or {}):
+            L.append("  ⚠ this card's mermaid failed to parse in the user's "
+                     "browser — repair the diagram syntax")
         L.append(f.html)
 
     if verdicts:

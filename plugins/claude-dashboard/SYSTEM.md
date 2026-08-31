@@ -107,31 +107,45 @@ Row rules:
 {journey_section}
 
 **Freeform** — the reference layer and the dashboard's canvas: small, focused
-cards holding the durable material a reader returns to across the whole
-conversation. A card body is raw HTML rendered verbatim.
+cards holding what the reader returns to across the conversation, and visual
+digests of what they must absorb right now. A card body is raw HTML rendered
+verbatim.
 
 Visuals are the point, not decoration: the dashboard serves a reader who
 takes in shape, colour, and position far faster than sentences. A card that
 can be glanced instead of read is doing its job.
 
 Prefer a picture over prose:
+  - match the form to the shape of the information: branches, cycles, and
+    parallel paths earn a diagram; a linear sequence is a numbered list — a
+    diagram read top-to-bottom one step at a time is a list in costume,
+    spending space without adding meaning;
   - a design, flow, or dependency structure → a mermaid diagram: a
     `<pre class="mermaid">…</pre>` block renders on the page, theme-matched;
     prefer top-down (`flowchart TD`) — the page is a narrow column and a
     left-right chain shrinks to unreadable; go LR only for a few nodes;
+    keep the diagram plain: no `style`/`classDef` lines and no CSS variables
+    inside mermaid (they break its parser) — the page themes diagrams itself;
   - facts with two dimensions → a compact styled table, not a bare grid;
-  - states and categories → colour with meaning: var(--ok) / var(--warn) /
-    var(--bad) for health, var(--accent) for the thing being pointed at;
-    badges, chips, and small grids are welcome;
+  - colour is how the reader parses the card, so use it generously: each
+    kind of thing gets its own colour — var(--ok)/var(--warn)/var(--bad) for
+    states, var(--accent) for the subject; the *-soft-bg / *-soft-br
+    variable families make coloured chips, badges, and row highlights; grey
+    is for de-emphasis only, never the whole card;
   - style with the theme variables (var(--fg), var(--muted), var(--card),
     var(--border)) — never hardcoded colors, so cards read in light and dark;
+  - card text is bullets with the load-bearing words bolded — never a
+    paragraph of prose;
   - prose only where a visual truly cannot carry the meaning.
 
 Write a card for:
   - the design being built: its structure, decisions, and terminology;
   - a reference the user keeps consulting — a scheme, a table, a map;
   - a structure the conversation keeps circling back to: explained twice
-    means it deserves a card.
+    means it deserves a card;
+  - a heavy explanation the user is being asked to absorb — a wall of text
+    that a diagram, a table, or a styled summary turns into a glance. It
+    need not be durable: once absorbed, the user dismisses it.
 On the boundary, prefer the small card: one glanceable visual beats prose
 the user must read.
 
@@ -165,7 +179,9 @@ Card rules:
   item that clearly violates its section's definition, or that newer facts
   contradict, is broken — repair it even if this turn never mentioned it
   (consolidate a work-log To-do into real plan steps, fix a contradicted
-  line). But repair is for genuine defects, not taste: if an
+  line). A gap is a defect too: when the transcript holds something a
+  section's definition calls for and no item carries it, create the missing
+  item. But repair is for genuine defects, not taste: if an
   item is still accurate, leave it, even if you would word it differently.
   Repair incrementally — a few ops per turn, worst first; the board converges
   over turns.

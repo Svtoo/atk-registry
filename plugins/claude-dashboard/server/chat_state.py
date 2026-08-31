@@ -70,8 +70,8 @@ class ChatState:
     def empty_state() -> dict:
         """The default state shape."""
         return {"version": CURRENT_VERSION, "acks": {}, "verdicts": {},
-                "regenErrors": [], "model": None, "parent": None,
-                "parentChecked": False}
+                "diagramErrors": {}, "regenErrors": [], "model": None,
+                "parent": None, "parentChecked": False}
 
     def _read_locked(self, path: Path) -> dict:
         """Load the per-chat state file, or an empty state if it's missing or
@@ -89,6 +89,9 @@ class ChatState:
         if not isinstance(verdicts, dict):
             verdicts = {}
         verdicts = {k: v for k, v in verdicts.items() if isinstance(v, dict)}
+        diagram_errors = data.get("diagramErrors")
+        if not isinstance(diagram_errors, dict):
+            diagram_errors = {}
         errors = data.get("regenErrors")
         if not isinstance(errors, list):
             errors = []
@@ -102,6 +105,7 @@ class ChatState:
             "version": CURRENT_VERSION,
             "acks": acks,
             "verdicts": verdicts,
+            "diagramErrors": diagram_errors,
             "regenErrors": errors,
             "model": model,
             "parent": parent,
@@ -251,6 +255,18 @@ class ChatState:
 
     def clear_ack(self, project_hash: str, session_uuid: str, row_id: str) -> None:
         self._clear_entry(project_hash, session_uuid, "acks", row_id)
+
+    def set_diagram_error(self, project_hash: str, session_uuid: str,
+                          slot_id: str) -> dict:
+        """The browser's report that a freeform slot's diagram failed to parse."""
+        return self._set_entry(
+            project_hash, session_uuid, "diagramErrors", slot_id,
+            lambda data: {"at": int(time.time()),
+                          "turn": self._model_turn(data)})
+
+    def clear_diagram_error(self, project_hash: str, session_uuid: str,
+                            slot_id: str) -> None:
+        self._clear_entry(project_hash, session_uuid, "diagramErrors", slot_id)
 
     # ─── Verdicts API ──────────────────────────────────────────────
     # One-bit user calls on items, keyed "<section>:<item-id>".

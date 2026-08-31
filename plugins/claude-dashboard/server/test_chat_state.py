@@ -267,5 +267,18 @@ def test_lineage_check_is_remembered_even_when_there_is_no_parent():
     assert snap["parentChecked"] is True, "a negative result is recorded once, not rescanned"
 
 
+def test_diagram_error_set_clear_and_snapshot_roundtrip():
+    tmp = Path(tempfile.mkdtemp())
+    cs, h, s = _fresh_state(tmp)
+    cs.set_model(h, s, {"title": "T", "turn": 4})
+    entry = cs.set_diagram_error(h, s, "f5")
+    assert entry["turn"] == 4, "the flag records the model's current turn"
+    assert cs.snapshot(h, s)["diagramErrors"].get("f5"), "the flag must persist"
+    assert cs.get_model(h, s) == {"title": "T", "turn": 4}, \
+        "a diagram-error write must not clobber the model"
+    cs.clear_diagram_error(h, s, "f5")
+    assert cs.snapshot(h, s)["diagramErrors"] == {}, "clearing removes the flag"
+
+
 if __name__ == "__main__":
     run_module_tests(globals())
