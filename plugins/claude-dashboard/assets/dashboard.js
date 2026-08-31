@@ -69,6 +69,36 @@
     document.head.appendChild(s);
   }
 
+  // ─── Mermaid lightbox: click a diagram to inspect it full-screen ─────
+  function closeDiagramLightbox() {
+    const box = document.querySelector(".mermaid-lightbox");
+    if (box) box.remove();
+  }
+
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest) return;
+    const pre = e.target.closest("pre.mermaid");
+    if (pre) {
+      const svg = pre.querySelector("svg");
+      if (!svg) return;
+      closeDiagramLightbox();
+      const box = document.createElement("div");
+      box.className = "mermaid-lightbox";
+      const clone = svg.cloneNode(true);
+      clone.removeAttribute("width");
+      clone.removeAttribute("height");
+      clone.style.maxWidth = "none";
+      box.appendChild(clone);
+      document.body.appendChild(box);
+      return;
+    }
+    if (e.target.closest(".mermaid-lightbox")) closeDiagramLightbox();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeDiagramLightbox();
+  });
+
   // ─── Heads-up acknowledge handling ───────────────────────────────────
   // Ack state lives server-side in the per-chat state.json sidecar.
   function currentSession() {
