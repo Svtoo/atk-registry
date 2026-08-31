@@ -6,8 +6,9 @@ buttons, todo-list, timeline). Text fields and freeform bodies are inlined raw
 and to-do render all rows — done to-dos are permanent history the JS folds.
 """
 import re
+from html import escape, unescape
 
-from models import DashboardModel, TodoStatus
+from models import DashboardModel, HeadsupItem, TodoStatus
 
 _PHASE_CHIP = {
     "planning": ("info", "Planning"),
@@ -182,6 +183,22 @@ def _todo(m: DashboardModel) -> str:
     return "\n".join(lines)
 
 
+def _sentence(s: str) -> str:
+    return s if s.endswith((".", "!", "?", "…", ":", ";")) else s + "."
+
+
+def _copy_text(m: DashboardModel, h: HeadsupItem) -> str:
+    """The row as one plain-text line the user pastes into the chat as-is:
+    provenance prefix, then the fields verbatim, no action words."""
+    stamp = f", raised turn {_abs_turn(m, h.created_turn)}" if h.created_turn else ""
+    line = (f"Dashboard heads-up ({h.sev.value}{stamp}): "
+            f"{_sentence(unescape(_plain(h.what)))} "
+            f"Why: {_sentence(unescape(_plain(h.why)))}")
+    if h.where:
+        line += f" Where: {unescape(_plain(h.where))}"
+    return line
+
+
 def _headsup(m: DashboardModel) -> str:
     lines = ['<section class="card heads-up">', "  <h2>🚨 Heads-up</h2>"]
     if m.headsup:
@@ -200,7 +217,9 @@ def _headsup(m: DashboardModel) -> str:
                 f"        <td>{h.where}</td>",
                 f'        <td class="ack-col">'
                 f'{_age(m, [("raised", h.created_turn)])}'
-                '<button class="ack-btn" type="button">acknowledge</button></td>',
+                '<button class="ack-btn" type="button">acknowledge</button>'
+                f'<button class="copy-btn" type="button" title="copy for the agent" '
+                f'data-copy="{escape(_copy_text(m, h))}">copy</button></td>',
                 "      </tr>",
             ]
         lines += ["    </tbody>", "  </table>"]

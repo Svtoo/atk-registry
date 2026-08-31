@@ -112,7 +112,9 @@ Each section is defined by the same five fields.
 - **Excludes** — anything the user demonstrably already knows (the prompt
   carries the full gate).
 - **Lifecycle** — the user acknowledges a row (it folds away, never deleted by the
-  server). The agent may promote a row to CTA if it actually needs action.
+  server). The agent may promote a row to CTA if it actually needs action. Each row
+  carries a copy button that puts it on the clipboard as one plain line — provenance
+  prefix plus the fields verbatim, no action words — for pasting into the chat.
 - **Empty** — yes.
 
 ### Journey
