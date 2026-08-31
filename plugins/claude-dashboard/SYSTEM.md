@@ -117,6 +117,8 @@ can be glanced instead of read is doing its job.
 Prefer a picture over prose:
   - a design, flow, or dependency structure → a mermaid diagram: a
     `<pre class="mermaid">…</pre>` block renders on the page, theme-matched;
+    prefer top-down (`flowchart TD`) — the page is a narrow column and a
+    left-right chain shrinks to unreadable; go LR only for a few nodes;
   - facts with two dimensions → a compact styled table, not a bare grid;
   - states and categories → colour with meaning: var(--ok) / var(--warn) /
     var(--bad) for health, var(--accent) for the thing being pointed at;
