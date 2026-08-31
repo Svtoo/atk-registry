@@ -164,7 +164,7 @@ header.session-header {
 }
 h1 { margin: 0 0 0.3rem; font-size: 1.4rem; font-weight: 600; letter-spacing: -0.02em; }
 
-/* ---- Header: quiet state strip, title, essence, your move ---- */
+/* ---- Header: quiet state strip, title, essence ---- */
 .meta-strip {
   display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
   font-size: 0.72rem; color: var(--muted); margin-bottom: 0.35rem;
@@ -177,18 +177,6 @@ h1 { margin: 0 0 0.3rem; font-size: 1.4rem; font-weight: 600; letter-spacing: -0
 header.session-header .essence {
   margin: 0.15rem 0 0; font-size: 0.9rem; color: var(--fg); line-height: 1.5;
 }
-header.session-header .move {
-  margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border);
-  display: flex; gap: 0.75rem; align-items: baseline;
-}
-header.session-header .move-label {
-  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em;
-  color: var(--warn-fg); font-weight: 500; flex-shrink: 0;
-}
-header.session-header .move-text { font-size: 0.9rem; font-weight: 500; }
-header.session-header .move.clear .move-label { color: var(--muted); }
-header.session-header .move.clear .move-text { font-weight: 400; color: var(--muted); }
-
 .phase-chip {
   display: inline-flex; align-items: center; padding: 0.1rem 0.5rem;
   border-radius: 999px; font-size: 0.7rem; font-weight: 500; border: 1px solid;
@@ -248,6 +236,34 @@ ul.todo-list li.blocked { background: var(--todo-blocked-bg); }
 ul.todo-list li.blocked::before {
   content: "✗"; color: var(--on-accent); background: var(--bad); border-color: var(--bad);
 }
+
+/* ---- Links: nav chips between the header and the first card ---- */
+.link-chips { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: -0.35rem 0 1rem; }
+.link-chip {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.22rem 0.65rem; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--border);
+  font-size: 0.78rem; color: var(--accent); text-decoration: none;
+}
+a.link-chip:hover { border-color: var(--accent); }
+.link-chip .kind { color: var(--muted); }
+
+/* ---- Last turn: the delta strip atop the Call to action card ---- */
+.last-turn-label {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted); font-weight: 600; margin-bottom: 0.35rem;
+}
+.last-turn-label .last-turn-turn {
+  font-family: var(--mono); text-transform: none; letter-spacing: 0;
+}
+ul.last-turn { list-style: none; margin: 0; padding: 0; }
+ul.last-turn li {
+  position: relative; padding: 0.18rem 0 0.18rem 1.1rem;
+  font-size: 0.88rem; line-height: 1.45;
+}
+ul.last-turn li::before { content: "▸"; position: absolute; left: 0.15rem; color: var(--ok); }
+.last-turn-divider { border-top: 1px solid var(--border); margin: 0.7rem 0; }
 
 /* ---- Numbered open questions ---- */
 ol.questions-list { list-style: none; counter-reset: q; padding-left: 0; margin: 0; }

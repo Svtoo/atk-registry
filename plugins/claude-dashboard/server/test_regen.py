@@ -410,6 +410,15 @@ def test_run_once_raises_session_gone_when_jsonl_missing():
     except FileNotFoundError:
         pass  # correct — broken config surfaces as a real error
 
+    # (c) SYSTEM.md present but SYSTEM_JOURNEY.md missing → same real error
+    (d2 / "SYSTEM.md").write_text("{journey_section}")
+    try:
+        regen.run_once(plugin_dir=d2, projects_root=d2,
+                       project_hash="-proj", session_uuid=uuid, chat_state=None)
+        raise AssertionError("expected an error when SYSTEM_JOURNEY.md is missing")
+    except FileNotFoundError as e:
+        assert "SYSTEM_JOURNEY.md" in str(e), e
+
 
 def test_vanished_session_is_skipped_not_surfaced(monkeypatched):
     # When run_once reports the session is gone, the registry must drop the job

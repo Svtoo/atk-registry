@@ -98,5 +98,39 @@ def test_unknown_keys_in_agent_payloads_fail_loudly():
     assert raised, "an unknown tldr key must fail validation, not no-op"
 
 
+def test_link_upsert_create_requires_a_label():
+    import pydantic
+    try:
+        models.Update.model_validate({"ops": [{"op": "link.upsert", "url": "https://x"}]})
+        assert False, "a label-less create must be refused"
+    except pydantic.ValidationError as e:
+        assert "label" in str(e)
+
+
+def test_last_turn_set_bounds_the_bullet_count():
+    ok = models.Update.model_validate(
+        {"ops": [{"op": "last_turn.set", "bullets": ["a", "b", "c"]}]})
+    assert ok.ops[0].bullets == ["a", "b", "c"]
+    import pydantic
+    for bad in ([], ["a", "b", "c", "d"]):
+        try:
+            models.Update.model_validate({"ops": [{"op": "last_turn.set", "bullets": bad}]})
+            assert False, f"{len(bad)} bullets must be refused"
+        except pydantic.ValidationError:
+            pass
+
+
+def test_new_headsup_rows_offer_only_risk_and_flag():
+    sev_schema = models.HeadsupUpsert.model_json_schema()
+    enum_values = sev_schema["$defs"]["OpSev"]["enum"]
+    assert enum_values == ["risk", "flag"], enum_values
+
+
+def test_a_stored_note_row_still_loads():
+    m = models.DashboardModel.model_validate(
+        {"headsup": [{"id": "h1", "sev": "note", "what": "w", "why": "y"}]})
+    assert m.headsup[0].sev == models.Sev.note, "history keeps its note rows"
+
+
 if __name__ == "__main__":
     run_module_tests(globals())

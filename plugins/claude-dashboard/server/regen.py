@@ -350,6 +350,7 @@ def run_once(
     chat_state: "ChatState",
     model: str = DEFAULT_MODEL,
     timeout: float = DEFAULT_REGEN_TIMEOUT,
+    journey: bool = True,
     metrics: "DashboardStore | None" = None,
     attempts: int = 1,
     on_proc: "Callable[[subprocess.Popen], None] | None" = None,
@@ -359,6 +360,7 @@ def run_once(
     model and the live dashboard untouched. Raises SessionGone / FileNotFoundError /
     SubprocessFailed / OutputRejected."""
     system_prompt_path = plugin_dir / "SYSTEM.md"
+    journey_prompt_path = plugin_dir / "SYSTEM_JOURNEY.md"
     jsonl_path = projects_root / project_hash / f"{session_uuid}.jsonl"
     session_dir = projects_root / project_hash / session_uuid
 
@@ -366,6 +368,8 @@ def run_once(
         raise SessionGone(f"jsonl not found: {jsonl_path}")
     if not system_prompt_path.exists():
         raise FileNotFoundError(f"SYSTEM.md not found: {system_prompt_path}")
+    if not journey_prompt_path.exists():
+        raise FileNotFoundError(f"SYSTEM_JOURNEY.md not found: {journey_prompt_path}")
     session_dir.mkdir(parents=True, exist_ok=True)
 
     events = read_jsonl(jsonl_path)
@@ -408,6 +412,8 @@ def run_once(
         verdicts=verdicts,
         acks=acks,
         system_template=system_prompt_path.read_text(encoding="utf-8"),
+        journey_template=journey_prompt_path.read_text(encoding="utf-8"),
+        journey=journey,
     ))
     system_prompt, user_message = assembled.system, assembled.user
 
@@ -444,7 +450,7 @@ def run_once(
                     "--- stdout ---", (out[:2000] if out else "(empty)"),
                 ]))
             try:
-                update, bodies, notes = agent_io.parse_output(result.body)
+                update, bodies, notes = agent_io.parse_output(result.body, journey=journey)
                 for note in notes:
                     _log.warning("regen %s/%s — %s", project_hash, session_uuid[:8], note)
                 break
@@ -465,7 +471,7 @@ def run_once(
         if verdicts:
             # A user click beats any same-turn agent op on the item.
             new_model = _fold.apply_verdicts(new_model, verdicts)
-        html = _render.render(new_model, ai_title)
+        html = _render.render(new_model, ai_title, journey=journey)
         if len(html) < 200:
             raise OutputRejected(f"render too small ({len(html)} bytes) — refusing to overwrite")
     except Exception as exc:
@@ -523,6 +529,7 @@ class Registry:
         chat_state: "ChatState",
         model: str = DEFAULT_MODEL,
         timeout: float = DEFAULT_REGEN_TIMEOUT,
+        journey: bool = True,
         metrics: "DashboardStore | None" = None,
         on_success: "Callable[[str, str], None] | None" = None,
         on_failure: "Callable[[str, str, str, str], None] | None" = None,
@@ -531,6 +538,7 @@ class Registry:
         self._projects_root = projects_root
         self._model = model
         self._timeout = timeout
+        self._journey = journey
         self._metrics = metrics
         self._chat_state = chat_state
         self._lock = threading.RLock()
@@ -595,6 +603,18 @@ class Registry:
         without a restart; tests pass a plain number."""
         limit = self._timeout
         return float(limit() if callable(limit) else limit)
+
+    def _current_model(self) -> str:
+        """Resolve the model alias per run; a provider makes a settings change
+        apply to the next rebuild without a restart."""
+        model = self._model
+        return str(model() if callable(model) else model)
+
+    def _current_journey(self) -> bool:
+        """Resolve the journey switch per run; a provider makes a settings
+        change apply to the next rebuild without a restart."""
+        journey = self._journey
+        return bool(journey() if callable(journey) else journey)
 
     def _snapshot_locked(self, r: JobRecord) -> dict:
         return {
@@ -661,8 +681,9 @@ class Registry:
                     project_hash=record.project_hash,
                     session_uuid=record.session_uuid,
                     chat_state=self._chat_state,
-                    model=self._model,
+                    model=self._current_model(),
                     timeout=self._current_timeout(),
+                    journey=self._current_journey(),
                     metrics=self._metrics,
                     attempts=attempt,
                     on_proc=attach_proc,

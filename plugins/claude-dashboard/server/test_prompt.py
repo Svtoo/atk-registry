@@ -21,6 +21,14 @@ def _text_turn(role, text):
     return [{"message": {"role": role, "content": [{"type": "text", "text": text}]}}]
 
 
+def _regen_prompt(**kwargs):
+    """A RegenPrompt with a minimal valid template pair for tests that don't
+    exercise the templates themselves."""
+    kwargs.setdefault("system_template", "R\n{journey_section}")
+    kwargs.setdefault("journey_template", "J")
+    return RegenPrompt(**kwargs)
+
+
 def _tool_turn(user_text, tool_body):
     # a user request followed by an assistant tool call + its result
     return [
@@ -168,8 +176,7 @@ def test_assemble_windows_to_recent_turns_newest_full_prior_prose():
     # the newest FULL_TURNS with tool activity, the rest as prose only.
     n = FULL_TURNS + LIGHT_TURNS + 3
     turns = [_tool_turn(f"request {i}", f"TOOLOUT{i}") for i in range(n)]
-    rp = RegenPrompt(dashboard=DashboardModel(), turns=turns, turn_no=n,
-                     system_template="R")
+    rp = _regen_prompt(dashboard=DashboardModel(), turns=turns, turn_no=n)
     out = assemble_prompt(rp)
 
     # oldest turns fall outside the window entirely
@@ -184,8 +191,7 @@ def test_assemble_windows_to_recent_turns_newest_full_prior_prose():
 def test_monster_newest_turn_has_its_tool_body_capped_not_skipped():
     monster_body = "blob " * (MAX_TRANSCRIPT_WORDS + 5000)
     turns = [_tool_turn("do the big thing", monster_body)]
-    rp = RegenPrompt(dashboard=DashboardModel(), turns=turns, turn_no=1,
-                     system_template="R")
+    rp = _regen_prompt(dashboard=DashboardModel(), turns=turns, turn_no=1)
     out = assemble_prompt(rp)
     assert out.truncated, "a turn over the context ceiling must be capped"
     assert estimate_words(out.user) < MAX_TRANSCRIPT_WORDS + 20_000, "the prompt must fit the ceiling"
@@ -197,9 +203,10 @@ def test_monster_newest_turn_has_its_tool_body_capped_not_skipped():
 # ── the assembler ──────────────────────────────────────────────────────
 
 def test_assemble_prompt_is_xml_structured_data_in_strings_out():
-    dashboard = DashboardModel(title="T", turn=6, tldr=Tldr(essence="e", status="s", next="n"))
+    dashboard = DashboardModel(title="T", turn=6, tldr=Tldr(essence="e", status="s"))
     turns = [_text_turn("assistant", "older beat"), _text_turn("assistant", "latest beat")]
-    rp = RegenPrompt(dashboard=dashboard, turns=turns, turn_no=6, system_template="ROLE AND RULES")
+    rp = _regen_prompt(dashboard=dashboard, turns=turns, turn_no=6,
+             system_template="ROLE AND RULES\n{journey_section}")
     out = assemble_prompt(rp)
 
     assert "ROLE AND RULES" in out.system
@@ -213,6 +220,68 @@ def test_assemble_prompt_is_xml_structured_data_in_strings_out():
     assert '<turn n="6">' in out.user and "latest beat" in out.user
     assert "<task>" in out.user and "conversation turn 6" in out.user
     assert out.truncated is False
+
+
+def test_the_shipped_template_pair_composes_for_both_journey_states():
+    from pathlib import Path
+    from prompt import JOURNEY_PLACEHOLDER, _compose_system_template
+    plugin = Path(__file__).resolve().parent.parent
+    base = (plugin / "SYSTEM.md").read_text(encoding="utf-8")
+    journey_text = (plugin / "SYSTEM_JOURNEY.md").read_text(encoding="utf-8")
+    assert base.count(JOURNEY_PLACEHOLDER) == 1, \
+        "SYSTEM.md must carry the journey placeholder exactly once"
+    assert journey_text.lstrip().startswith("**Journey**")
+
+    on = _compose_system_template(_regen_prompt(dashboard=DashboardModel(),
+                                      system_template=base, journey_template=journey_text))
+    off = _compose_system_template(_regen_prompt(dashboard=DashboardModel(),
+                                       system_template=base, journey_template=journey_text,
+                                       journey=False))
+    assert "**Journey**" in on and JOURNEY_PLACEHOLDER not in on
+    assert "**Journey**" not in off and JOURNEY_PLACEHOLDER not in off
+    assert "**Freeform**" in off and "**Heads-up**" in off
+    assert "\n\n\n" not in off, "removing the section must not leave a hole"
+
+
+def test_a_system_template_without_the_placeholder_is_refused():
+    rp = _regen_prompt(dashboard=DashboardModel(), system_template="no placeholder here")
+    try:
+        assemble_prompt(rp)
+        assert False, "a template missing the placeholder must be refused"
+    except ValueError as e:
+        assert "placeholder" in str(e), e
+
+
+def test_journey_on_with_an_empty_journey_template_is_refused():
+    rp = _regen_prompt(dashboard=DashboardModel(), journey_template="   ")
+    try:
+        assemble_prompt(rp)
+        assert False, "journey on without its template must be refused"
+    except ValueError as e:
+        assert "journey template" in str(e), e
+
+
+def test_journey_off_removes_journey_from_system_schema_and_state():
+    from models import JourneyItem, JourneyKind
+    template = "# Agent\n\n**To-do** — plan steps.\n\n{journey_section}\n\n**Freeform** — the reference layer."
+    journey_text = "**Journey** — one beat per decision."
+    dashboard = DashboardModel(
+        journey=[JourneyItem(id="j1", kind=JourneyKind.joint, what="the beat", why="w")])
+    turns = [_text_turn("user", "hi")]
+    on = assemble_prompt(RegenPrompt(dashboard=dashboard, turns=turns, turn_no=1,
+                                     system_template=template, journey_template=journey_text))
+    off = assemble_prompt(RegenPrompt(dashboard=dashboard, turns=turns, turn_no=1,
+                                      system_template=template, journey_template=journey_text,
+                                      journey=False))
+
+    assert "**Journey**" in on.system and "journey.add" in on.system
+    assert "## Journey" in on.user and "the beat" in on.user
+
+    assert "**Journey**" not in off.system
+    assert "**To-do**" in off.system and "**Freeform**" in off.system
+    for op_name in ("journey.add", "journey.update", "journey.fold", "JourneyAdd"):
+        assert op_name not in off.system, f"{op_name} must leave the op schema"
+    assert "## Journey" not in off.user and "the beat" not in off.user
 
 
 if __name__ == "__main__":

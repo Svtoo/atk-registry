@@ -22,7 +22,7 @@ def test_block_sizes_covers_every_card_and_matches_the_rendered_bytes():
         freeform=[FreeformSlot(id="f1", html=slot_html)],
     )
     sizes = block_sizes(m)
-    assert set(sizes) == {"header", "cta", "todo", "headsup", "freeform", "journey"}
+    assert set(sizes) == {"header", "links", "cta", "todo", "headsup", "freeform", "journey"}
     assert sizes["freeform"] > len(slot_html.encode("utf-8")), \
         "the freeform block is the body plus the slot wrapper chrome"
     # whole = sum of non-empty card bytes + one newline between each
@@ -42,14 +42,15 @@ def test_header_puts_state_in_a_strip_above_the_title():
     title = "Glance grid"
     model = DashboardModel(title=title, phase=Phase.building, turn=12, turn_base=34,
                            tldr=Tldr(essence="server owns the state",
-                                     status="phase-1 core done", next="review the header"))
+                                     status="phase-1 core done"))
     html = render(model)
     assert '<header class="session-header">' in html
     assert '<div class="meta-strip">' in html
-    # strip first, then title, then essence, then the move
+    # strip first, then title, then essence
     assert html.index("meta-strip") < html.index(f"<h1>{title}</h1>")
     assert html.index(f"<h1>{title}</h1>") < html.index("server owns the state")
-    assert html.index("server owns the state") < html.index("review the header")
+    assert "your move" not in html and "move-text" not in html, \
+        "the header carries no ask — that is the CTA card's job"
     assert '<span class="phase-chip ok">Building</span>' in html
     assert ">turn 46<" in html, "absolute turn in the strip"
     strip = html.split('<div class="meta-strip">')[1].split("</div>")[0]
@@ -83,11 +84,50 @@ def test_the_line_under_the_title_prefers_essence_and_falls_back_to_status():
     assert '<p class="essence">PR #1905 in draft</p>' in render(only_status)
 
 
-def test_your_move_empty_reads_nothing_pending():
+def test_a_bare_model_renders_the_phase_chip():
     html = render(DashboardModel(title="X", phase=Phase.planning))
     assert '<span class="phase-chip info">Planning</span>' in html
-    assert '<div class="move clear">' in html
-    assert "Nothing pending right now." in html
+
+
+def test_links_render_as_chips_between_header_and_cta():
+    m = DashboardModel(
+        title="T",
+        links=[
+            models.LinkItem(id="l1", label="ENG-3345", url="https://linear.app/x/ENG-3345", kind="issue"),
+            models.LinkItem(id="l2", label="claude/video-ingestion", kind="branch"),
+        ],
+        cta=[CtaItem(id="c1", text="an ask")],
+    )
+    html = render(m)
+    assert html.index("</header>") < html.index('class="link-chips"') < html.index('card questions')
+    assert '<a class="link-chip" href="https://linear.app/x/ENG-3345">' in html
+    assert "🎫" in html and "🌿" in html
+    assert '<span class="link-chip">🌿 <span class="kind">branch</span> claude/video-ingestion</span>' in html, \
+        "a URL-less link renders as plain text, not an anchor"
+
+
+def test_no_links_render_no_strip():
+    assert "link-chips" not in render(DashboardModel(title="T"))
+
+
+def test_last_turn_renders_atop_the_cta_card():
+    m = DashboardModel(
+        turn=9,
+        last_turn=models.LastTurn(bullets=["shipped the thing", "tests green"], turn=9),
+        cta=[CtaItem(id="c1", text="review the diff")],
+    )
+    html = render(m)
+    card = html.split('<section class="card questions">')[1].split("</section>")[0]
+    assert "shipped the thing" in card and "tests green" in card
+    assert "· turn 9" in card
+    assert card.index("shipped the thing") < card.index("review the diff"), \
+        "the last-turn strip sits above the asks"
+    assert 'class="last-turn-divider"' in card
+
+
+def test_no_last_turn_renders_no_strip():
+    html = render(DashboardModel(cta=[CtaItem(id="c1", text="an ask")]))
+    assert "last-turn" not in html
 
 
 def test_cta_renders_items_and_all_clear_when_empty():
@@ -329,6 +369,15 @@ def test_a_fresh_item_reads_this_turn():
     m = DashboardModel(title="T", turn=9, todo=[
         TodoItem(id="t1", text="just added", status=TodoStatus.open, created_turn=9)])
     assert ">this turn<" in render(m)
+
+
+def test_journey_off_renders_no_journey_card():
+    m = DashboardModel(
+        title="T",
+        journey=[JourneyItem(id="j1", kind=JourneyKind.joint, what="w", why="y")],
+    )
+    assert 'class="card journey"' in render(m)
+    assert 'class="card journey"' not in render(m, journey=False)
 
 
 if __name__ == "__main__":

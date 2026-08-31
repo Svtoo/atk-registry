@@ -38,7 +38,8 @@ def _stamps(now: int, created: int, changed: int, done: int = 0) -> str:
 
 def build_digest(m: DashboardModel, now_turn: "int | None" = None,
                  verdicts: "dict | None" = None,
-                 acks: "dict | None" = None) -> str:
+                 acks: "dict | None" = None,
+                 journey: bool = True) -> str:
     """Render the model for the agent. `now_turn` is the current conversation
     turn; "changed Nt ago" is measured against it (regens can skip turns, so
     the state's own turn may lag). Defaults to the state's turn.
@@ -52,12 +53,17 @@ def build_digest(m: DashboardModel, now_turn: "int | None" = None,
         f"phase: {m.phase.value}",
         f"tldr.essence (the what): {m.tldr.essence or '(none)'}",
         f"tldr.status (the where): {m.tldr.status or '(none)'}",
-        f"tldr.next (your move): {m.tldr.next or '(none)'}",
+        (f"last_turn (turn {m.last_turn.turn}): " + " | ".join(m.last_turn.bullets)
+         if m.last_turn.bullets else "last_turn: (none)"),
         "",
         f"## CTA ({len(m.cta)}) — blockers/questions for the user; remove on resolve",
     ]
     for c in m.cta:
         L.append(f"- {c.id} [{_stamps(now, c.created_turn, c.changed_turn)}: {c.reason}] {c.text}")
+
+    L += ["", f"## Links ({len(m.links)}) — the nav chips; upsert by id, remove what stopped mattering"]
+    for lk in m.links:
+        L.append(f"- {lk.id} kind={lk.kind or '-'} label={lk.label} url={lk.url or '-'}")
 
     L += ["", f"## To-do ({len(m.todo)}) — full history; done steps never leave"]
     for t in m.todo:
@@ -75,14 +81,15 @@ def build_digest(m: DashboardModel, now_turn: "int | None" = None,
             f"what={h.what} | why={h.why} | where={h.where}{acked}"
         )
 
-    over_cap = (
-        f" — ⚠ OVER CAP ({len(m.journey)} > {JOURNEY_MAX}): this turn emit ONE journey.fold "
-        f"whose `what` summarizes the oldest beats (the server keeps the most recent {JOURNEY_MAX - 1})"
-        if len(m.journey) > JOURNEY_MAX else ""
-    )
-    L += ["", f"## Journey ({len(m.journey)}){over_cap}"]
-    for j in m.journey:
-        L.append(f"- {j.id} {j.kind.value} (turn {j.turn}) what={j.what} | why={j.why}")
+    if journey:
+        over_cap = (
+            f" — ⚠ OVER CAP ({len(m.journey)} > {JOURNEY_MAX}): this turn emit ONE journey.fold "
+            f"whose `what` summarizes the oldest beats (the server keeps the most recent {JOURNEY_MAX - 1})"
+            if len(m.journey) > JOURNEY_MAX else ""
+        )
+        L += ["", f"## Journey ({len(m.journey)}){over_cap}"]
+        for j in m.journey:
+            L.append(f"- {j.id} {j.kind.value} (turn {j.turn}) what={j.what} | why={j.why}")
 
     live_freeform = [f for f in m.freeform if not f.dismissed_turn]
     L += ["", f"## Freeform ({len(live_freeform)}) — sticky reference cards, shown in full; "

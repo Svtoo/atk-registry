@@ -146,5 +146,36 @@ def test_a_freeform_body_with_reserved_notice_markup_is_dropped():
     assert any("reserved" in n for n in notes), notes
 
 
+def test_a_tldr_next_field_is_a_schema_violation():
+    body = '<update>{"tldr": {"essence": "e", "next": "do the thing"}, "ops": []}</update>'
+    try:
+        agent_io.parse_output(body)
+        assert False, "the removed field must fail validation, not be silently accepted"
+    except agent_io.AgentOutputError as e:
+        assert "next" in str(e), "the error must name the field for the retry"
+
+
+def test_a_note_severity_op_is_a_schema_violation():
+    body = ('<update>{"ops": [{"op": "headsup.upsert", "sev": "note", '
+            '"what": "w", "why": "y"}]}</update>')
+    try:
+        agent_io.parse_output(body)
+        assert False, "note severity must fail validation, not be silently accepted"
+    except agent_io.AgentOutputError as e:
+        assert "sev" in str(e), "the error must name the field for the retry"
+
+
+def test_journey_off_makes_a_journey_op_a_schema_violation():
+    body = ('<update>{"ops": [{"op": "journey.add", "kind": "joint", '
+            '"what": "w", "why": "y"}]}</update>')
+    update, _, _ = agent_io.parse_output(body)
+    assert update.ops[0].op == "journey.add", "with journey on the op is part of the contract"
+    try:
+        agent_io.parse_output(body, journey=False)
+        assert False, "with journey off the op must fail validation"
+    except agent_io.AgentOutputError as e:
+        assert "journey.add" in str(e), "the error must name the offending tag for the retry"
+
+
 if __name__ == "__main__":
     run_module_tests(globals())

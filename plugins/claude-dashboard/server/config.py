@@ -3,6 +3,10 @@
 SCHEMA is also the allowlist: the settings API only exposes and accepts names
 declared here. Changes apply in memory at once and are written back to the
 plugin's .env so they survive a restart.
+
+A Setting declared `secret=True` is write-only at the API: `public()` reports
+whether a value exists but never the value itself, and the settings page
+renders a masked field for it.
 """
 
 from __future__ import annotations
@@ -19,7 +23,7 @@ DEFAULT_REGEN_TIMEOUT = 180.0
 @dataclass(frozen=True)
 class Setting:
     name: str
-    kind: str                      # "float" | "str"
+    kind: str                      # "float" | "str" | "bool"
     default: object
     label: str
     help: str
@@ -27,6 +31,7 @@ class Setting:
     minimum: "float | None" = None
     maximum: "float | None" = None
     choices: "tuple | None" = None
+    secret: bool = False           # write-only: the value never leaves the server
 
 
 SCHEMA: "tuple[Setting, ...]" = (
@@ -50,14 +55,41 @@ SCHEMA: "tuple[Setting, ...]" = (
         "the log much larger.",
         runtime=True, choices=("INFO", "DEBUG"),
     ),
+    Setting(
+        "CCD_PREVIEW_PANE", "bool", True,
+        "Browser-pane auto-open",
+        "Ask the agent, once per chat, to open that chat's dashboard in the "
+        "Claude Code Browser pane. The prompt hook reads this on every message, "
+        "so a change applies from the next message in any chat.",
+        runtime=True,
+    ),
+    Setting(
+        "CCD_JOURNEY", "bool", False,
+        "Journey card",
+        "Keep a decision-history card at the bottom of each dashboard. While "
+        "off, no journey beats are recorded at all — turning it on later "
+        "starts the story from that point, and the off period is never "
+        "backfilled. Applies from each chat's next dashboard update.",
+        runtime=True,
+    ),
 )
 
-_BY_NAME = {s.name: s for s in SCHEMA}
+_TRUE_TEXT = {"1", "true", "yes", "on"}
+_FALSE_TEXT = {"0", "false", "no", "off"}
 
 
 def _coerce(setting: Setting, raw) -> object:
     """Text (or an already-typed value) to the setting's type, or ValueError with
     a message meant for a person."""
+    if setting.kind == "bool":
+        if isinstance(raw, bool):
+            return raw
+        text = str(raw).strip().lower()
+        if text in _TRUE_TEXT:
+            return True
+        if text in _FALSE_TEXT:
+            return False
+        raise ValueError(f"{setting.label} must be on or off.")
     if setting.kind == "float":
         try:
             value = float(raw)
@@ -79,20 +111,26 @@ def _coerce(setting: Setting, raw) -> object:
 
 
 def _format(value) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
     return str(value)
 
 
 class Settings:
-    """Live values for every declared setting, backed by a .env file."""
+    """Live values for every declared setting, backed by a .env file.
+    `schema` is injectable so tests can declare their own settings."""
 
-    def __init__(self, env_path: "Path | str", environ: "dict | None" = None):
+    def __init__(self, env_path: "Path | str", environ: "dict | None" = None,
+                 schema: "tuple[Setting, ...]" = SCHEMA):
         self._env_path = Path(env_path)
         self._lock = threading.Lock()
+        self._schema = schema
+        self._by_name = {s.name: s for s in schema}
         source = os.environ if environ is None else environ
         self._values: dict = {}
-        for setting in SCHEMA:
+        for setting in schema:
             raw = source.get(setting.name)
             if raw is None or str(raw).strip() == "":
                 self._values[setting.name] = setting.default
@@ -109,26 +147,31 @@ class Settings:
     def public(self) -> "list[dict]":
         """Every declared setting with its value and what it means."""
         out = []
-        for setting in SCHEMA:
-            out.append({
+        for setting in self._schema:
+            value = self._values[setting.name]
+            item = {
                 "name": setting.name,
                 "label": setting.label,
                 "help": setting.help,
                 "kind": setting.kind,
-                "value": self._values[setting.name],
-                "default": setting.default,
+                "value": None if setting.secret else value,
+                "default": None if setting.secret else setting.default,
                 "runtime": setting.runtime,
                 "minimum": setting.minimum,
                 "maximum": setting.maximum,
                 "choices": list(setting.choices) if setting.choices else None,
-            })
+                "secret": setting.secret,
+            }
+            if setting.secret:
+                item["set"] = bool(value)
+            out.append(item)
         return out
 
     def update(self, name: str, raw) -> dict:
         """Validate, apply in memory, and persist to .env. Raises ValueError with
         a readable message if the name is not declared or the value is invalid.
         `persisted` is False when the value is live but could not be written."""
-        setting = _BY_NAME.get(name)
+        setting = self._by_name.get(name)
         if setting is None:
             raise ValueError("That is not a setting you can change.")
         value = _coerce(setting, raw)
@@ -140,7 +183,7 @@ class Settings:
             except OSError:
                 persisted = False
         return {"name": name, "value": value, "applies_now": setting.runtime,
-                "persisted": persisted}
+                "persisted": persisted, "secret": setting.secret}
 
     def _persist(self, name: str, text: str) -> None:
         """Rewrite just this key in .env, leaving every other line, comment and
