@@ -594,17 +594,23 @@ table.watch-deck td.sev-col .note { background: var(--code-bg);      color: var(
 table.watch-deck th.ack-col, table.watch-deck td.ack-col {
   width: 6rem; white-space: nowrap; text-align: center;
 }
-button.ack-btn {
+button.ack-btn, button.copy-btn {
   background: var(--card); border: 1px solid var(--border);
   color: var(--accent); padding: 0.18rem 0.55rem;
   border-radius: 4px; cursor: pointer;
   font: inherit; font-size: 0.78rem;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
-button.ack-btn:hover {
+button.ack-btn:hover, button.copy-btn:hover {
   background: var(--accent-soft-bg);
   border-color: var(--accent);
 }
+button.copy-btn {
+  display: block;
+  margin: 0.3rem auto 0;
+  color: var(--muted);
+}
+button.copy-btn:hover { color: var(--accent); }
 button.ack-btn.acked {
   background: var(--ok-soft-bg);
   border-color: var(--ok-soft-br);

@@ -270,6 +270,7 @@
     });
   }
 
+  // Copy buttons ride the page-wide [data-copy] click handler in notices.js.
   async function initHeadsUp(s, sidecar) {
     if (!document.querySelector("table.watch-deck")) return;
     applyAckState(sidecar.acks || {});

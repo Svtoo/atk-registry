@@ -183,7 +183,19 @@ def test_headsup_row_matches_ack_contract():
     assert '<tr data-row-id="h1">' in html
     assert '<td class="sev-col"><span class="risk">risk</span></td>' in html
     assert "<td>chose upsert</td>" in html
-    assert '<td class="ack-col"><button class="ack-btn" type="button">acknowledge</button></td>' in html
+    assert ('<td class="ack-col"><button class="ack-btn" type="button">acknowledge</button>'
+            '<button class="copy-btn" type="button" title="copy for the agent" '
+            'data-copy="Dashboard heads-up (risk): chose upsert. Why: could dup. '
+            'Where: fold.py">copy</button></td>') in html
+
+
+def test_headsup_copy_text_stamps_turn_strips_html_and_ends_sentences():
+    m = DashboardModel(turn=5, turn_base=10, headsup=[
+        HeadsupItem(id="h1", sev=Sev.flag, what="<code>a &lt; b</code> looks wrong",
+                    why="silently skips!", created_turn=2),
+    ])
+    assert ('data-copy="Dashboard heads-up (flag, raised turn 12): a &lt; b looks wrong. '
+            'Why: silently skips!"') in render(m)
 
 
 def test_headsup_renders_all_rows_newest_first_no_cap():
