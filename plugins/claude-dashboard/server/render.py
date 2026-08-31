@@ -27,21 +27,25 @@ def _plain(s: str) -> str:
     return _TAG.sub("", s).strip()
 
 
-def _blocks(m: DashboardModel, fallback_title: str = "") -> "list[tuple[str, str]]":
+def _blocks(m: DashboardModel, fallback_title: str = "",
+            journey: bool = True) -> "list[tuple[str, str]]":
     """Ordered (card, html) for every card; freeform collapsed into one entry, journey last."""
-    return [
+    blocks = [
         ("header", _header(m, fallback_title)),
+        ("links", _links(m)),
         ("cta", _cta(m)),
         ("todo", _todo(m)),
         ("headsup", _headsup(m)),
         ("freeform", "\n".join(h for h in _freeform(m) if h)),
-        ("journey", _journey(m)),
     ]
+    if journey:
+        blocks.append(("journey", _journey(m)))
+    return blocks
 
 
-def render(m: DashboardModel, fallback_title: str = "") -> str:
+def render(m: DashboardModel, fallback_title: str = "", journey: bool = True) -> str:
     """`fallback_title` fills the header when the model has not set a title."""
-    return "\n".join(html for _, html in _blocks(m, fallback_title) if html)
+    return "\n".join(html for _, html in _blocks(m, fallback_title, journey) if html)
 
 
 def block_sizes(m: DashboardModel) -> "dict[str, int]":
@@ -82,12 +86,6 @@ def _header(m: DashboardModel, fallback_title: str = "") -> str:
     description = m.tldr.essence or m.tldr.status
     if description:
         lines.append(f'  <p class="essence">{description}</p>')
-    if m.tldr.next:
-        lines.append('  <div class="move"><span class="move-label">your move</span>'
-                     f'<span class="move-text">{m.tldr.next}</span></div>')
-    else:
-        lines.append('  <div class="move clear"><span class="move-label">your move</span>'
-                     '<span class="move-text">Nothing pending right now.</span></div>')
     lines.append("</header>")
     return "\n".join(lines)
 
@@ -116,8 +114,35 @@ def _cta_age_class(age: int) -> str:
     return f"age-{min(max(age, 0), CTA_AGE_MAX)}"
 
 
+_LINK_ICON = {"issue": "🎫", "pr": "🔀", "branch": "🌿", "doc": "📄"}
+
+
+def _links(m: DashboardModel) -> str:
+    if not m.links:
+        return ""
+    chips = []
+    for link in m.links:
+        icon = _LINK_ICON.get(link.kind, "🔗")
+        kind = f'<span class="kind">{link.kind}</span> ' if link.kind else ""
+        inner = f"{icon} {kind}{link.label}"
+        if link.url:
+            href = link.url.replace('"', "&quot;")
+            chips.append(f'  <a class="link-chip" href="{href}">{inner}</a>')
+        else:
+            chips.append(f'  <span class="link-chip">{inner}</span>')
+    return '<div class="link-chips">\n' + "\n".join(chips) + "\n</div>"
+
+
 def _cta(m: DashboardModel) -> str:
     lines = ['<section class="card questions">', "  <h2>📌 Call to action</h2>"]
+    if m.last_turn.bullets:
+        lines.append('  <div class="last-turn-label">Last turn'
+                     f'<span class="last-turn-turn">· turn {_abs_turn(m, m.last_turn.turn)}</span></div>')
+        lines.append('  <ul class="last-turn">')
+        for bullet in m.last_turn.bullets:
+            lines.append(f"    <li>{bullet}</li>")
+        lines.append("  </ul>")
+        lines.append('  <div class="last-turn-divider"></div>')
     if m.cta:
         lines.append('  <ol class="questions-list">')
         for c in m.cta:

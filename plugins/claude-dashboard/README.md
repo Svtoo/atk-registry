@@ -64,8 +64,8 @@ dashboard updates; `atk status` shows the server running and healthy.
 
 ## Configuration
 
-`atk setup claude-dashboard` prompts for these. The first three can also be
-changed live from the Settings page in the UI.
+`atk setup claude-dashboard` prompts for these. Every `CCD_*` variable can also
+be changed live from the Settings page in the UI.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -73,6 +73,7 @@ changed live from the Settings page in the UI.
 | `CCD_REGEN_TIMEOUT` | `180` | Seconds before a wedged regeneration is killed |
 | `CCD_LOG_LEVEL` | `INFO` | `INFO` or `DEBUG` (DEBUG logs full regen prompts) |
 | `CCD_PREVIEW_PANE` | `true` | Auto-open the chat's dashboard in the Browser pane |
+| `CCD_JOURNEY` | `false` | Decision-history (journey) card; while off, beats are never recorded |
 | `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Where Claude Code keeps chat history |
 | `PORT` | `7878` | Server port (set in `.env`; hooks pick it up automatically) |
 

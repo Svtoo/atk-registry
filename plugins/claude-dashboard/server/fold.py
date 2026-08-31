@@ -10,6 +10,8 @@ from models import (
     HeadsupItem,
     JourneyItem,
     JourneyKind,
+    LastTurn,
+    LinkItem,
     TodoItem,
     TodoStatus,
     Update,
@@ -49,7 +51,7 @@ def apply_ops(model: DashboardModel, update: Update, bodies: dict, turn: int) ->
     if update.tldr is not None:
         # Diff semantics: only the fields the agent sent change; an omitted
         # field keeps its line, an explicit empty string clears it.
-        for line in ("essence", "status", "next"):
+        for line in ("essence", "status"):
             value = getattr(update.tldr, line)
             if value is not None:
                 setattr(m.tldr, line, value)
@@ -105,6 +107,33 @@ def apply_ops(model: DashboardModel, update: Update, bodies: dict, turn: int) ->
 
         elif kind == "cta.remove":
             m.cta = [c for c in m.cta if c.id != op.id]
+
+        elif kind == "link.upsert":
+            if op.id is None:
+                m.links.append(LinkItem(
+                    id=mint("l"), label=op.label or "",
+                    url=op.url or "", kind=op.kind or "",
+                    order=m.seq, changed_turn=turn, reason=op.reason,
+                ))
+            else:
+                it = _find(m.links, op.id)
+                if it is None:
+                    continue
+                if op.label is not None:
+                    it.label = op.label
+                if op.url is not None:
+                    it.url = op.url
+                if op.kind is not None:
+                    it.kind = op.kind
+                if op.reason:
+                    it.reason = op.reason
+                it.changed_turn = turn
+
+        elif kind == "link.remove":
+            m.links = [it for it in m.links if it.id != op.id]
+
+        elif kind == "last_turn.set":
+            m.last_turn = LastTurn(bullets=list(op.bullets), turn=turn)
 
         elif kind == "headsup.upsert":
             if op.id is None:
@@ -175,9 +204,6 @@ def apply_ops(model: DashboardModel, update: Update, bodies: dict, turn: int) ->
                     it.changed_turn = turn
                     if op.reason:
                         it.reason = op.reason
-
-        elif kind == "freeform.remove":
-            m.freeform = [f for f in m.freeform if f.id != op.id]
 
     m.turn = turn
     return m

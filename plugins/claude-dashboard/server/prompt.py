@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from pydantic import BaseModel, ConfigDict, Field
 
 from digest import build_digest
-from models import DashboardModel, Update
+from models import DashboardModel, update_model
+
+# Marks the spot in the system template where the journey section template is
+# inserted (or nothing, when journey is off). Its absence is a broken template.
+JOURNEY_PLACEHOLDER = "{journey_section}"
 
 # The context policy is fixed, not user-configurable: the newest turn in full,
 # a few prior turns as visible prose only.
@@ -179,9 +183,11 @@ class RegenPrompt(BaseModel):
     dashboard: DashboardModel                       # current server-owned state
     turns: list = Field(default_factory=list)       # all turns, oldest->newest (raw JSONL events)
     turn_no: int = 0                                # absolute conversation turn
-    system_template: str = ""                       # SYSTEM.md content
+    system_template: str = ""                       # SYSTEM.md content; must carry JOURNEY_PLACEHOLDER
+    journey_template: str = ""                      # SYSTEM_JOURNEY.md content; required when journey is on
     verdicts: dict = Field(default_factory=dict)    # user clicks on items, already applied
     acks: dict = Field(default_factory=dict)        # acknowledged heads-up rows
+    journey: bool = True                            # False: journey leaves the prompt entirely
 
 
 @dataclass
@@ -202,8 +208,25 @@ def _strip_schema_titles(node):
     return node
 
 
-def _output_format() -> str:
-    schema = json.dumps(_strip_schema_titles(Update.model_json_schema()), indent=1)
+def _compose_system_template(rp: "RegenPrompt") -> str:
+    """The system template with the journey section substituted in or out.
+    Raises ValueError on a broken template pair rather than sending a prompt
+    that silently lost a section."""
+    if JOURNEY_PLACEHOLDER not in rp.system_template:
+        raise ValueError(
+            f"system template has no {JOURNEY_PLACEHOLDER} placeholder — "
+            "SYSTEM.md and the assembler are out of sync")
+    section = rp.journey_template.strip()
+    if rp.journey and not section:
+        raise ValueError("journey is enabled but the journey template is empty")
+    composed = rp.system_template.replace(JOURNEY_PLACEHOLDER, section if rp.journey else "")
+    # Collapse the blank paragraph left where the placeholder stood.
+    return re.sub(r"\n{3,}", "\n\n", composed)
+
+
+def _output_format(journey: bool = True) -> str:
+    schema = json.dumps(
+        _strip_schema_titles(update_model(journey).model_json_schema()), indent=1)
     return (
         "<output_format>\n"
         "Reply with an <update> block holding the op-set as one JSON object, "
@@ -270,9 +293,9 @@ def assemble_prompt(rp: RegenPrompt) -> AssembledPrompt:
     ]
     transcript = "\n".join(turn_blocks)
 
-    system = f"{rp.system_template.strip()}\n\n{_output_format()}"
+    system = f"{_compose_system_template(rp).strip()}\n\n{_output_format(journey=rp.journey)}"
     user = (
-        f'<dashboard_state turn="{rp.turn_no}">\n{build_digest(rp.dashboard, now_turn=rp.turn_no, verdicts=rp.verdicts, acks=rp.acks)}\n</dashboard_state>\n\n'
+        f'<dashboard_state turn="{rp.turn_no}">\n{build_digest(rp.dashboard, now_turn=rp.turn_no, verdicts=rp.verdicts, acks=rp.acks, journey=rp.journey)}\n</dashboard_state>\n\n'
         f'<transcript note="recent conversation; the newest turn in full with tool calls, earlier turns as prose">\n'
         f"{transcript}\n</transcript>\n\n"
         f"<task>\n{_task(rp.turn_no)}\n</task>\n"

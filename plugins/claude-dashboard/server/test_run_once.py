@@ -40,7 +40,8 @@ def _project_tree(n_turns):
     """A minimal real tree: plugin dir with SYSTEM.md + one session JSONL
     holding `n_turns` completed user->assistant turns."""
     root = Path(tempfile.mkdtemp())
-    (root / "SYSTEM.md").write_text("You maintain a dashboard.")
+    (root / "SYSTEM.md").write_text("You maintain a dashboard.\n\n{journey_section}\n")
+    (root / "SYSTEM_JOURNEY.md").write_text("**Journey** — decision beats.")
     proj = root / PROJECT_HASH
     proj.mkdir()
     _write_jsonl(proj, n_turns)
@@ -226,6 +227,39 @@ def test_failure_carries_prompt_words_on_the_exception():
     assert exc is not None, "two rejects surface OutputRejected"
     assert getattr(exc, "prompt_words", None) is not None and exc.prompt_words > 0, \
         "the input size rides out on the exception for the registry's failure telemetry"
+
+
+def test_journey_off_rejects_journey_ops_and_renders_no_journey_card():
+    root = _project_tree(1)
+    with_journey_op = {"ops": [
+        {"op": "journey.add", "kind": "joint", "what": "a beat", "why": "because"},
+        {"op": "todo.upsert", "text": TODO_TEXT, "status": "open", "reason": "start"},
+    ]}
+    clean = {"ops": [
+        {"op": "todo.upsert", "text": TODO_TEXT, "status": "open", "reason": "start"},
+    ]}
+    fake, calls = _fake_invoke([
+        f"<update>\n{json.dumps(with_journey_op)}\n</update>\n",
+        f"<update>\n{json.dumps(clean)}\n</update>\n",
+    ])
+    original = regen.invoke_claude
+    regen.invoke_claude = fake
+    try:
+        out = regen.run_once(
+            plugin_dir=root, projects_root=root,
+            project_hash=PROJECT_HASH, session_uuid=SESSION_UUID,
+            chat_state=ChatState(projects_root=root), journey=False,
+        )
+    finally:
+        regen.invoke_claude = original
+
+    assert len(calls) == 2, "a journey op while off must fail validation and trigger the retry"
+    assert "journey.add" in calls[1], "the retry message must carry the validator's feedback"
+    model = ChatState(projects_root=root).get_model(PROJECT_HASH, SESSION_UUID)
+    assert model["journey"] == []
+    assert model["todo"][0]["text"] == TODO_TEXT
+    assert 'class="card journey"' not in out.read_text()
+    assert "## Journey" not in calls[0], "the state digest must not show journey while off"
 
 
 if __name__ == "__main__":

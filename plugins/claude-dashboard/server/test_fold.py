@@ -76,6 +76,16 @@ def test_no_op_can_remove_a_todo():
     assert raised, "todo.remove must no longer exist in the op vocabulary"
 
 
+def test_no_op_can_remove_a_freeform_card():
+    import pydantic
+    try:
+        Update.model_validate({"ops": [{"op": "freeform.remove", "id": "f1"}]})
+        raised = False
+    except pydantic.ValidationError:
+        raised = True
+    assert raised, "dropping a card is the user's dismiss, not an agent op"
+
+
 def _legacy_todo_remove_drops_the_step():
     # The plan may shrink: a step that is genuinely no longer needed (or a
     # work-log entry being consolidated into a real plan step) is removable.
@@ -164,6 +174,47 @@ def test_journey_beats_are_stamped_with_the_conversation_turn():
     assert result.journey[0].turn == 42, "a beat carries the absolute conversation turn, not a counter"
 
 
+def test_link_upsert_mints_updates_and_remove_drops():
+    seeded = apply_ops(DashboardModel(), _update(ops=[
+        {"op": "link.upsert", "label": "ENG-1", "url": "https://x/1", "kind": "issue", "reason": "new"},
+        {"op": "link.upsert", "label": "main", "kind": "branch", "reason": "new"},
+    ]), {}, turn=1)
+    assert [lk.label for lk in seeded.links] == ["ENG-1", "main"]
+    assert seeded.links[1].url == "", "a link may be a plain reference without a URL"
+    link_id = seeded.links[0].id
+    assert link_id, "a created link gets a server-minted id"
+
+    updated = apply_ops(seeded, _update(ops=[
+        {"op": "link.upsert", "id": link_id, "url": "https://x/1?view=full", "reason": "moved"},
+    ]), {}, turn=2)
+    assert updated.links[0].url == "https://x/1?view=full"
+    assert updated.links[0].label == "ENG-1", "an omitted field is preserved"
+    assert len(updated.links) == 2, "an update must not append a duplicate"
+
+    removed = apply_ops(updated, _update(ops=[
+        {"op": "link.remove", "id": link_id, "reason": "closed"},
+    ]), {}, turn=3)
+    assert [lk.label for lk in removed.links] == ["main"]
+
+
+def test_last_turn_set_replaces_wholesale_and_stamps_the_turn():
+    seeded = apply_ops(DashboardModel(), _update(ops=[
+        {"op": "last_turn.set", "bullets": ["first thing", "second thing"]},
+    ]), {}, turn=5)
+    assert seeded.last_turn.bullets == ["first thing", "second thing"]
+    assert seeded.last_turn.turn == 5, "the turn is server-stamped, not agent-supplied"
+
+    replaced = apply_ops(seeded, _update(ops=[
+        {"op": "last_turn.set", "bullets": ["newer thing"]},
+    ]), {}, turn=6)
+    assert replaced.last_turn.bullets == ["newer thing"], "the set is replaced, never appended"
+    assert replaced.last_turn.turn == 6
+
+    untouched = apply_ops(replaced, _update(ops=[]), {}, turn=7)
+    assert untouched.last_turn.bullets == ["newer thing"], "no op keeps the previous set"
+    assert untouched.last_turn.turn == 6, "a kept set keeps the turn it describes"
+
+
 def test_phase_title_and_tldr_applied():
     result = apply_ops(DashboardModel(), _update(
         phase="building", title="Regen", tldr={"essence": "server owns state"},
@@ -174,19 +225,18 @@ def test_phase_title_and_tldr_applied():
 
 
 def test_partial_tldr_update_preserves_the_other_lines():
-    essence, status, first_move = "what-line", "where-line", "move-line"
+    essence, first_status = "what-line", "where-line"
     seeded = apply_ops(DashboardModel(), _update(
-        tldr={"essence": essence, "status": status, "next": first_move},
+        tldr={"essence": essence, "status": first_status},
     ), {}, turn=1)
 
-    new_move = "new move"
-    patched = apply_ops(seeded, _update(tldr={"next": new_move}), {}, turn=2)
+    new_status = "new status"
+    patched = apply_ops(seeded, _update(tldr={"status": new_status}), {}, turn=2)
     assert patched.tldr.essence == essence, "an omitted tldr field must be preserved"
-    assert patched.tldr.status == status, "an omitted tldr field must be preserved"
-    assert patched.tldr.next == new_move
+    assert patched.tldr.status == new_status
 
-    cleared = apply_ops(patched, _update(tldr={"next": ""}), {}, turn=3)
-    assert cleared.tldr.next == "", "an explicit empty string clears the field"
+    cleared = apply_ops(patched, _update(tldr={"status": ""}), {}, turn=3)
+    assert cleared.tldr.status == "", "an explicit empty string clears the field"
     assert cleared.tldr.essence == essence
 
 
@@ -199,7 +249,7 @@ def test_update_without_reason_keeps_the_stored_reason():
     seeded = apply_ops(DashboardModel(), _update(ops=[
         {"op": "todo.upsert", "text": "task", "status": "open", "reason": created_reason},
         {"op": "cta.upsert", "text": "ask", "reason": created_reason},
-        {"op": "headsup.upsert", "sev": "note", "what": "w", "why": "y", "reason": created_reason},
+        {"op": "headsup.upsert", "sev": "flag", "what": "w", "why": "y", "reason": created_reason},
         {"op": "freeform.upsert", "htmlRef": "ff", "reason": created_reason},
     ]), {"ff": body_a}, turn=1)
 
@@ -304,7 +354,7 @@ def test_todo_creation_and_done_transitions_stamp_turns():
 def test_headsup_creation_stamps_created_turn():
     created_turn = 6
     m1 = apply_ops(DashboardModel(), Update.model_validate(
-        {"ops": [{"op": "headsup.upsert", "sev": "note", "what": "w", "why": "y"}]}),
+        {"ops": [{"op": "headsup.upsert", "sev": "flag", "what": "w", "why": "y"}]}),
         {}, created_turn)
     assert m1.headsup[0].created_turn == created_turn
 

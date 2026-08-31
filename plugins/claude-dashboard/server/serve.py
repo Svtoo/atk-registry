@@ -1460,8 +1460,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                                     facts={"reason": str(e)})
         if result["name"] == "CCD_LOG_LEVEL":
             set_log_level(result["value"])
-        _log.info("setting changed: %s = %s", result["name"], result["value"])
+        _log.info("setting changed: %s = %s", result["name"],
+                  "•••" if result["secret"] else result["value"])
         payload = {"ok": True, **result}
+        if result["secret"]:
+            payload["value"] = None
         if not result["persisted"]:
             _log.warning("setting %s applied but could not be written to .env",
                          result["name"])
@@ -1688,8 +1691,9 @@ def main() -> int:
     REGISTRY = Registry(
         plugin_dir=PLUGIN_DIR,
         projects_root=PROJECTS_ROOT,
-        model=regen_model,
+        model=lambda: SETTINGS.get("CCD_MODEL"),
         timeout=lambda: SETTINGS.get("CCD_REGEN_TIMEOUT"),
+        journey=lambda: SETTINGS.get("CCD_JOURNEY"),
         metrics=STORE,
         on_success=_on_regen_success,
         on_failure=_on_regen_failure,

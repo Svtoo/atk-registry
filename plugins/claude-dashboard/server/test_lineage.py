@@ -113,8 +113,8 @@ def test_real_corpus_fork_and_resume_resolve_to_their_parents():
     checked = 0
     for slug, child, expected_parent in cases:
         p = root / slug / f"{child}.jsonl"
-        if not p.is_file():
-            continue          # corpus-dependent; skip when absent
+        if not p.is_file() or not (root / slug / f"{expected_parent}.jsonl").is_file():
+            continue          # corpus-dependent; skip when either side is absent
         assert find_parent(p) == expected_parent, f"{child} -> {find_parent(p)}"
         checked += 1
     print(f"    (corpus cases checked: {checked}/2)")

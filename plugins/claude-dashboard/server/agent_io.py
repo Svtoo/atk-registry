@@ -14,7 +14,7 @@ import re
 
 from pydantic import ValidationError
 
-from models import HTML_MAX, Update
+from models import HTML_MAX, Update, update_model
 
 _UPDATE_OPEN = "<update>"
 _UPDATE_CLOSE = "</update>"
@@ -69,9 +69,11 @@ def _extract_freeform_bodies(raw: str) -> "dict[str, str]":
 _RESERVED_RE = re.compile(r"ccd-notices|notices__|notice--|notice__|data-notice-")
 
 
-def parse_output(raw: str) -> "tuple[Update, dict[str, str], list[str]]":
+def parse_output(raw: str, journey: bool = True) -> "tuple[Update, dict[str, str], list[str]]":
     """Split the agent output into a validated `Update`, a `{ref: raw_html}`
     map, and a list of human-readable notes about anything gracefully dropped.
+    `journey` selects the op-set contract: with journey off, a journey op fails
+    validation like any other schema violation.
 
     Raises `AgentOutputError` when there is no usable `<update>` block (missing,
     unclosed, not JSON, or schema-invalid) — the whole turn is then discarded
@@ -90,7 +92,7 @@ def parse_output(raw: str) -> "tuple[Update, dict[str, str], list[str]]":
     except json.JSONDecodeError as e:
         raise AgentOutputError(f"<update> block is not valid JSON: {e}") from e
     try:
-        update = Update.model_validate(data)
+        update = update_model(journey).model_validate(data)
     except ValidationError as e:
         raise AgentOutputError(f"op-set failed schema validation: {e}") from e
 

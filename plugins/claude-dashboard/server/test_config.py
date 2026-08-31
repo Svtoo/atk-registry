@@ -6,16 +6,20 @@ Run: ../.venv/bin/python test_config.py
 import tempfile
 from pathlib import Path
 
-from config import Settings
+from config import SCHEMA, Setting, Settings
 from testutil import run_module_tests
 
+_SECRET = Setting("CCD_TEST_TOKEN", "str", "", "Test token",
+                  "Write-only token for the secret tests.",
+                  runtime=True, secret=True)
 
-def _settings(env_text=None, environ=None):
+
+def _settings(env_text=None, environ=None, schema=SCHEMA):
     d = Path(tempfile.mkdtemp())
     env_path = d / ".env"
     if env_text is not None:
         env_path.write_text(env_text, encoding="utf-8")
-    return Settings(env_path, environ=environ or {}), env_path
+    return Settings(env_path, environ=environ or {}, schema=schema), env_path
 
 
 # ─── loading ───────────────────────────────────────────────────────────
@@ -25,6 +29,15 @@ def test_missing_environment_uses_declared_defaults():
     assert s.get("CCD_REGEN_TIMEOUT") == 180.0
     assert s.get("CCD_MODEL") == "sonnet"
     assert s.get("CCD_LOG_LEVEL") == "INFO"
+    assert s.get("CCD_PREVIEW_PANE") is True
+    assert s.get("CCD_JOURNEY") is False, "journey is opt-in"
+
+
+def test_a_bool_setting_reads_common_spellings():
+    for raw, expected in (("false", False), ("off", False), ("0", False),
+                          ("true", True), ("YES", True), ("1", True)):
+        s, _ = _settings(environ={"CCD_PREVIEW_PANE": raw})
+        assert s.get("CCD_PREVIEW_PANE") is expected, f"{raw!r} must read as {expected}"
 
 
 def test_environment_values_are_read_and_typed():
@@ -80,6 +93,15 @@ def test_a_choice_is_accepted_case_insensitively():
     assert s.get("CCD_LOG_LEVEL") == "DEBUG"
 
 
+def test_update_rejects_a_value_that_is_not_a_bool():
+    s, _ = _settings()
+    try:
+        s.update("CCD_PREVIEW_PANE", "maybe")
+        assert False, "a non-boolean value must be refused"
+    except ValueError as e:
+        assert "on or off" in str(e), e
+
+
 # ─── applying + persisting ─────────────────────────────────────────────
 
 def test_update_applies_in_memory_immediately():
@@ -131,6 +153,16 @@ def test_a_whole_number_timeout_is_written_without_a_decimal_point():
     assert "CCD_REGEN_TIMEOUT=240\n" in env_path.read_text(encoding="utf-8")
 
 
+def test_a_bool_is_written_in_the_spelling_the_hook_reads():
+    s, env_path = _settings()
+    result = s.update("CCD_PREVIEW_PANE", "false")
+    assert s.get("CCD_PREVIEW_PANE") is False
+    assert result["applies_now"] is True
+    assert "CCD_PREVIEW_PANE=false\n" in env_path.read_text(encoding="utf-8")
+    s.update("CCD_PREVIEW_PANE", "true")
+    assert "CCD_PREVIEW_PANE=true\n" in env_path.read_text(encoding="utf-8")
+
+
 # ─── what a client may see ─────────────────────────────────────────────
 
 def test_public_describes_each_setting_for_a_settings_page():
@@ -140,6 +172,41 @@ def test_public_describes_each_setting_for_a_settings_page():
     assert timeout["label"] and timeout["help"], "a setting must explain itself"
     assert timeout["minimum"] == 30 and timeout["maximum"] == 900
     assert by_name["CCD_LOG_LEVEL"]["choices"] == ["INFO", "DEBUG"]
+    pane = by_name["CCD_PREVIEW_PANE"]
+    assert pane["kind"] == "bool" and pane["value"] is True
+    assert pane["secret"] is False
+
+
+def test_every_declared_setting_reaches_the_settings_page():
+    import config
+    s, _ = _settings()
+    assert {i["name"] for i in s.public()} == {d.name for d in config.SCHEMA}
+
+
+def test_a_secret_value_never_appears_in_the_public_view():
+    s, _ = _settings(environ={"CCD_TEST_TOKEN": "hunter2"}, schema=SCHEMA + (_SECRET,))
+    item = {i["name"]: i for i in s.public()}["CCD_TEST_TOKEN"]
+    assert item["secret"] is True and item["set"] is True
+    assert item["value"] is None and item["default"] is None
+    assert "hunter2" not in repr(s.public())
+
+
+def test_an_unset_secret_reports_it_has_no_value():
+    s, _ = _settings(schema=SCHEMA + (_SECRET,))
+    item = {i["name"]: i for i in s.public()}["CCD_TEST_TOKEN"]
+    assert item["set"] is False
+
+
+def test_updating_a_secret_marks_the_result_secret():
+    s, env_path = _settings(schema=SCHEMA + (_SECRET,))
+    result = s.update("CCD_TEST_TOKEN", "hunter2")
+    assert result["secret"] is True
+    assert "CCD_TEST_TOKEN=hunter2" in env_path.read_text(encoding="utf-8")
+
+
+def test_a_plain_setting_update_is_not_marked_secret():
+    s, _ = _settings()
+    assert s.update("CCD_MODEL", "haiku")["secret"] is False
 
 
 if __name__ == "__main__":

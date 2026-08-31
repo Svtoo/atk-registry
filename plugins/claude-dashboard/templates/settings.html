@@ -10,6 +10,9 @@
     border: 1px solid var(--border); border-radius: 8px; min-width: 8rem;
   }
   .setting input:focus, .setting select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .setting input[type="checkbox"] {
+    min-width: 0; width: 1.05rem; height: 1.05rem; accent-color: var(--accent);
+  }
   .setting button { font-size: 0.82rem; padding: 0.35rem 0.85rem; border-radius: 8px; }
   .setting .unit { font-size: 0.8rem; color: var(--muted); }
   .setting .note { font-size: 0.8rem; margin-left: 0.2rem; }
@@ -46,10 +49,17 @@
 const esc = window.escapeHtml;
 
 function control(s) {
+  if (s.secret) {
+    const hint = s.set ? "saved · enter a new value to replace" : "not set";
+    return `<input type="password" data-input="${esc(s.name)}" aria-label="${esc(s.label)}" placeholder="${esc(hint)}" autocomplete="new-password" />`;
+  }
   if (s.choices) {
     const opts = s.choices.map(c =>
       `<option value="${esc(c)}"${String(c) === String(s.value) ? " selected" : ""}>${esc(c)}</option>`).join("");
     return `<select data-input="${esc(s.name)}" aria-label="${esc(s.label)}">${opts}</select>`;
+  }
+  if (s.kind === "bool") {
+    return `<input type="checkbox" data-input="${esc(s.name)}" aria-label="${esc(s.label)}"${s.value ? " checked" : ""} />`;
   }
   if (s.kind === "float" || s.kind === "int") {
     const min = s.minimum != null ? ` min="${s.minimum}"` : "";
@@ -57,6 +67,12 @@ function control(s) {
     return `<input type="number" data-input="${esc(s.name)}" aria-label="${esc(s.label)}" value="${esc(s.value)}"${min}${max} />`;
   }
   return `<input type="text" data-input="${esc(s.name)}" aria-label="${esc(s.label)}" value="${esc(s.value)}" />`;
+}
+
+function defaultLine(s) {
+  if (s.secret) return "";
+  const shown = s.kind === "bool" ? (s.default ? "on" : "off") : s.default;
+  return `<div class="default">Default ${esc(shown)}${rangeHint(s)}</div>`;
 }
 
 function rangeHint(s) {
@@ -75,7 +91,7 @@ function render(data) {
         <button type="button" class="btn-quiet" data-save="${esc(s.name)}" aria-label="Save ${esc(s.label)}">Save</button>
         <span class="note" data-note="${esc(s.name)}" role="status"></span>
       </div>
-      <div class="default">Default ${esc(s.default)}${rangeHint(s)}</div>
+      ${defaultLine(s)}
     </div>`).join("");
 
   const ro = data.readonly || {};
@@ -105,6 +121,12 @@ async function save(name, btn) {
   const input = document.querySelector(`[data-input="${name}"]`);
   const note = document.querySelector(`[data-note="${name}"]`);
   if (!input || !note) return;
+  const value = input.type === "checkbox" ? String(input.checked) : input.value;
+  if (input.type === "password" && !value) {
+    note.className = "note bad";
+    note.textContent = "Enter a value first";
+    return;
+  }
   btn.disabled = true;
   note.className = "note";
   note.textContent = "";
@@ -112,7 +134,7 @@ async function save(name, btn) {
     const r = await fetch("/api/settings.json", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, value: input.value }),
+      body: JSON.stringify({ name, value }),
     });
     const out = await r.json().catch(() => ({}));
     if (!r.ok || !out.ok) {
@@ -124,6 +146,10 @@ async function save(name, btn) {
     } else {
       note.className = "note ok";
       note.textContent = out.applies_now ? "Saved, in effect now" : "Saved, applies after a restart";
+      if (input.type === "password") {
+        input.value = "";
+        input.placeholder = "saved · enter a new value to replace";
+      }
     }
     if (window.Freshness) window.Freshness.setPageStatus(true);
   } catch (e) {

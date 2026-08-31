@@ -5,7 +5,7 @@ instructions), the op-schema field descriptions in `models.py`, and `render.py` 
 derive from this. Change the intent here first, then propagate — so the three never
 drift and the prompt stays consistent.
 
-Status: approved by Sasha (2026-07-05). §5 records how the open questions were
+Status: approved (2026-07-05). §5 records how the open questions were
 resolved.
 
 ---
@@ -29,7 +29,9 @@ Conciseness serves that; noise defeats it.
 | Section | Answers | Horizon | Direction | Empty is a valid state |
 |---|---|---|---|---|
 | **Glance** (header) | "Is this the chat I want, and what's the state?" | now | — | no |
+| **Links** (chip strip under the header) | "Where do I jump from here?" | stable | agent → user | yes |
 | **Call to action** | "What must I, the user, do right now?" | tactical | user → agent | **yes** (and good) |
+| **Last turn** (strip atop the CTA card) | "What just happened?" | tactical | agent → user | yes |
 | **To-do** | "How far are we, and what's left to finish?" | strategic | plan | yes |
 | **Heads-up** | "What must I be aware of that I'd otherwise miss?" | mixed | agent → user | yes |
 | **Journey** | "How did we get here?" | strategic | history | yes |
@@ -44,10 +46,24 @@ Each section is defined by the same five fields.
 ### Glance (header)
 - **Purpose** — the 10-second "is this the chat I want, and where are we?" This is
   the header's job, *not* the whole dashboard's.
-- **Holds** — the title; and a fixed grid of *what* / *where* / *your move*.
+- **Holds** — the title; and a fixed grid of *what* / *where*. The ask on the
+  user lives only in Call to action — the header never mirrors it.
 - **Excludes** — detail; anything that belongs in a section below.
 - **Lifecycle** — rewritten each turn to reflect the current state.
 - **Empty** — never; there is always a title + state.
+
+### Links (chip strip under the header)
+- **Purpose** — the handful of destinations the user keeps returning to for this
+  chat: the issue, the PR, the branch, a design doc. Chosen design (2026-08-31,
+  option A of three mockups): pill chips in a light strip between the header and
+  the Call to action card — no card chrome, one line tall until it wraps.
+- **Holds** — chips with a short kind tag (issue, pr, branch, doc, …), a label,
+  and a URL; a URL-less chip (e.g. a branch name) renders as plain text.
+- **Excludes** — anything volatile or one-off; a link dump. Navigation, not a
+  bibliography.
+- **Lifecycle** — agent-maintained: upserted when a destination appears or
+  changes, removed when it stops mattering (a closed PR, a deleted branch).
+- **Empty** — yes (renders nothing).
 
 ### Call to action (CTA)
 - **Purpose** — the **most important** section, where the user's eye lands to learn
@@ -60,6 +76,20 @@ Each section is defined by the same five fields.
 - **Lifecycle** — an item is removed the instant it's resolved; this is a live
   blocker list, not a log.
 - **Empty** — yes, and it's a *good* state: it means nothing is blocked on the user.
+
+### Last turn (strip atop the CTA card)
+- **Purpose** — what just happened, so the user reads neither the chat nor the
+  transcript to know what the latest turn did. Chosen design (2026-08-31,
+  option A of three mockups): rendered inside the Call to action card, above
+  the asks, so summary + ask form one glance zone.
+- **Holds** — 1–3 short outcome bullets for the newest turn only, plus the turn
+  they describe (server-stamped). An op replaces the set wholesale — never an
+  accumulating log.
+- **Excludes** — process narration, anything older than the newest movement,
+  and the cumulative "where are we" (that is `tldr.status`).
+- **Lifecycle** — replaced whenever the work moves; when a turn changes nothing
+  worth reading, the previous set stays, labeled with its own turn.
+- **Empty** — yes (a fresh chat).
 
 ### To-do
 - **Purpose** — the **strategic plan** for the work this conversation is doing, and
@@ -74,14 +104,17 @@ Each section is defined by the same five fields.
 - **Ideal** — finite, with a clear "done".
 
 ### Heads-up
-- **Purpose** — high-signal alerts the user **must** pay attention to. Two kinds:
-  1. things **not visible in the chat** — a silent or unilateral action (e.g. the
-     agent changed authentication without saying so, and the user never asked);
-  2. things **visible in the chat but risky/important that the agent did not flag**.
-- **Holds** — risks, silent changes, easy-to-miss-but-important items — things that
-  demand the user's attention.
-- **Excludes** — "nice to know", interesting facts, low-signal notes. Noise here is
-  the current failure mode; **every row must be gold**.
+- **Purpose** — the record of what the user must not miss. A row is admitted only
+  when **both** hold: seeing it, the user might want to veto, undo, or double-check
+  something; and no other card already carries it. The agent's own overstep stays
+  a row even when corrected the same turn — a correction is not an all-clear.
+- **Holds** — rows that pass the admission test, as `risk` or `flag`. New rows
+  never carry `note`; historic note rows remain rendered until acknowledged.
+- **Excludes** — routine workflow: the dashboard agent cannot see the user's
+  configuration, so the observable test is recurrence (an action repeated turn
+  after turn) or an instruction visible in the transcript; all-clears and
+  non-events (resolved on its own, didn't materialize, verification passed);
+  facts another section already lists; "nice to know".
 - **Lifecycle** — the user acknowledges a row (it folds away, never deleted by the
   server). The agent may promote a row to CTA if it actually needs action.
 - **Empty** — yes.
@@ -98,6 +131,10 @@ Each section is defined by the same five fields.
   whose summary preserves the story of the oldest beats; the server keeps the
   most recent ones.
 - **Empty** — yes (early in a chat).
+- **Switchable** — the `CCD_JOURNEY` setting (default off) controls the whole
+  section: while off, its prompt section (`SYSTEM_JOURNEY.md`), its ops, its
+  digest block, and its card are all absent, and no beats are recorded — the
+  off period is never backfilled.
 
 ### Freeform
 - **Purpose** — the durable **visual + reference canvas**. Essential, not
@@ -109,7 +146,8 @@ Each section is defined by the same five fields.
     conversation, **including context/terms the agent needs to retain** but that
     aren't otherwise surfaced.
 - **Excludes** — superseded content; brainstorm rows once a direction is picked.
-- **Lifecycle** — the agent owns the whole card and drops superseded content itself.
+- **Lifecycle** — the agent owns the card body and drops superseded content
+  within it; removing a whole card is the user's dismiss, never an agent op.
 - **Empty** — yes.
 
 ---
@@ -155,7 +193,7 @@ These fix the "formatting all over the place" problem.
    single tool bodies get a word-positional head/tail cap. Possible future:
    pure turn-count limiting (atk-registry issue #6).
 
-**Freeform direction (Sasha, 2026-07-05):** freeform is the creative canvas —
+**Freeform direction (2026-07-05):** freeform is the creative canvas —
 never limit the agent's creativity. Long-term, `reason` substitutes for the
 body in the agent's context (the digest already elides bodies) and the agent
 gets read-back access to fetch a body before editing it (atk-registry issue

@@ -24,7 +24,7 @@ def test_digest_flags_journey_over_cap_for_agent_driven_fold():
 def test_digest_lists_every_section_with_ids_and_tldr():
     model = DashboardModel(
         title="T", turn=5, phase=Phase.building,
-        tldr=Tldr(essence="what-line", status="where-line", next="move-line"),
+        tldr=Tldr(essence="what-line", status="where-line"),
         cta=[CtaItem(id="c1", text="a blocker", changed_turn=5, reason="new")],
         todo=[TodoItem(id="t1", text="a task", status=TodoStatus.open, changed_turn=2, reason="start")],
         headsup=[HeadsupItem(id="h1", sev=Sev.risk, what="w", why="y", where="z", changed_turn=4, reason="r")],
@@ -32,7 +32,7 @@ def test_digest_lists_every_section_with_ids_and_tldr():
         freeform=[FreeformSlot(id="f1", html="<section>x</section>", hash="abc123", changed_turn=3, reason="arch")],
     )
     digest = build_digest(model)
-    for token in ["c1", "t1", "h1", "j1", "f1", "what-line", "where-line", "move-line"]:
+    for token in ["c1", "t1", "h1", "j1", "f1", "what-line", "where-line"]:
         assert token in digest, token
 
 
@@ -164,6 +164,29 @@ def test_dismissed_freeform_slots_leave_the_agents_context():
     assert dismissed_body not in d, "dismissed bodies must not reach the agent"
     assert "f2" not in d, "not even the slot line"
     assert "## Freeform (1)" in d, "the count reflects live slots only"
+
+
+def test_digest_lists_links_with_ids():
+    from models import LinkItem
+    m = DashboardModel(links=[LinkItem(id="l1", label="ENG-1", url="https://x/1", kind="issue")])
+    digest = build_digest(m)
+    assert "## Links (1)" in digest
+    assert "- l1 kind=issue label=ENG-1 url=https://x/1" in digest
+
+
+def test_digest_shows_the_last_turn_line():
+    from models import LastTurn
+    m = DashboardModel(turn=4, last_turn=LastTurn(bullets=["did a", "did b"], turn=4))
+    digest = build_digest(m)
+    assert "last_turn (turn 4): did a | did b" in digest
+    assert "last_turn: (none)" in build_digest(DashboardModel())
+
+
+def test_journey_off_omits_the_journey_block():
+    beats = [JourneyItem(id="j1", kind=JourneyKind.joint, what="the beat", why="w", turn=1)]
+    digest = build_digest(DashboardModel(turn=1, journey=beats), journey=False)
+    assert "## Journey" not in digest
+    assert "the beat" not in digest, "existing beats must not reach the agent while off"
 
 
 if __name__ == "__main__":
