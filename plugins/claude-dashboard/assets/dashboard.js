@@ -44,14 +44,19 @@
   }
 
   // ─── Mermaid bootstrap (load CDN, init with theme-matched palette) ──
+  function mermaidConfig() {
+    return {
+      startOnLoad: false,
+      theme: document.documentElement.dataset.theme === "dark" ? "dark" : "default",
+      flowchart: { curve: "basis" },
+    };
+  }
+
   function loadMermaid() {
     if (document.querySelector('pre.mermaid, .mermaid') == null) return;
     if (window.mermaid) {
-      window.mermaid.initialize({
-        startOnLoad: true,
-        theme: document.documentElement.dataset.theme === "dark" ? "dark" : "default",
-        flowchart: { curve: "basis" },
-      });
+      window.mermaid.initialize(mermaidConfig());
+      renderDiagrams();
       return;
     }
     const s = document.createElement("script");
@@ -60,13 +65,54 @@
       if (window.Notices) window.Notices.showLocal("net.diagram_failed");
     };
     s.onload = () => {
-      window.mermaid.initialize({
-        startOnLoad: true,
-        theme: document.documentElement.dataset.theme === "dark" ? "dark" : "default",
-        flowchart: { curve: "basis" },
-      });
+      window.mermaid.initialize(mermaidConfig());
+      renderDiagrams();
     };
     document.head.appendChild(s);
+  }
+
+  // ─── Diagram validation: render what parses, flag what doesn't ───────
+  // A broken diagram becomes a quiet chip instead of mermaid's error bomb,
+  // and the failure is reported to the sidecar so the agent repairs the card
+  // on the next rebuild.
+  function slotIdOf(pre) {
+    const slot = pre.closest(".freeform-slot");
+    return slot ? slot.getAttribute("data-item-id") : null;
+  }
+
+  async function renderDiagrams() {
+    const results = new Map();
+    for (const pre of document.querySelectorAll("pre.mermaid")) {
+      const id = slotIdOf(pre);
+      let ok = true;
+      try { await window.mermaid.parse(pre.textContent); } catch { ok = false; }
+      if (!ok) {
+        const chip = document.createElement("div");
+        chip.className = "diagram-failed";
+        chip.textContent = "⚠ diagram failed to render — flagged for repair on the next update";
+        pre.replaceWith(chip);
+        if (id) results.set(id, false);
+        continue;
+      }
+      try { await window.mermaid.run({ nodes: [pre] }); } catch { /* parse passed; leave the block as is */ }
+      if (id && results.get(id) !== false) results.set(id, true);
+    }
+    reconcileDiagramErrors(results);
+  }
+
+  async function reconcileDiagramErrors(results) {
+    const s = currentSession();
+    if (!s || results.size === 0) return;
+    const sidecar = await fetchSidecar(s);
+    if (!sidecar) return;
+    const flagged = sidecar.diagramErrors || {};
+    for (const [id, ok] of results) {
+      const url = `/api/dashboard/${s.projectHash}/${s.sessionUuid}/diagram-error/${encodeURIComponent(id)}`;
+      try {
+        if (!ok && !flagged[id]) await sidecarMutate(url, "POST");
+        else if (ok && flagged[id]) await sidecarMutate(url, "DELETE");
+      } catch { /* best-effort; the next page load retries */ }
+    }
   }
 
   // ─── Mermaid lightbox: click a diagram to inspect it full-screen ─────

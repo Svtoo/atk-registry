@@ -942,6 +942,16 @@ def _is_error_ack_path(parts: list) -> bool:
     )
 
 
+def _is_diagram_error_path(parts: list) -> bool:
+    """/api/dashboard/<project>/<session>/diagram-error/<slot-id>"""
+    return (
+        len(parts) == 6
+        and parts[0] == "api"
+        and parts[1] == "dashboard"
+        and parts[4] == "diagram-error"
+    )
+
+
 def _is_verdict_path(parts: list) -> bool:
     """/api/dashboard/<project>/<session>/verdict/<section>/<item-id>"""
     return (
@@ -1071,6 +1081,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._handle_settings_post()
         if _is_error_ack_path(parts):
             return self._handle_error_ack("POST")
+        if _is_diagram_error_path(parts):
+            return self._handle_diagram_error("POST")
         if _is_verdict_path(parts):
             return self._handle_verdict("POST")
         return self._handle_ack_mutation("POST")
@@ -1082,6 +1094,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         parts = [p for p in path.split("/") if p]
         if _is_error_ack_path(parts):
             return self._handle_error_ack("DELETE")
+        if _is_diagram_error_path(parts):
+            return self._handle_diagram_error("DELETE")
         if _is_verdict_path(parts):
             return self._handle_verdict("DELETE")
         return self._handle_ack_mutation("DELETE")
@@ -1194,6 +1208,27 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self._send_json({"ok": True, "key": key, "state": entry})
             CHAT_STATE.clear_verdict(project_hash, session_uuid, section, item_id)
             return self._send_json({"ok": True, "key": key, "state": None})
+        except FileNotFoundError:
+            return self.send_error(404, "session not found")
+
+    def _handle_diagram_error(self, method: str) -> None:
+        """POST/DELETE /api/dashboard/<project>/<session>/diagram-error/<slot-id>:
+        the browser's verdict on a freeform diagram — set when mermaid fails to
+        parse, cleared when it renders again. The digest shows the flag so the
+        agent repairs the card."""
+        path = urlparse(self.path).path
+        parts = [p for p in path.split("/") if p]
+        project_hash, session_uuid, slot_id = parts[2], parts[3], parts[5]
+        if not self._guard_chat_route(project_hash, session_uuid):
+            return
+        if not ChatState.is_valid_row_id(slot_id):
+            return self.send_error(400, "invalid slot id")
+        try:
+            if method == "POST":
+                entry = CHAT_STATE.set_diagram_error(project_hash, session_uuid, slot_id)
+                return self._send_json({"ok": True, "id": slot_id, "at": entry["at"]})
+            CHAT_STATE.clear_diagram_error(project_hash, session_uuid, slot_id)
+            return self._send_json({"ok": True, "id": slot_id, "state": None})
         except FileNotFoundError:
             return self.send_error(404, "session not found")
 

@@ -237,6 +237,12 @@ ul.todo-list li.blocked::before {
   content: "✗"; color: var(--on-accent); background: var(--bad); border-color: var(--bad);
 }
 
+/* ---- Broken diagram: quiet chip instead of mermaid's error bomb ---- */
+.diagram-failed {
+  border: 1px dashed var(--border); border-radius: 8px;
+  padding: 0.5rem 0.8rem; color: var(--muted); font-size: 0.82rem;
+}
+
 /* ---- Mermaid lightbox: click a diagram to inspect it full-screen ---- */
 pre.mermaid { cursor: zoom-in; }
 .mermaid-lightbox {

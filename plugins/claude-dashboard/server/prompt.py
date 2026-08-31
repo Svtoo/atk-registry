@@ -187,6 +187,7 @@ class RegenPrompt(BaseModel):
     journey_template: str = ""                      # SYSTEM_JOURNEY.md content; required when journey is on
     verdicts: dict = Field(default_factory=dict)    # user clicks on items, already applied
     acks: dict = Field(default_factory=dict)        # acknowledged heads-up rows
+    diagram_errors: dict = Field(default_factory=dict)  # freeform slots whose mermaid failed in the browser
     journey: bool = True                            # False: journey leaves the prompt entirely
 
 
@@ -295,7 +296,7 @@ def assemble_prompt(rp: RegenPrompt) -> AssembledPrompt:
 
     system = f"{_compose_system_template(rp).strip()}\n\n{_output_format(journey=rp.journey)}"
     user = (
-        f'<dashboard_state turn="{rp.turn_no}">\n{build_digest(rp.dashboard, now_turn=rp.turn_no, verdicts=rp.verdicts, acks=rp.acks, journey=rp.journey)}\n</dashboard_state>\n\n'
+        f'<dashboard_state turn="{rp.turn_no}">\n{build_digest(rp.dashboard, now_turn=rp.turn_no, verdicts=rp.verdicts, acks=rp.acks, journey=rp.journey, diagram_errors=rp.diagram_errors)}\n</dashboard_state>\n\n'
         f'<transcript note="recent conversation; the newest turn in full with tool calls, earlier turns as prose">\n'
         f"{transcript}\n</transcript>\n\n"
         f"<task>\n{_task(rp.turn_no)}\n</task>\n"

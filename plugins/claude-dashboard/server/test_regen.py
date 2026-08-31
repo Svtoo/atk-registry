@@ -251,6 +251,8 @@ def test_quiet_completion_does_not_rerun(monkeypatched):
 # ─── registry: supersede telemetry ─────────────────────────────────────
 
 def test_superseded_run_records_a_superseded_row(monkeypatched):
+    # serve.py passes model as a zero-arg provider, not a string; the recorded
+    # row must hold the resolved value.
     st = store.DashboardStore(Path(tempfile.mkdtemp()) / "dashboard.db")
 
     def fake(**kw):
@@ -261,7 +263,8 @@ def test_superseded_run_records_a_superseded_row(monkeypatched):
 
     monkeypatched(fake)
     reg = regen.Registry(
-        plugin_dir=Path("."), projects_root=Path("."), chat_state=None, metrics=st,
+        plugin_dir=Path("."), projects_root=Path("."), chat_state=None,
+        model=lambda: "model-from-settings", metrics=st,
     )
     reg.trigger("hash", SESS)
     assert wait_until(lambda: st.stats(since=0)["kpis"]["superseded"] == 1), \
@@ -273,12 +276,47 @@ def test_superseded_run_records_a_superseded_row(monkeypatched):
     conn = sqlite3.connect(st._db_path)
     conn.row_factory = sqlite3.Row
     row = conn.execute(
-        "SELECT status, kind, attempts FROM regen_metrics ORDER BY id DESC LIMIT 1"
+        "SELECT status, kind, attempts, model FROM regen_metrics ORDER BY id DESC LIMIT 1"
     ).fetchone()
     conn.close()
     assert row["status"] == "superseded"
     assert row["kind"] == "SubprocessFailed"
     assert row["attempts"] == 1, "the attempt number at the kill is recorded"
+    assert row["model"] == "model-from-settings", \
+        f"the resolved model string is recorded, got {row['model']!r}"
+
+
+def test_failed_run_records_metrics_when_model_is_a_provider(monkeypatched):
+    # serve.py passes model as a zero-arg provider, not a string. The failure
+    # row must land with the resolved value and the store must not error.
+    store_errors = []
+    st = store.DashboardStore(Path(tempfile.mkdtemp()) / "dashboard.db",
+                              on_error=store_errors.append)
+
+    def fake(**kw):
+        raise regen.OutputRejected("op-set invalid after retry: not valid JSON")
+
+    monkeypatched(fake)
+    reg = regen.Registry(
+        plugin_dir=Path("."), projects_root=Path("."), chat_state=None,
+        model=lambda: "model-from-settings", metrics=st,
+    )
+    reg.trigger("hash", SESS)
+    # The metrics row is the settled signal: on_failure fires before the write.
+    assert wait_until(lambda: st.stats(since=0)["kpis"]["failed"] == 1), \
+        f"a failed run records exactly one failed row; store errors: {store_errors}"
+    assert store_errors == [], f"the metrics write must not error: {store_errors}"
+
+    conn = sqlite3.connect(st._db_path)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        "SELECT status, model FROM regen_metrics ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    conn.close()
+    assert row is not None, "a failed run records exactly one row"
+    assert row["status"] == "failed"
+    assert row["model"] == "model-from-settings", \
+        f"the resolved model string is recorded, got {row['model']!r}"
 
 
 # ─── auth policy + health probe ────────────────────────────────────────

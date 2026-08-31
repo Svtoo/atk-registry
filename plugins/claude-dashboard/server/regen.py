@@ -411,6 +411,7 @@ def run_once(
         turn_no=turn_no,
         verdicts=verdicts,
         acks=acks,
+        diagram_errors=snap.get("diagramErrors") or {},
         system_template=system_prompt_path.read_text(encoding="utf-8"),
         journey_template=journey_prompt_path.read_text(encoding="utf-8"),
         journey=journey,
@@ -674,6 +675,7 @@ class Registry:
                 if record.superseded or self._jobs.get(record.session_uuid) is not record:
                     return
 
+            model = self._current_model()
             try:
                 run_once(
                     plugin_dir=self._plugin_dir,
@@ -681,7 +683,7 @@ class Registry:
                     project_hash=record.project_hash,
                     session_uuid=record.session_uuid,
                     chat_state=self._chat_state,
-                    model=self._current_model(),
+                    model=model,
                     timeout=self._current_timeout(),
                     journey=self._current_journey(),
                     metrics=self._metrics,
@@ -709,6 +711,21 @@ class Registry:
                     if e.elapsed_seconds is not None:
                         wall_ms = int(e.elapsed_seconds * 1000)
                     output_bytes = e.partial_chars
+
+                def record_outcome(status: str) -> None:
+                    _safe_record(
+                        self._metrics,
+                        project_hash=record.project_hash,
+                        session_uuid=record.session_uuid,
+                        model=model,
+                        status=status,
+                        kind=error_kind,
+                        prompt_words=prompt_words,
+                        wall_ms=wall_ms,
+                        output_bytes=output_bytes,
+                        attempts=attempt,
+                    )
+
                 with self._lock:
                     superseded = record.superseded
                     if not superseded and self._jobs.get(record.session_uuid) is not record:
@@ -726,18 +743,7 @@ class Registry:
                         "supersede %s/%s — %s",
                         record.project_hash, record.session_uuid[:8], error_kind,
                     )
-                    _safe_record(
-                        self._metrics,
-                        project_hash=record.project_hash,
-                        session_uuid=record.session_uuid,
-                        model=self._model,
-                        status="superseded",
-                        kind=error_kind,
-                        prompt_words=prompt_words,
-                        wall_ms=wall_ms,
-                        output_bytes=output_bytes,
-                        attempts=attempt,
-                    )
+                    record_outcome("superseded")
                     return
                 if retry:
                     _log.info(
@@ -764,18 +770,7 @@ class Registry:
                         )
                     except Exception:
                         _log.exception("on_failure callback raised")
-                _safe_record(
-                    self._metrics,
-                    project_hash=record.project_hash,
-                    session_uuid=record.session_uuid,
-                    model=self._model,
-                    status="failed",
-                    kind=error_kind,
-                    prompt_words=prompt_words,
-                    wall_ms=wall_ms,
-                    output_bytes=output_bytes,
-                    attempts=attempt,
-                )
+                record_outcome("failed")
                 self._maybe_rerun(record)
                 return
 
