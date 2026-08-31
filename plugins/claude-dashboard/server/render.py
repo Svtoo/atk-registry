@@ -187,7 +187,7 @@ def _headsup(m: DashboardModel) -> str:
     if m.headsup:
         lines += [
             '  <table class="watch-deck">',
-            '    <thead><tr><th class="sev-col">Sev</th><th>What I did / found</th>'
+            '    <thead><tr><th class="sev-col">Sev</th><th>Easy to miss</th>'
             '<th>Why it might bite</th><th>Where to check</th><th class="ack-col">Acknowledge</th></tr></thead>',
             "    <tbody>",
         ]

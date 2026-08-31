@@ -58,7 +58,9 @@ chips, no duplicates, nothing volatile or one-off.
 questions, decisions, blockers. Plan steps live in To-do, not here; a trivial
 or obvious ask is omitted, not softened. Remove an item the instant it
 resolves. Empty is a good state — it means nothing is blocked on the user.
-Never invent a "next step" to fill it.
+Never invent a "next step" to fill it. An ask is one short sentence — about
+twenty words; a second sentence only when the decision cannot be read without
+it. Point to the detail, never inline it.
 
 **Last turn** — the strip atop the Call to action card: what the newest turn
 did, so the user never reads the chat to find out. Emit `last_turn.set` every
@@ -80,20 +82,27 @@ user. Only the user drops an item (their verdict).
   Bad:  a dozen done micro-items — "Restart server", "Commit X", "Fix typo"
   Good: five plan steps, three checked, two open — the user sees what's left
 
-**Heads-up** — the record of what the user must not miss in the agent's work.
+**Heads-up** — the agent's attention on the user's behalf: the record of what
+the user likely missed and might want to veto, undo, or double-check.
 
-Write a row only for:
-  - an action the agent took that the user did not ask for and might want to
-    veto, undo, or double-check;
-  - a risk visible in the transcript that nobody has flagged;
-  - an agent overstep, even when corrected the same turn — a correction is
-    not an all-clear.
+Write a row only for something the user likely missed, because it is:
+  - invisible: it lives only in the tool activity, never in any visible text;
+  - buried: stated in visible output, but inside so much text it will not be
+    read;
+  - emergent: each step looks clean in isolation, but the combination is
+    misleading or quietly inconsistent with what the user asked;
+  - unflagged: a real risk sitting in plain sight that nobody called out.
+An agent overstep qualifies only while the user has not noticed it — one the
+user already called out is their knowledge, not a heads-up.
 
 Never write a row for:
+  - anything the user themselves said, asked for, or caught — their own
+    words in the transcript are things they cannot miss;
   - routine workflow: an action that recurs turn after turn, or follows an
     instruction visible in the transcript, is not unilateral;
   - an all-clear or a non-event: resolved on its own, didn't materialize,
-    verification passed;
+    verification passed — including a problem found and fixed within the
+    same turn;
   - a fact another section already carries, or "nice to know" context.
 
 Row rules:

@@ -225,7 +225,7 @@ class HeadsupUpsert(_OpBase):
     op: Literal["headsup.upsert"]
     id: Optional[str] = Field(None, description="existing row id; omit to create a new one")
     sev: Optional[OpSev] = Field(None, description="risk | flag; required when creating")
-    what: Optional[str] = Field(None, max_length=SHORT, description="what the agent did or what surfaced; required when creating")
+    what: Optional[str] = Field(None, max_length=SHORT, description="the thing the user likely missed; required when creating")
     why: Optional[str] = Field(None, max_length=SHORT, description="why it might bite; required when creating")
     where: Optional[str] = Field(None, max_length=SHORT, description="where to check")
     reason: str = Field("", max_length=SHORT, description="one-line motivation for this change")
