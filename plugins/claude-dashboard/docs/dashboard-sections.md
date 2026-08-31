@@ -104,17 +104,13 @@ Each section is defined by the same five fields.
 - **Ideal** — finite, with a clear "done".
 
 ### Heads-up
-- **Purpose** — the record of what the user must not miss. A row is admitted only
-  when **both** hold: seeing it, the user might want to veto, undo, or double-check
-  something; and no other card already carries it. The agent's own overstep stays
-  a row even when corrected the same turn — a correction is not an all-clear.
-- **Holds** — rows that pass the admission test, as `risk` or `flag`. New rows
-  never carry `note`; historic note rows remain rendered until acknowledged.
-- **Excludes** — routine workflow: the dashboard agent cannot see the user's
-  configuration, so the observable test is recurrence (an action repeated turn
-  after turn) or an instruction visible in the transcript; all-clears and
-  non-events (resolved on its own, didn't materialize, verification passed);
-  facts another section already lists; "nice to know".
+- **Purpose** — the agent's attention on the user's behalf: the record of what
+  the user **likely missed** and might want to veto, undo, or double-check.
+- **Holds** — `risk` and `flag` rows; the admission and exclusion rules live in
+  `SYSTEM.md`. New rows never carry `note`; historic note rows remain rendered
+  until acknowledged.
+- **Excludes** — anything the user demonstrably already knows (the prompt
+  carries the full gate).
 - **Lifecycle** — the user acknowledges a row (it folds away, never deleted by the
   server). The agent may promote a row to CTA if it actually needs action.
 - **Empty** — yes.
