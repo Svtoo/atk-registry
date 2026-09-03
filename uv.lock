@@ -13,7 +13,7 @@ wheels = [
 
 [[package]]
 name = "atk-cli"
-version = "0.1.1"
+version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
@@ -22,9 +22,9 @@ dependencies = [
     { name = "rich" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7f/44/27bcbca2ed5c108fce92b48f41606b592a630d4199c08348618729043f69/atk_cli-0.1.1.tar.gz", hash = "sha256:e5f1056f380cbd9aa2961c36cd874fa45044fa62c2cb3cbc71408cfa111ea8d8", size = 291776, upload-time = "2026-03-04T20:23:19.412Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d3/2f/35843ff03383824f7c15bdd03d0796b2117df306ad5907baa91aae4692ef/atk_cli-0.4.0.tar.gz", hash = "sha256:16fe00b363ea81a122fb65392929fbb9910d2cd82f188c839c5f335f8829bc84", size = 718128, upload-time = "2026-08-22T00:08:09.747Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/25/68/829bd40ceaa4ee74fb156fc5eae81e93f3b92298b38f6f51151636aebb80/atk_cli-0.1.1-py3-none-any.whl", hash = "sha256:84a5bded5c84802fbb0a2f23e4d2a605cfe981f21b23ae6eeb715d8be424fdf8", size = 79366, upload-time = "2026-03-04T20:23:18.254Z" },
+    { url = "https://files.pythonhosted.org/packages/25/a7/d084bc6047fc374262f3982c6fb845d87a07e40bcec01dcb08525db9c000/atk_cli-0.4.0-py3-none-any.whl", hash = "sha256:dbbc0f18b5129ab046ecac74c29078ef3283b90a9e0b4e0537dd39dd859a8476", size = 90641, upload-time = "2026-08-22T00:08:08.287Z" },
 ]
 
 [[package]]
