@@ -40,6 +40,6 @@ jobs:
         run: |
           make generate
           if ! git diff --exit-code index.yaml; then
-            echo "::error::index.yaml is stale. Run 'make generate' and commit the result."
+            echo "::error::index.yaml is stale. Run 'make hooks' once to keep it current automatically."
             exit 1
           fi
