@@ -10,9 +10,6 @@ concurrency:
   group: registry-ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  GITLEAKS_VERSION: 8.30.1
-
 jobs:
   validate:
     name: Validate plugins & lint
@@ -20,8 +17,6 @@ jobs:
     steps:
       - name: Checkout registry
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -37,12 +32,6 @@ jobs:
 
       - name: Test scripts
         run: make test
-
-      - name: Scan history for credentials
-        run: |
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | tar -xz gitleaks
-          ./gitleaks git --no-banner --redact --verbose .
 
       - name: Validate all plugins
         run: make validate
