@@ -673,7 +673,8 @@ must be inside the plugin directory. No references to files outside `plugins/<na
 
 ## index.yaml
 
-**Never edit `index.yaml` manually.** CI auto-generates it by running `scripts/generate_index.py` on every push.
+**Never edit `index.yaml` manually.** A pre-commit hook regenerates and stages it from the
+plugin tree; `make hooks` installs the hook. CI verifies the committed index is current.
 
 ## Testing a Registry Plugin Locally
 
@@ -696,8 +697,9 @@ atk remove <name> --force
 ## Publishing
 
 1. Place plugin files in `atk-registry/plugins/<name>/`
-2. Validate: `make validate`
-3. Commit and push — CI auto-generates `index.yaml`
+2. Install the hooks once: `make hooks`
+3. Validate: `make validate`
+4. Commit, push a branch, and open a PR — `main` is protected
 
 ---
 
