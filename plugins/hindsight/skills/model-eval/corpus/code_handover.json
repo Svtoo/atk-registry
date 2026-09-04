@@ -180,7 +180,7 @@
     },
     {
       "id": "code_handover-005",
-      "text": "Handover, terraform state drift on prod-eu-west-1, unresolved.\n\n`terraform plan -var-file=env/prod.tfvars` in `/infra/terraform/live/prod-eu-west-1` wants to destroy and recreate `aws_msk_cluster.events`. Do not apply. Recreating MSK drops the broker volumes.\n\nWhy: someone changed `broker_node_group_info.instance_type` in the console from `kafka.m5.large` to `kafka.m5.xlarge` on 2026-06-08. The CloudTrail event is `UpdateBrokerType`, principal `arn:aws:iam::408815520931:role/OpsBreakGlass`. The code still says `kafka.m5.large`, and instance_type is ForceNew in provider `hashicorp/aws v5.62.0`.\n\nThe right move is to bring code up to reality, not the reverse. Edit `/infra/terraform/live/prod-eu-west-1/msk.tf` line 23 to `instance_type = \"kafka.m5.xlarge\"` and the plan should go clean. I did not do it because I could not confirm the console change was intentional. Ask in `#platform-oncall` first.\n\nSecond, smaller drift: `aws_s3_bucket_lifecycle_configuration.artifacts` shows an in-place change because the provider upgrade from `v5.58.0` to `v5.62.0` started emitting `filter {}` for rules that previously had none. That one is safe to apply.\n\nState lives in `s3://tfstate-frontline-prod/live/prod-eu-west-1/terraform.tfstate` with lock table `terraform-locks-prod`. If a run dies mid-apply the lock ID is printed in the error. Clear it with `terraform force-unlock <ID>` and nothing else. Do NOT delete rows from DynamoDB by hand, that is how the state got orphaned in March. I left a stale lock myself earlier today and cleared it properly, the lock ID was `7f2a1c94-3f0b-4e21-9a55-c1de08bb2f10`.\n\nTo reproduce the plan without touching anything: `terraform plan -var-file=env/prod.tfvars -lock=false -out=/tmp/prod.plan` then `terraform show -json /tmp/prod.plan | jq '.resource_changes[] | select(.change.actions[0] != \"no-op\") | .address'`.",
+      "text": "Handover, terraform state drift on prod-eu-west-1, unresolved.\n\n`terraform plan -var-file=env/prod.tfvars` in `/infra/terraform/live/prod-eu-west-1` wants to destroy and recreate `aws_msk_cluster.events`. Do not apply. Recreating MSK drops the broker volumes.\n\nWhy: someone changed `broker_node_group_info.instance_type` in the console from `kafka.m5.large` to `kafka.m5.xlarge` on 2026-06-08. The CloudTrail event is `UpdateBrokerType`, principal `arn:aws:iam::123456789012:role/OpsBreakGlass`. The code still says `kafka.m5.large`, and instance_type is ForceNew in provider `hashicorp/aws v5.62.0`.\n\nThe right move is to bring code up to reality, not the reverse. Edit `/infra/terraform/live/prod-eu-west-1/msk.tf` line 23 to `instance_type = \"kafka.m5.xlarge\"` and the plan should go clean. I did not do it because I could not confirm the console change was intentional. Ask in `#platform-oncall` first.\n\nSecond, smaller drift: `aws_s3_bucket_lifecycle_configuration.artifacts` shows an in-place change because the provider upgrade from `v5.58.0` to `v5.62.0` started emitting `filter {}` for rules that previously had none. That one is safe to apply.\n\nState lives in `s3://tfstate-meridian-prod/live/prod-eu-west-1/terraform.tfstate` with lock table `terraform-locks-prod`. If a run dies mid-apply the lock ID is printed in the error. Clear it with `terraform force-unlock <ID>` and nothing else. Do NOT delete rows from DynamoDB by hand, that is how the state got orphaned in March. I left a stale lock myself earlier today and cleared it properly, the lock ID was `7f2a1c94-3f0b-4e21-9a55-c1de08bb2f10`.\n\nTo reproduce the plan without touching anything: `terraform plan -var-file=env/prod.tfvars -lock=false -out=/tmp/prod.plan` then `terraform show -json /tmp/prod.plan | jq '.resource_changes[] | select(.change.actions[0] != \"no-op\") | .address'`.",
       "hard_tokens": [
         "prod-eu-west-1",
         "terraform plan -var-file=env/prod.tfvars",
@@ -191,7 +191,7 @@
         "kafka.m5.xlarge",
         "2026-06-08",
         "UpdateBrokerType",
-        "arn:aws:iam::408815520931:role/OpsBreakGlass",
+        "arn:aws:iam::123456789012:role/OpsBreakGlass",
         "hashicorp/aws v5.62.0",
         "/infra/terraform/live/prod-eu-west-1/msk.tf",
         "instance_type = \"kafka.m5.xlarge\"",
@@ -199,7 +199,7 @@
         "aws_s3_bucket_lifecycle_configuration.artifacts",
         "v5.58.0",
         "filter {}",
-        "s3://tfstate-frontline-prod/live/prod-eu-west-1/terraform.tfstate",
+        "s3://tfstate-meridian-prod/live/prod-eu-west-1/terraform.tfstate",
         "terraform-locks-prod",
         "terraform force-unlock <ID>",
         "7f2a1c94-3f0b-4e21-9a55-c1de08bb2f10",

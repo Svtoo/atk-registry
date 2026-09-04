@@ -156,9 +156,9 @@
       "query_id": "code_handover-005#q3",
       "memory_id": "code_handover-005",
       "stratum": "code_handover",
-      "target_token": "s3://tfstate-frontline-prod/live/prod-eu-west-1/terraform.tfstate",
+      "target_token": "s3://tfstate-meridian-prod/live/prod-eu-west-1/terraform.tfstate",
       "target_is_corpus_unique": true,
-      "source_sentence": "State lives in `s3://tfstate-frontline-prod/live/prod-eu-west-1/terraform.tfstate` with lock table `terraform-locks-prod`.",
+      "source_sentence": "State lives in `s3://tfstate-meridian-prod/live/prod-eu-west-1/terraform.tfstate` with lock table `terraform-locks-prod`.",
       "query": "Handover, state drift on, unresolved. State lives in with lock table."
     },
     {
