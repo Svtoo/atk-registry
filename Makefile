@@ -1,4 +1,4 @@
-.PHONY: validate generate sync check
+.PHONY: validate generate sync check test
 
 # Validate all plugins without writing index
 validate:
@@ -11,6 +11,10 @@ generate:
 # Sync dependencies
 sync:
 	uv sync
+
+# Run script tests
+test:
+	uv run pytest scripts -q
 
 # Lint and format check
 check:
