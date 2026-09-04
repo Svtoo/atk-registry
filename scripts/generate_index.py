@@ -30,14 +30,11 @@ REGISTRY_ROOT = Path(__file__).parent.parent
 PLUGINS_DIR = REGISTRY_ROOT / "plugins"
 INDEX_FILE = REGISTRY_ROOT / "index.yaml"
 
-PLACEHOLDER_USERS = frozenset(
-    {"x", "y", "you", "user", "username", "me", "someone", "your_username", "..."}
-)
+PLACEHOLDER_USERS = frozenset({"x", "you", "user", "someone", "..."})
 HOME_PATHS = (
     re.compile(r"""/Users/([^/\s"',)\]]+)[^\s"',)\]]*"""),
     re.compile(r"""-Users-([^-/\s"',)\]]+)[^\s"',)\]]*"""),
 )
-
 
 OPERATOR_ONLY_DIRS = frozenset({"custom"})
 OPERATOR_ONLY_NAMES = frozenset({".env"})
