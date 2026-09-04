@@ -1,0 +1,158 @@
+# The LLM and embedding endpoints are OpenAI-compatible URLs. Extraction
+# defaults to the provider's own endpoint; embeddings default to Ollama on the
+# host, which the container reaches via host.docker.internal.
+
+services:
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:0.9.2
+    container_name: hindsight
+    restart: unless-stopped
+    # Sized from the vendor's per-component table: API 2 GB recommended,
+    # PostgreSQL 1 GB, control plane 256 MB — about 3.3 GB in total, against a
+    # documented "2 GB to 4 GB" for a personal box. The headroom above that is
+    # deliberate: reranking is the one component that spikes, and a limit set at
+    # the floor turns a spike into a restart loop.
+    mem_limit: 8g
+    # PostgreSQL asks for hundreds of MB of dynamic shared memory to build a
+    # vector index or run a parallel maintenance query, and Docker's default
+    # /dev/shm is 64MB, which fails those with "No space left on device" while
+    # the container stays healthy and ordinary reads keep working.
+    shm_size: 1g
+    # Also caps the native thread pools. OMP_NUM_THREADS and friends default to
+    # min(16, available), where available honours this quota, so without it one
+    # rerank fans out across every core on the host.
+    cpus: 4
+    ports:
+      - "8888:8888"   # API, and MCP at /mcp
+      - "9999:9999"   # web UI
+    volumes:
+      - hindsight_data:/home/hindsight/.pg0
+      # Reranker weights download on first use. Without this they are re-fetched
+      # on every container recreate, adding minutes to startup.
+      - hindsight_models:/home/hindsight/.cache
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      # Fixed worker id. The default is the container hostname, so every
+      # recreate (restart, backup, restore, upgrade) minted a new id and any
+      # task in flight stayed 'processing' forever: recovery only reclaims a
+      # worker's own rows. One container runs here, so one stable id is safe.
+      HINDSIGHT_API_WORKER_ID: hindsight
+      HINDSIGHT_API_LLM_PROVIDER: "${HINDSIGHT_LLM_PROVIDER:?set HINDSIGHT_LLM_PROVIDER, run: atk setup hindsight}"
+      # Empty lets Hindsight use its own default for the chosen provider.
+      # The launcher fills this in for host Ollama, whose default names localhost.
+      HINDSIGHT_API_LLM_BASE_URL: ${HINDSIGHT_LLM_BASE_URL:-}
+      # The model decides what survives a write; a hosted provider or a ':cloud'
+      # tag sends memory text off the machine. See README, "Model".
+      HINDSIGHT_API_LLM_MODEL: "${HINDSIGHT_LLM_MODEL:?set HINDSIGHT_LLM_MODEL, run: atk setup hindsight}"
+      HINDSIGHT_API_LLM_API_KEY: ${HINDSIGHT_LLM_API_KEY:-not-needed}
+
+      # Grammar-enforced structured output, off upstream. The default json_object
+      # path only asks for JSON, so a model that answers with a prose preamble or
+      # a markdown fence loses the whole write. Providers that constrain decoding
+      # against the schema make that unreachable. Empty keeps the upstream
+      # default; 'true' turns it on where the provider supports it.
+      HINDSIGHT_API_LLM_STRICT_SCHEMA: ${HINDSIGHT_LLM_STRICT_SCHEMA:-}
+
+      # JSON dict merged into every request body, for parameters a provider
+      # accepts outside the OpenAI schema. 'null' rather than empty is what
+      # leaves it unset: the container runs json.loads on this value at boot, so
+      # an empty string raises and takes the container down before it serves.
+      HINDSIGHT_API_LLM_EXTRA_BODY: ${HINDSIGHT_LLM_EXTRA_BODY:-null}
+
+      # Caps the context a local model allocates. Extraction chunks are ~2k, and
+      # a model's declared context is often far larger. Ignored by ':cloud' tags.
+      HINDSIGHT_API_LLM_OLLAMA_NUM_CTX: "32768"
+
+      # Upstream defaults (32 concurrent, 120s) assume a cloud provider. A local
+      # server has a handful of slots; filling them starves other Ollama clients.
+      HINDSIGHT_API_LLM_MAX_CONCURRENT: "2"
+      HINDSIGHT_API_LLM_TIMEOUT: "300"
+      HINDSIGHT_API_LLM_MAX_RETRIES: "2"
+
+      # Fact extraction and consolidation are structured tasks, so reasoning
+      # tokens buy nothing and cost latency on every retain.
+      HINDSIGHT_API_LLM_REASONING_EFFORT: ${HINDSIGHT_LLM_REASONING_EFFORT:-low}
+
+      # Pinned: the default prompt asks the model to match the input language,
+      # and a misdetection makes those facts unreachable by English recall.
+      HINDSIGHT_API_LLM_OUTPUT_LANGUAGE: English
+
+      # Hindsight has no native ollama embeddings provider; the openai provider
+      # against Ollama's OpenAI-compatible endpoint is the supported route.
+      # Dimensions must match the model.
+      HINDSIGHT_API_EMBEDDINGS_PROVIDER: openai
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL: ${HINDSIGHT_EMBEDDING_BASE_URL:-}
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY: ${HINDSIGHT_EMBEDDING_API_KEY:-not-needed}
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL: ${HINDSIGHT_EMBEDDING_MODEL:-mxbai-embed-large}
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_DIMENSIONS: ${HINDSIGHT_EMBEDDING_DIMENSIONS:-1024}
+
+      # Cross-encoder rerank on every recall, on CPU. flashrank is ONNX and
+      # lightest; 'local' takes any sentence-transformers model and ranks better.
+      HF_HOME: /home/hindsight/.cache/huggingface
+      HINDSIGHT_API_RERANKER_PROVIDER: ${HINDSIGHT_RERANKER_PROVIDER:-flashrank}
+      # Only the active provider reads its own variable.
+      HINDSIGHT_API_RERANKER_FLASHRANK_MODEL: ${HINDSIGHT_RERANKER_MODEL:-ms-marco-MiniLM-L-12-v2}
+      HINDSIGHT_API_RERANKER_LOCAL_MODEL: ${HINDSIGHT_RERANKER_LOCAL_MODEL:-cross-encoder/ms-marco-MiniLM-L-6-v2}
+      # Reranking cost is linear in candidates, so lowering this is the vendor's
+      # biggest CPU win — but it drops the tail of the RRF-ranked pool before
+      # the cross-encoder ever sees it, which is a recall-quality change. Left
+      # at the vendor default; buy speed with bucket batching instead.
+      HINDSIGHT_API_RERANKER_MAX_CANDIDATES: ${HINDSIGHT_RERANKER_MAX_CANDIDATES:-300}
+      # Caps how many reranks run at once so they do not thrash a small CPU.
+      # Their default is 4.
+      HINDSIGHT_API_RERANKER_LOCAL_MAX_CONCURRENT: ${HINDSIGHT_RERANKER_LOCAL_MAX_CONCURRENT:-2}
+      # Sorts pairs by length so a batch is not padded to its longest member.
+      # Vendor measures 36-54% faster and calls it quality-identical by
+      # construction: it changes batching, not scores.
+      HINDSIGHT_API_RERANKER_LOCAL_BUCKET_BATCHING: ${HINDSIGHT_RERANKER_LOCAL_BUCKET_BATCHING:-true}
+
+      # The server exposes many more tools; these are the agent runtime loop
+      # (retain/recall/reflect) plus the mental-model surface the skill relies
+      # on. The filter applies to tools/list and to invocation.
+      HINDSIGHT_API_MCP_ENABLED_TOOLS: "retain,recall,reflect,list_memories,list_mental_models,get_mental_model,create_mental_model,update_mental_model,refresh_mental_model,clear_mental_model"
+
+      # Stateless MCP. A stateful server keeps the session id in memory, so a
+      # recreated container forgets every session, and a client that cannot
+      # re-initialise hangs on the next call until its idle timeout instead of
+      # erroring. Stateless has no session to forget: a recreate is invisible
+      # to connected clients. The cost is POST-only — no SSE/GET server push,
+      # which these three request/response tools do not use.
+      HINDSIGHT_API_MCP_STATELESS: ${HINDSIGHT_MCP_STATELESS:-true}
+
+      # Lets the API test the configured LLM on request and answer with a
+      # status alone. Off upstream, and the only check that holds for every
+      # provider, since the container is what holds their credential shapes.
+      HINDSIGHT_API_ENABLE_BANK_LLM_HEALTH: "true"
+
+      HINDSIGHT_API_VECTOR_EXTENSION: pgvector
+      HINDSIGHT_API_TEXT_SEARCH_EXTENSION: native
+
+      # Seconds for a whole reflect, which is what a mental-model refresh runs.
+      # A refresh that times out leaves the previous content in place and does
+      # not mark it stale.
+      HINDSIGHT_API_REFLECT_WALL_TIMEOUT: ${HINDSIGHT_REFLECT_WALL_TIMEOUT:-600}
+
+      # Hard output cap on reflect's synthesis; empty leaves it uncapped. A
+      # mental model's own max_tokens is a prompt directive, not a ceiling.
+      # Capping here truncates a page mid-word when reasoning tokens are large.
+      HINDSIGHT_API_REFLECT_MAX_COMPLETION_TOKENS: ${HINDSIGHT_REFLECT_MAX_COMPLETION_TOKENS:-}
+
+      # Consolidation runs background LLM calls after every retain.
+      HINDSIGHT_API_ENABLE_OBSERVATIONS: "true"
+
+      # Consolidation merges two observations only above this cosine similarity.
+      # The 0.97 default is high enough that merges effectively never fire.
+      HINDSIGHT_API_CONSOLIDATION_DEDUP_THRESHOLD: "0.85"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8888/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  hindsight_data:
+    name: ${HINDSIGHT_VOLUME_NAME:-hindsight_data}
+  hindsight_models:
+    name: ${HINDSIGHT_VOLUME_NAME:-hindsight_data}_models

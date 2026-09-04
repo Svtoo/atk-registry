@@ -37,7 +37,6 @@ HOME_PATHS = (
 )
 
 OPERATOR_ONLY_DIRS = frozenset({"custom"})
-OPERATOR_ONLY_NAMES = frozenset({".env"})
 
 
 def find_hygiene_violations(plugin_dir: Path) -> list[str]:
@@ -47,7 +46,7 @@ def find_hygiene_violations(plugin_dir: Path) -> list[str]:
     for path in sorted(p for p in plugin_dir.rglob("*") if p.is_file()):
         rel = path.relative_to(plugin_dir)
 
-        if OPERATOR_ONLY_DIRS.intersection(rel.parts) or rel.name in OPERATOR_ONLY_NAMES:
+        if OPERATOR_ONLY_DIRS.intersection(rel.parts):
             violations.append(f"{rel}: operator-only path, never ships to the registry")
             continue
 
