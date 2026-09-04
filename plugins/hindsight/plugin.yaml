@@ -1,0 +1,80 @@
+schema_version: "2026-01-23"
+name: Hindsight
+description: Self-hosted agent memory with retain/recall/reflect over MCP; runs locally in Docker or connects to a remote instance
+maturity: verified
+
+vendor:
+  name: Vectorize
+  url: https://github.com/vectorize-io/hindsight
+  docs: https://hindsight.vectorize.io
+
+service:
+  type: docker-compose
+  compose_file: docker-compose.yml
+
+ports:
+  - port: 8888
+    name: api
+    protocol: http
+    description: Hindsight API and MCP endpoint (/mcp)
+  - port: 9999
+    name: ui
+    protocol: http
+    description: Control Plane web UI
+
+env_vars:
+  - name: HINDSIGHT_MODE
+    required: false
+    default: local
+    description: "'local' runs Hindsight in Docker on this machine. 'remote' runs nothing locally and connects to an existing instance at HINDSIGHT_URL."
+  - name: HINDSIGHT_URL
+    required: false
+    default: http://localhost:8888
+    description: Hindsight API base URL; the agent's MCP endpoint is built from it
+  - name: HINDSIGHT_BANK
+    required: false
+    default: default
+    description: Memory bank this agent reads and writes. The MCP endpoint is scoped to it, so the agent cannot reach another bank. Use separate banks to isolate unrelated work.
+  - name: HINDSIGHT_LLM_PROVIDER
+    required: true
+    description: "Local mode only. Where the model runs: 'ollama' for this machine, or a hosted provider such as 'openrouter', 'groq', 'openai', 'anthropic'."
+  - name: HINDSIGHT_LLM_MODEL
+    required: false
+    default: z-ai/glm-5.3-flash
+    description: "Local mode only. Model for extraction and reflect. Its name is provider-specific. A ':cloud' tag sends your memory text to a third party."
+  - name: HINDSIGHT_LLM_API_KEY
+    required: false
+    default: not-needed
+    secret: true
+    description: Local mode only. API key for HINDSIGHT_LLM_BASE_URL. Ollama ignores it. Ollama Cloud models authenticate through 'ollama signin' instead.
+  - name: HINDSIGHT_RETAIN_MODE
+    required: false
+    default: custom
+    description: "How facts are extracted in the configured bank: 'concise' (Hindsight's own default, tightest but drops code detail), 'verbose', 'custom' (concise plus the code-preserving instructions in retain-instructions.md; put your own text in custom/retain-instructions.md to replace it), 'verbatim', 'chunks', or 'off' to leave the bank's settings entirely to you. Applied when the service starts; a change made in the Hindsight UI is detected and never overwritten."
+  - name: HINDSIGHT_BACKUP_DIR
+    required: false
+    default: ""
+    description: Local mode only. Directory to store database backups (e.g. a Google Drive folder). If unset, backup is skipped. Run 'atk run hindsight backup', and 'atk run hindsight schedule' to keep them fresh daily.
+
+lifecycle:
+  install: ./install.sh
+  uninstall: ./uninstall.sh
+  start: ./service.sh start
+  stop: ./service.sh stop
+  status: ./service.sh status
+  logs: ./service.sh logs
+
+mcp:
+  # Connected directly rather than bridged through mcp-remote over stdio: the
+  # bridge initialises its session once and has no way back, so recreating the
+  # container leaves every running client hanging on a session the server has
+  # forgotten. It also puts the client on the 5-minute idle window remote
+  # servers get instead of the 30-minute one stdio servers get.
+  transport: http
+  endpoint: "$HINDSIGHT_URL/mcp/$HINDSIGHT_BANK/"
+  # recall runs ~40s and reflect ~140s; the client's default would read those
+  # as a stalled server.
+  timeout: 600000
+  env:
+    - HINDSIGHT_URL
+    - HINDSIGHT_BANK

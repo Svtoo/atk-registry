@@ -1,0 +1,422 @@
+{
+  "stratum": "short_factual",
+  "memories": [
+    {
+      "id": "short_factual-001",
+      "text": "Default local test command for the `orchard-api` repo is `pytest -q --maxfail=1`. The coverage run `pytest --cov=orchard_api --cov-report=term-missing` is CI-only and must never fire from a pre-commit hook, because it takes over 400s on a laptop.",
+      "hard_tokens": [
+        "orchard-api",
+        "pytest -q --maxfail=1",
+        "pytest --cov=orchard_api --cov-report=term-missing",
+        "400s"
+      ],
+      "expected_min_facts": 2,
+      "traps": [
+        "may collapse both commands into one fact like 'runs pytest with coverage'",
+        "may drop the `-q` and `--maxfail=1` flags as noise",
+        "may paraphrase the coverage invocation instead of quoting it verbatim"
+      ]
+    },
+    {
+      "id": "short_factual-002",
+      "text": "The Meridian billing service exposes `POST /v3/invoices/reconcile` at `https://api.meridian-internal.dev`. Every call needs the header `X-Meridian-Tenant: acct_7fdc21` and is rate limited to 12 requests per minute; exceeding that returns HTTP 429 with the body code `RECONCILE_THROTTLED`. The limit is per tenant, not per API key, so parallel workers sharing a tenant still collide. Retries must therefore be spaced by tenant, not by process, and the client library does not do that for you.",
+      "hard_tokens": [
+        "POST /v3/invoices/reconcile",
+        "https://api.meridian-internal.dev",
+        "X-Meridian-Tenant: acct_7fdc21",
+        "12 requests per minute",
+        "HTTP 429",
+        "RECONCILE_THROTTLED"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may write 'the v3 reconcile endpoint' instead of the literal path",
+        "may drop the tenant id `acct_7fdc21` from the header value",
+        "may merge the header requirement and the rate limit into a single fact"
+      ]
+    },
+    {
+      "id": "short_factual-003",
+      "text": "Local dev for `hindsight-eval` needs three env vars exported before `make serve`: `HINDSIGHT_DB_URL`, `HINDSIGHT_EMBED_MODEL` and `HINDSIGHT_LOG_LEVEL`. If `HINDSIGHT_LOG_LEVEL` is unset the server silently defaults to `WARNING`, which hides every retrieval trace and makes recall look broken when it is only quiet.",
+      "hard_tokens": [
+        "hindsight-eval",
+        "make serve",
+        "HINDSIGHT_DB_URL",
+        "HINDSIGHT_EMBED_MODEL",
+        "HINDSIGHT_LOG_LEVEL",
+        "WARNING"
+      ],
+      "expected_min_facts": 2,
+      "traps": [
+        "may collapse the three env vars into 'several environment variables'",
+        "may lowercase or reword the `WARNING` default",
+        "may drop `make serve` and say 'before starting the server'"
+      ]
+    },
+    {
+      "id": "short_factual-004",
+      "text": "The regression in nightly ingest was introduced by commit `a41f9c2e` on branch `feat/chunker-v2`, tracked as ticket `ORCH-1184`. The revert is `git revert a41f9c2e --no-edit`; do not cherry-pick `b73dd10` on top of it, that commit depends on the reverted chunker signature and will not compile.",
+      "hard_tokens": [
+        "feat/chunker-v2",
+        "ORCH-1184",
+        "git revert a41f9c2e --no-edit",
+        "b73dd10"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may truncate or lengthen the short SHAs (`a41f9c2` / `a41f9c2e0`)",
+        "may drop `--no-edit` from the revert command",
+        "may merge the revert instruction and the cherry-pick warning into one fact"
+      ]
+    },
+    {
+      "id": "short_factual-005",
+      "text": "In `pipeline/fetcher.py` the retry wrapper catches only `TransientFetchError` and `httpx.ReadTimeout`. Backoff is `0.5 * (2 ** attempt)` seconds capped at 30s, with `MAX_FETCH_ATTEMPTS = 5` defined at module top. Catching bare `Exception` there was rejected in review: it swallowed `KeyboardInterrupt` during the March backfill and the job looked healthy for six hours while doing nothing.",
+      "hard_tokens": [
+        "pipeline/fetcher.py",
+        "TransientFetchError",
+        "httpx.ReadTimeout",
+        "0.5 * (2 ** attempt)",
+        "30s",
+        "MAX_FETCH_ATTEMPTS = 5",
+        "Exception",
+        "KeyboardInterrupt"
+      ],
+      "expected_min_facts": 4,
+      "traps": [
+        "may paraphrase the formula as 'exponential backoff' and drop `0.5 * (2 ** attempt)`",
+        "may collapse the two caught exception types into 'transient errors'",
+        "may state the constant as 'five attempts' instead of `MAX_FETCH_ATTEMPTS = 5`"
+      ]
+    },
+    {
+      "id": "short_factual-006",
+      "text": "Pin `pydantic==2.9.2` in `requirements/base.txt`. Version `2.10.0` breaks `model_validate_json` for our `Discriminator`-tagged unions and surfaces as `ValidationError: Input tag 'v1' found using 'kind'`. The pin carries a comment pointing at upstream issue `pydantic/pydantic#9911`.",
+      "hard_tokens": [
+        "pydantic==2.9.2",
+        "requirements/base.txt",
+        "2.10.0",
+        "model_validate_json",
+        "Discriminator",
+        "ValidationError: Input tag 'v1' found using 'kind'",
+        "pydantic/pydantic#9911"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may write 'pydantic 2.9' and lose the `==2.9.2` pin syntax",
+        "may summarise the error as 'a validation error' and drop the literal message",
+        "may drop the upstream issue reference entirely"
+      ]
+    },
+    {
+      "id": "short_factual-007",
+      "text": "The staging Verbatex connector authenticates with API key `pk_stg_EXAMPLE_NOT_A_REAL_KEY_0000`, stored in the 1Password item `Verbatex / staging` and never in `.env`. It is scoped to `read:transcripts` only, so any write call fails closed. It rotates on the first Monday of each quarter and the rotation steps live in `docs/runbooks/rotate-plaudit-key.md`. The production key is a different item entirely and must never be pasted into a terminal that records history to disk.",
+      "hard_tokens": [
+        "pk_stg_EXAMPLE_NOT_A_REAL_KEY_0000",
+        "Verbatex / staging",
+        ".env",
+        "read:transcripts",
+        "docs/runbooks/rotate-plaudit-key.md"
+      ],
+      "expected_min_facts": 4,
+      "traps": [
+        "may redact the key to 'an API key' or mask it as `pk_stg_...`",
+        "may drop the `read:transcripts` scope string",
+        "may merge storage location, scope and rotation into one summary fact"
+      ]
+    },
+    {
+      "id": "short_factual-008",
+      "text": "Local Postgres for the eval harness listens on `55432/tcp`, not the Postgres default, because the Orbital Freight VPN already binds the standard port. The DSN is `postgresql://evaluser:evalpass@127.0.0.1:55432/hindsight_eval`. Anything that reads `DATABASE_URL` from the ambient shell picks up the wrong database, so pass `--dsn` explicitly to every harness command.",
+      "hard_tokens": [
+        "55432/tcp",
+        "postgresql://evaluser:evalpass@127.0.0.1:55432/hindsight_eval",
+        "DATABASE_URL",
+        "--dsn"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may normalise `55432/tcp` to the familiar default 5432",
+        "may describe the DSN in words instead of quoting the full connection string",
+        "may drop the `--dsn` flag and say 'pass the connection explicitly'"
+      ]
+    },
+    {
+      "id": "short_factual-009",
+      "text": "The corpus refresh job runs at `17 3 * * 1-5` UTC on the `eval-runner` host and invokes `/opt/hindsight/bin/refresh_corpus.sh --stratum all --dry-run=false`. Weekend runs were deliberately dropped after the April incident where two refreshes overlapped and truncated the corpus mid-write, so do not restore a `* * 6,7` schedule.",
+      "hard_tokens": [
+        "17 3 * * 1-5",
+        "eval-runner",
+        "/opt/hindsight/bin/refresh_corpus.sh --stratum all --dry-run=false",
+        "* * 6,7"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may render the cron as 'weekday mornings' instead of quoting `17 3 * * 1-5`",
+        "may drop `--dry-run=false` from the invocation",
+        "may omit the forbidden `* * 6,7` schedule as an incidental detail"
+      ]
+    },
+    {
+      "id": "short_factual-010",
+      "text": "Feature flag `ff.rerank_v3_enabled` is off in production and on for the internal tenant `tnt_0042`. The flag is read once at boot in `services/search/bootstrap.go`, so flipping it needs a rolling restart: `kubectl rollout restart deploy/search-api -n prod-search`.",
+      "hard_tokens": [
+        "ff.rerank_v3_enabled",
+        "tnt_0042",
+        "services/search/bootstrap.go",
+        "kubectl rollout restart deploy/search-api -n prod-search"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may collapse the restart command into 'requires a restart'",
+        "may drop the `-n prod-search` namespace flag",
+        "may paraphrase the flag name as 'the rerank v3 flag'"
+      ]
+    },
+    {
+      "id": "short_factual-011",
+      "text": "The user does not want generated code comments that narrate history: no `# previously used requests`, no `# changed in v2`. Comments describe current behaviour and non-obvious constraints only, and change history belongs in git log. This holds in every repo and is a hard rule, not a per-PR style preference to be renegotiated.",
+      "hard_tokens": [
+        "# previously used requests",
+        "# changed in v2"
+      ],
+      "expected_min_facts": 2,
+      "traps": [
+        "may drop both literal example comments as throwaway illustrations",
+        "may soften the rule into 'prefers clean comments', losing the hard-rule framing",
+        "may pad this short preference into a paragraph about commenting philosophy"
+      ]
+    },
+    {
+      "id": "short_factual-012",
+      "text": "Deploys pin the runner image by digest, not tag: `ghcr.io/orbital/eval-runner@sha256:4c1b8a7f2d9e` in `deploy/values-prod.yaml`. CI fails the `verify-digest` step if any chart references `:latest`.",
+      "hard_tokens": [
+        "ghcr.io/orbital/eval-runner@sha256:4c1b8a7f2d9e",
+        "deploy/values-prod.yaml",
+        ":latest",
+        "verify-digest"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may truncate the sha256 digest",
+        "may drop the `:latest` tag mention while keeping the general rule",
+        "may omit the `verify-digest` CI step name"
+      ]
+    },
+    {
+      "id": "short_factual-013",
+      "text": "The CLI option must stay `typer.Option(..., \"--stratum\", \"-s\", help=\"Corpus stratum\")`; the short form is referenced in three runbooks and cannot change. `_stdin_prompt()` reads from stdin only when `sys.stdin.isatty()` is False, and otherwise raises `PromptUnavailable` rather than blocking a CI job forever.",
+      "hard_tokens": [
+        "typer.Option(..., \"--stratum\", \"-s\", help=\"Corpus stratum\")",
+        "_stdin_prompt()",
+        "sys.stdin.isatty()",
+        "PromptUnavailable"
+      ],
+      "expected_min_facts": 2,
+      "traps": [
+        "may describe it as 'the stratum CLI option', losing `typer.Option` and its arguments",
+        "may drop the `help=` keyword argument from the quoted signature",
+        "may paraphrase `_stdin_prompt()` behaviour and lose `sys.stdin.isatty()`"
+      ]
+    },
+    {
+      "id": "short_factual-014",
+      "text": "Runner logs land in `/var/log/hindsight/eval-runner.log`, rotated by logrotate at 100M with `rotate 7` and `compress`. The harness separately writes a JSONL trace to `results/traces/{run_id}.jsonl`; that file is never rotated and has filled the disk twice.",
+      "hard_tokens": [
+        "/var/log/hindsight/eval-runner.log",
+        "100M",
+        "rotate 7",
+        "compress",
+        "results/traces/{run_id}.jsonl"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may substitute a concrete id for the `{run_id}` placeholder",
+        "may collapse `rotate 7` and `compress` into 'standard rotation settings'",
+        "may merge the two distinct log destinations into one fact"
+      ]
+    },
+    {
+      "id": "short_factual-015",
+      "text": "Alerts for failed eval runs post to the Slack webhook `https://hooks.slack.example/services/T04KQ1/B07ZX9/9mQ2vLd1`, which delivers into `#eval-alerts`. The payload must set `\"username\": \"eval-runner\"` or the workspace rule `no-anon-bots` drops the message silently, with a 200 response and no delivery.",
+      "hard_tokens": [
+        "https://hooks.slack.example/services/T04KQ1/B07ZX9/9mQ2vLd1",
+        "#eval-alerts",
+        "\"username\": \"eval-runner\"",
+        "no-anon-bots",
+        "200 response"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may abbreviate or redact the webhook URL path segments",
+        "may drop the required payload field and say 'set a username'",
+        "may omit the `no-anon-bots` rule name"
+      ]
+    },
+    {
+      "id": "short_factual-016",
+      "text": "The `ruff` config in `pyproject.toml` disables exactly two rules: `E501`, because line length is the formatter's job, and `S101`, because tests assert.",
+      "hard_tokens": [
+        "ruff",
+        "pyproject.toml",
+        "E501",
+        "S101"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may say 'a couple of lint rules are disabled' and lose `E501` and `S101`",
+        "may attribute the config to a generic 'linter config' instead of `pyproject.toml`",
+        "may merge both rule exemptions into a single fact"
+      ]
+    },
+    {
+      "id": "short_factual-017",
+      "text": "Client timeouts for the grading call are `connect=3.0`, `read=120.0`, `write=10.0` and `pool=5.0`. The read timeout is deliberately long because `deepseek-v4-pro` emits its first token after roughly ~40s on long prompts; lowering it to the httpx default caused the silent truncation we chased for a full day.",
+      "hard_tokens": [
+        "connect=3.0",
+        "read=120.0",
+        "write=10.0",
+        "pool=5.0",
+        "deepseek-v4-pro",
+        "~40s"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may collapse the four timeout values into 'configured timeouts'",
+        "may round or reformat `read=120.0` as '120 seconds'",
+        "may drop the model name `deepseek-v4-pro` as context rather than content"
+      ]
+    },
+    {
+      "id": "short_factual-018",
+      "text": "Migration `0037_add_hard_token_index.py` must run before `0038_backfill_ratios.py`. Out of order, `idx_hard_tokens_gin` is missing and the backfill takes 90 minutes instead of 4. Apply with `alembic upgrade 0038` on prod, never `alembic upgrade head`, which would also pull in the unreviewed 0039.",
+      "hard_tokens": [
+        "0037_add_hard_token_index.py",
+        "0038_backfill_ratios.py",
+        "idx_hard_tokens_gin",
+        "alembic upgrade 0038",
+        "alembic upgrade head"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may merge the two alembic commands into 'run alembic upgrade'",
+        "may drop the index name `idx_hard_tokens_gin`",
+        "may lose the ordering constraint by naming only one migration file"
+      ]
+    },
+    {
+      "id": "short_factual-019",
+      "text": "The mTLS client certificate for the Halcyon feed lives at `/etc/halcyon/certs/client.pem` with its key at `/etc/halcyon/certs/client.key`, both set to `chmod 0600` and owned by the service account. It expires `2026-11-03`. Renewal is manual, the vendor sends no expiry warning, and a calendar reminder is the only safeguard we have. A previous expiry took the feed down for eleven hours because nobody owned the renewal and the alert we assumed existed had never been configured.",
+      "hard_tokens": [
+        "/etc/halcyon/certs/client.pem",
+        "/etc/halcyon/certs/client.key",
+        "chmod 0600",
+        "2026-11-03"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may collapse both paths into 'the certs directory'",
+        "may drop the `chmod 0600` file mode",
+        "may reformat the expiry date instead of quoting `2026-11-03`"
+      ]
+    },
+    {
+      "id": "short_factual-020",
+      "text": "The user reads diffs with `git diff --stat` first, then `git diff -- <path>`. Never paste a full diff into chat unless he explicitly asks for `--word-diff`.",
+      "hard_tokens": [
+        "git diff --stat",
+        "git diff -- <path>",
+        "--word-diff"
+      ],
+      "expected_min_facts": 2,
+      "traps": [
+        "may pad this two-line preference into a paragraph on diff-review workflow",
+        "may generalise to 'prefers stat-first diffs' and drop the literal commands",
+        "may normalise the `<path>` placeholder away"
+      ]
+    },
+    {
+      "id": "short_factual-021",
+      "text": "Requests to the Kestrel gateway at `https://kestrel.svc.internal:8443` must send `Accept: application/vnd.kestrel.v2+json`. Plain `application/json` returns HTTP 406 with `{\"error\":\"unsupported_media_type\"}` and no useful detail in the body.",
+      "hard_tokens": [
+        "Accept: application/vnd.kestrel.v2+json",
+        "application/json",
+        "HTTP 406",
+        "{\"error\":\"unsupported_media_type\"}",
+        "https://kestrel.svc.internal:8443"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may paraphrase the vendor media type as 'the v2 JSON accept header'",
+        "may drop the literal JSON error body",
+        "may omit the port from the origin URL"
+      ]
+    },
+    {
+      "id": "short_factual-022",
+      "text": "The extraction eval gate has three thresholds: hard-token verbatim survival must be `>= 0.95`, the median fact/source length ratio must be `<= 1.10`, and the fabricated-entity budget is `0/500` facts. A run that fails any one of the three is written as `FAIL_GATE` into `results/summary.json`.",
+      "hard_tokens": [
+        ">= 0.95",
+        "<= 1.10",
+        "0/500",
+        "FAIL_GATE",
+        "results/summary.json"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may round `<= 1.10` to 1.1 or restate thresholds as percentages",
+        "may collapse the three thresholds into one 'quality gate' fact",
+        "may drop the `FAIL_GATE` marker string"
+      ]
+    },
+    {
+      "id": "short_factual-023",
+      "text": "Prod infrastructure lives in the Terraform workspace `orbital-prod-euw1` and is applied only through `make tf-apply ENV=prod`, which wraps `terraform apply -var-file=envs/prod.tfvars -lock-timeout=300s`. Running the bare CLI in that directory targets the default workspace instead, which is how the staging RDS instance was destroyed last quarter. Anyone applying from a fresh clone must select the workspace first, because Terraform silently falls back to the default workspace rather than refusing to run.",
+      "hard_tokens": [
+        "orbital-prod-euw1",
+        "make tf-apply ENV=prod",
+        "terraform apply -var-file=envs/prod.tfvars -lock-timeout=300s"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may drop `-lock-timeout=300s` from the wrapped command",
+        "may say 'use the make target' without quoting `make tf-apply ENV=prod`",
+        "may lose the `-var-file=envs/prod.tfvars` path"
+      ]
+    },
+    {
+      "id": "short_factual-024",
+      "text": "This repo is uv-only: `uv sync --frozen` to install and `uv run pytest` to test. A `pip install` inside the venv desynchronises `uv.lock`, and CI's `uv lock --check` then fails with `error: The lockfile is not up-to-date`.",
+      "hard_tokens": [
+        "uv sync --frozen",
+        "uv run pytest",
+        "pip install",
+        "uv.lock",
+        "uv lock --check",
+        "error: The lockfile is not up-to-date"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may generalise to 'use uv instead of pip' and drop all four commands",
+        "may paraphrase the CI failure instead of quoting the literal error line",
+        "may merge the install and test commands into one fact"
+      ]
+    },
+    {
+      "id": "short_factual-025",
+      "text": "The Hindsight MCP bridge binds `127.0.0.1:8787` and refuses non-loopback binds by design; setting `HINDSIGHT_BIND=0.0.0.0` is ignored and logs the startup line `bind_rejected: non-loopback`. To reach it from another machine, tunnel with `ssh -N -L 8787:localhost:8787 eval-runner` instead of trying to widen the bind.",
+      "hard_tokens": [
+        "127.0.0.1:8787",
+        "HINDSIGHT_BIND=0.0.0.0",
+        "bind_rejected: non-loopback",
+        "ssh -N -L 8787:localhost:8787 eval-runner"
+      ],
+      "expected_min_facts": 3,
+      "traps": [
+        "may drop the literal startup log line",
+        "may summarise the tunnel as 'use an SSH tunnel' without the command",
+        "may present `HINDSIGHT_BIND=0.0.0.0` as working configuration rather than ignored"
+      ]
+    }
+  ]
+}

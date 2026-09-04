@@ -1,0 +1,1452 @@
+{
+  "generator": "hard-token-elision/1",
+  "seed": 20260824,
+  "queries_per_memory": 3,
+  "n_queries": 155,
+  "memories_covered": 52,
+  "corpus_unique_targets": 155,
+  "skipped": [
+    {
+      "memory_id": "code_handover-018",
+      "token": "torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 2.31 GiB (GPU 0; 79.14 GiB total capacity; 74.02 GiB already allocated)",
+      "reason": "no_sentence_contains_token"
+    },
+    {
+      "memory_id": "code_handover-023",
+      "token": "S2",
+      "reason": "token_too_short"
+    },
+    {
+      "memory_id": "decisions_rationale-001",
+      "token": "SELECT ... ORDER BY embedding <=> $1 LIMIT 40",
+      "reason": "no_sentence_contains_token"
+    },
+    {
+      "memory_id": "decisions_rationale-024",
+      "token": "9%",
+      "reason": "token_too_short"
+    },
+    {
+      "memory_id": "decisions_rationale-024",
+      "token": "3%",
+      "reason": "token_too_short"
+    },
+    {
+      "memory_id": "meetings_people-001",
+      "token": "Q3",
+      "reason": "token_too_short"
+    },
+    {
+      "memory_id": "meetings_people-022",
+      "token": "5%",
+      "reason": "token_too_short"
+    },
+    {
+      "memory_id": "meetings_people-025",
+      "token": "Q1",
+      "reason": "token_too_short"
+    },
+    {
+      "memory_id": "meetings_people-025",
+      "token": "8%",
+      "reason": "token_too_short"
+    }
+  ],
+  "queries": [
+    {
+      "query_id": "code_handover-001#q1",
+      "memory_id": "code_handover-001",
+      "stratum": "code_handover",
+      "target_token": "typer.Option(5.0, \"--stdin-timeout\", help=\"Seconds to wait on stdin\")",
+      "target_is_corpus_unique": true,
+      "source_sentence": "What I changed: added `--stdin-timeout` as a `typer.Option(5.0, \"--stdin-timeout\", help=\"Seconds to wait on stdin\")` on the retain command, wired through to `_stdin_prompt`.",
+      "query": "Handover for the retention path, picking up where Marek Osiv left it. What I changed: added as a on the retain command, wired through to _stdin_prompt."
+    },
+    {
+      "query_id": "code_handover-001#q2",
+      "memory_id": "code_handover-001",
+      "stratum": "code_handover",
+      "target_token": "tests/cli/test_retain_stdin.py::test_empty_stdin_exits_65",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The integration test `tests/cli/test_retain_stdin.py::test_empty_stdin_exits_65` asserts 65 and currently fails with `subprocess.TimeoutExpired`.",
+      "query": "Handover for the retention path, picking up where Marek Osiv left it. The integration test asserts 65 and currently fails with."
+    },
+    {
+      "query_id": "code_handover-001#q3",
+      "memory_id": "code_handover-001",
+      "stratum": "code_handover",
+      "target_token": "/opt/hindsight/src/hindsight_cli/commands/retain.py",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Root cause is in `/opt/hindsight/src/hindsight_cli/commands/retain.py`, function `_stdin_prompt(timeout: float = 5.0) -> str | None`, which calls `sys.stdin.read()` with no select() guard.",
+      "query": "Handover for the retention path, picking up where Marek Osiv left it. Root cause is in, function, which calls with no select guard."
+    },
+    {
+      "query_id": "code_handover-003#q1",
+      "memory_id": "code_handover-003",
+      "stratum": "code_handover",
+      "target_token": "otlp exporter dial tcp: lookup otel-collector.observability.svc.cluster.local: no such host",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Evidence: `kubectl -n payments logs deploy/checkout-api -c api --previous | grep otlp` gives `otlp exporter dial tcp: lookup otel-collector.observability.svc.cluster.local: no such host`.",
+      "query": "Session handover, rollout stuck,. DNS resolution fails, readiness never flips, rolls back, and the whole thing is invisible because the container logs the failure at. Evidence: gives. And lists only and."
+    },
+    {
+      "query_id": "code_handover-003#q2",
+      "memory_id": "code_handover-003",
+      "stratum": "code_handover",
+      "target_token": "helm upgrade checkout-api ./charts/checkout-api -n payments -f values.prod.yaml --atomic --timeout 10m",
+      "target_is_corpus_unique": true,
+      "source_sentence": "`helm upgrade checkout-api ./charts/checkout-api -n payments -f values.prod.yaml --atomic --timeout 10m` rolls back every time.",
+      "query": "Session handover, rollout stuck,. rolls back every time. The new pods pass but fail with HTTP."
+    },
+    {
+      "query_id": "code_handover-003#q3",
+      "memory_id": "code_handover-003",
+      "stratum": "code_handover",
+      "target_token": "kubectl -n payments logs deploy/checkout-api -c api --previous | grep otlp",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Evidence: `kubectl -n payments logs deploy/checkout-api -c api --previous | grep otlp` gives `otlp exporter dial tcp: lookup otel-collector.observability.svc.cluster.local: no such host`.",
+      "query": "Session handover, rollout stuck,. DNS resolution fails, readiness never flips, rolls back, and the whole thing is invisible because the container the failure at. Evidence: gives. And lists only and."
+    },
+    {
+      "query_id": "code_handover-004#q1",
+      "memory_id": "code_handover-004",
+      "stratum": "code_handover",
+      "target_token": "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_events_bank_id ON events (bank_id, created_at DESC);",
+      "target_is_corpus_unique": true,
+      "source_sentence": "First `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_events_bank_id ON events (bank_id, created_at DESC);` then verify with `SELECT indexrelid::regclass, indisvalid FROM pg_index WHERE indrelid = 'events'::regclass;`.",
+      "query": "Handover: migration deadlocked staging. Rewrite it as two statements in separate transactions. First then verify with. A build that fails leaves, and you must before retrying."
+    },
+    {
+      "query_id": "code_handover-004#q2",
+      "memory_id": "code_handover-004",
+      "stratum": "code_handover",
+      "target_token": "SELECT indexrelid::regclass, indisvalid FROM pg_index WHERE indrelid = 'events'::regclass;",
+      "target_is_corpus_unique": true,
+      "source_sentence": "First `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_events_bank_id ON events (bank_id, created_at DESC);` then verify with `SELECT indexrelid::regclass, indisvalid FROM pg_index WHERE indrelid = 'events'::regclass;`.",
+      "query": "Handover: migration deadlocked staging. Rewrite it as two statements in separate transactions. First then verify with. A build that fails leaves, and you must before retrying."
+    },
+    {
+      "query_id": "code_handover-004#q3",
+      "memory_id": "code_handover-004",
+      "stratum": "code_handover",
+      "target_token": "SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE query LIKE 'CREATE INDEX%';",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Watch it from a second session with `SELECT phase, blocks_done, blocks_total FROM pg_stat_progress_create_index;`, and have `SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE query LIKE 'CREATE INDEX%';` ready in a scratch buffer before you start rather than after.",
+      "query": "Handover: migration deadlocked staging. Watch it from a second session with, and have ready in a scratch buffer before you start rather than after."
+    },
+    {
+      "query_id": "code_handover-005#q1",
+      "memory_id": "code_handover-005",
+      "stratum": "code_handover",
+      "target_token": "terraform show -json /tmp/prod.plan | jq '.resource_changes[] | select(.change.actions[0] != \"no-op\") | .address'",
+      "target_is_corpus_unique": true,
+      "source_sentence": "To reproduce the plan without touching anything: `terraform plan -var-file=env/prod.tfvars -lock=false -out=/tmp/prod.plan` then `terraform show -json /tmp/prod.plan | jq '.resource_changes[] | select(.change.actions[0] != \"no-op\") | .address'`.",
+      "query": "Handover, tate drift on, unresolved. To reproduce the plan without touching anything: then."
+    },
+    {
+      "query_id": "code_handover-005#q2",
+      "memory_id": "code_handover-005",
+      "stratum": "code_handover",
+      "target_token": "terraform plan -var-file=env/prod.tfvars -lock=false -out=/tmp/prod.plan",
+      "target_is_corpus_unique": true,
+      "source_sentence": "To reproduce the plan without touching anything: `terraform plan -var-file=env/prod.tfvars -lock=false -out=/tmp/prod.plan` then `terraform show -json /tmp/prod.plan | jq '.resource_changes[] | select(.change.actions[0] != \"no-op\") | .address'`.",
+      "query": "Handover, state drift on, unresolved. To reproduce the without touching anything: then."
+    },
+    {
+      "query_id": "code_handover-005#q3",
+      "memory_id": "code_handover-005",
+      "stratum": "code_handover",
+      "target_token": "s3://tfstate-frontline-prod/live/prod-eu-west-1/terraform.tfstate",
+      "target_is_corpus_unique": true,
+      "source_sentence": "State lives in `s3://tfstate-frontline-prod/live/prod-eu-west-1/terraform.tfstate` with lock table `terraform-locks-prod`.",
+      "query": "Handover, state drift on, unresolved. State lives in with lock table."
+    },
+    {
+      "query_id": "code_handover-006#q1",
+      "memory_id": "code_handover-006",
+      "stratum": "code_handover",
+      "target_token": "TS2307: Cannot find module '@atlas/schema/events' or its corresponding type declarations.",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The error is `TS2307: Cannot find module '@atlas/schema/events' or its corresponding type declarations.`",
+      "query": "Handover: build broken on CI only, green locally. Failing job is, job, step. The error is This is a pnpm hoisting difference, not a TypeScript bug."
+    },
+    {
+      "query_id": "code_handover-006#q2",
+      "memory_id": "code_handover-006",
+      "stratum": "code_handover",
+      "target_token": "\"./events\": { \"types\": \"./dist/events.d.ts\", \"default\": \"./dist/events.js\" }",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The fix is per-subpath types: `\"./events\": { \"types\": \"./dist/events.d.ts\", \"default\": \"./dist/events.js\" }`.",
+      "query": "Handover: build broken on CI only, green locally. The package now declares but types is still only at the top level, so in finds the JS and never the.d.ts for the subpath. The fix is per-subpath types:. I have this working in a dirty tree at and passes with it."
+    },
+    {
+      "query_id": "code_handover-006#q3",
+      "memory_id": "code_handover-006",
+      "stratum": "code_handover",
+      "target_token": "\"exports\": { \".\": \"./dist/index.js\", \"./events\": \"./dist/events.js\" }",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The package now declares `\"exports\": { \".\": \"./dist/index.js\", \"./events\": \"./dist/events.js\" }` but types is still only `\"types\": \"./dist/index.d.ts\"` at the top level, so `moduleResolution: \"bundler\"` in `tsconfig.base.json` finds the JS and never the .d.ts for the `./events` subpath.",
+      "query": "Handover: build broken on CI only, green locally. The package now declares but types is still only at the top level, so in finds the JS and never the.d.ts for the subpath."
+    },
+    {
+      "query_id": "code_handover-009#q1",
+      "memory_id": "code_handover-009",
+      "stratum": "code_handover",
+      "target_token": "buf breaking --against '.git#branch=main'",
+      "target_is_corpus_unique": true,
+      "source_sentence": "`buf breaking --against '.git#branch=main'` did flag it, with `FIELD_SAME_TYPE` on `telemetry.v1.Reading.device_id`.",
+      "query": "Handover, proto change already on staging, needs a decision before Friday's. returned mojibake instead of throwing. did flag it, with on. The check is configured in under, but the CI step in has, which is why it merged."
+    },
+    {
+      "query_id": "code_handover-009#q2",
+      "memory_id": "code_handover-009",
+      "stratum": "code_handover",
+      "target_token": "grpc://telemetry-staging.internal:8443",
+      "target_is_corpus_unique": true,
+      "source_sentence": "I confirmed this by running the old client jar `telemetry-client-3.4.2.jar` against staging at `grpc://telemetry-staging.internal:8443`.",
+      "query": "Handover, proto breaking change already on, needs a decision before Friday's. I confirmed this by running the old client jar against at."
+    },
+    {
+      "query_id": "code_handover-009#q3",
+      "memory_id": "code_handover-009",
+      "stratum": "code_handover",
+      "target_token": "buf generate --template buf.gen.yaml",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Regenerate after any change with `buf generate --template buf.gen.yaml`.",
+      "query": "Handover, proto breaking change already on staging, needs a decision before Friday's. I did not revert because the change is entangled with an unrelated addition in the same commit, so a clean revert needs and then re-applying the batch message by hand. Re after any change with. Do not run directly, the plugin versions pinned in ( and ) differ"
+    },
+    {
+      "query_id": "code_handover-011#q1",
+      "memory_id": "code_handover-011",
+      "stratum": "code_handover",
+      "target_token": ".prefetch_related(Prefetch('assignments', queryset=Assignment.objects.select_related('user')))",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Fix is to restore prefetching with `.prefetch_related(Prefetch('assignments', queryset=Assignment.objects.select_related('user')))` inside `get_queryset()`.",
+      "query": "Handover: p95 went from to after the model change. Fix is to restore ing with inside."
+    },
+    {
+      "query_id": "code_handover-011#q2",
+      "memory_id": "code_handover-011",
+      "stratum": "code_handover",
+      "target_token": "pytest apps/reports/tests/test_summary_perf.py -q",
+      "target_is_corpus_unique": true,
+      "source_sentence": "I have it locally and `pytest apps/reports/tests/test_summary_perf.py -q` drops the count to 6 queries, but the test asserts `assertNumQueries(4)` and now fails.",
+      "query": "Handover: p95 went from to after the Assignment model change. I have it locally and drops the count to 6 queries, but the sserts and now fails."
+    },
+    {
+      "query_id": "code_handover-011#q3",
+      "memory_id": "code_handover-011",
+      "stratum": "code_handover",
+      "target_token": "[a.user.full_name for a in obj.assignments.all()]",
+      "target_is_corpus_unique": true,
+      "source_sentence": "It does `[a.user.full_name for a in obj.assignments.all()]`.",
+      "query": "Handover: p95 went from to after the A model change. The regression is in, class, method. It does. Since became a nullable FK to in migration, the old in was dropped in commit, so every row now issues its own query."
+    },
+    {
+      "query_id": "code_handover-015#q1",
+      "memory_id": "code_handover-015",
+      "stratum": "code_handover",
+      "target_token": "ffmpeg -f concat -safe 0 -i \"$LIST\" -ar 48000 -ac 1 -c:a aac -b:a 96k -movflags +faststart \"$OUT\"",
+      "target_is_corpus_unique": true,
+      "source_sentence": "I tested `ffmpeg -f concat -safe 0 -i \"$LIST\" -ar 48000 -ac 1 -c:a aac -b:a 96k -movflags +faststart \"$OUT\"` on the 2026-08-11 set and got the full 6h12m duration, against 5h51m with `-c copy`.",
+      "query": "Handover, audio merge pipeline drops the last 3 to 8 seconds on. I tested on the 2026-08-11 set and got the full duration, against with."
+    },
+    {
+      "query_id": "code_handover-015#q2",
+      "memory_id": "code_handover-015",
+      "stratum": "code_handover",
+      "target_token": "ffprobe -v error -show_entries stream=sample_rate,codec_name -of csv=p=0",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Confirmed by running `ffprobe -v error -show_entries stream=sample_rate,codec_name -of csv=p=0` across `2026-08-11/`: 14 files at 48000 and 3 at 44100.",
+      "query": "Handover, audio merge pipeline drops the last 3 to 8 seconds on. Confirmed by running across: 14 files at and 3 at."
+    },
+    {
+      "query_id": "code_handover-015#q3",
+      "memory_id": "code_handover-015",
+      "stratum": "code_handover",
+      "target_token": "ffmpeg -f concat -safe 0 -i \"$LIST\" -c copy -movflags +faststart \"$OUT\"",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The script is `/opt/lcc/bin/merge_day.sh` and the offending line is `ffmpeg -f concat -safe 0 -i \"$LIST\" -c copy -movflags +faststart \"$OUT\"`.",
+      "query": "Handover, audio merge pipeline drops the last 3 to 8 seconds on. The script is and the offending line is."
+    },
+    {
+      "query_id": "code_handover-016#q1",
+      "memory_id": "code_handover-016",
+      "stratum": "code_handover",
+      "target_token": "systemd-run --unit=relaytest --property=ProtectSystem=strict --property=ReadWritePaths=/var/log/relay /bin/true",
+      "target_is_corpus_unique": true,
+      "source_sentence": "If you want to watch the namespace failure directly instead of inferring it, run `rmdir /var/log/relay` and then `systemd-run --unit=relaytest --property=ProtectSystem=strict --property=ReadWritePaths=/var/log/relay /bin/true`.",
+      "query": "Handover: fails to restart after log rotation on 3 of our 7. If you want to watch the namespace failure directly instead of inferring it, run and then."
+    },
+    {
+      "query_id": "code_handover-016#q2",
+      "memory_id": "code_handover-016",
+      "stratum": "code_handover",
+      "target_token": "mkdir -p /var/log/relay && chown relay:relay /var/log/relay",
+      "target_is_corpus_unique": true,
+      "source_sentence": "All three are up right now only because I started them by hand after `mkdir -p /var/log/relay && chown relay:relay /var/log/relay`.",
+      "query": "Handover: fails to restart after log rotation on 3 of our 7. All three are up right now only because I started them by hand after."
+    },
+    {
+      "query_id": "code_handover-016#q3",
+      "memory_id": "code_handover-016",
+      "stratum": "code_handover",
+      "target_token": "systemd-analyze verify /etc/systemd/system/relay.service",
+      "target_is_corpus_unique": true,
+      "source_sentence": "You can check a unit edit without restarting anything using `systemd-analyze verify /etc/systemd/system/relay.service`.",
+      "query": "Handover: fails to restart after log rotation on 3 of our 7. You can check a unit edit without restarting anything using."
+    },
+    {
+      "query_id": "code_handover-018#q1",
+      "memory_id": "code_handover-018",
+      "stratum": "code_handover",
+      "target_token": "scripts/build_hard_negatives.py --input data/pairs_v3.parquet --out data/hard_negatives_v3.jsonl --top-k 8",
+      "target_is_corpus_unique": true,
+      "source_sentence": "If you would rather fix this at the data layer than in the collator, the dataset build script is `scripts/build_hard_negatives.py --input data/pairs_v3.parquet --out data/hard_negatives_v3.jsonl --top-k 8`.",
+      "query": "Handover: OOMs at around step 1400 on the 8x A100 node, fully. If you would rather fix this at the data layer than in the collator, the dataset build is."
+    },
+    {
+      "query_id": "code_handover-018#q2",
+      "memory_id": "code_handover-018",
+      "stratum": "code_handover",
+      "target_token": "python -c \"import json;print(max(len(json.loads(l)['text'].split()) for l in open('data/hard_negatives_v3.jsonl')))\"",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Confirmed with `python -c \"import json;print(max(len(json.loads(l)['text'].split()) for l in open('data/hard_negatives_v3.jsonl')))\"`, which prints `11427`.",
+      "query": "Handover: OOMs at around step 1400 on the 8x A100 node, fully. Around step 1400 the shuffler hits one and activation memory spikes. Confirmed with, which prints. Fix: set in, which is currently absent so falls back to None, and truncate inside the collator."
+    },
+    {
+      "query_id": "code_handover-018#q3",
+      "memory_id": "code_handover-018",
+      "stratum": "code_handover",
+      "target_token": "torchrun --nproc_per_node=8 scripts/train_reranker.py --config configs/reranker_v3.yaml --bf16 --gradient-checkpointing",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Command is `torchrun --nproc_per_node=8 scripts/train_reranker.py --config configs/reranker_v3.yaml --bf16 --gradient-checkpointing`.",
+      "query": "Handover: OOMs at around step 1400 on the 8x A100 node, fully reproducible. Command is. The error is torch.OutOfMemoryError: CUDA out of memory."
+    },
+    {
+      "query_id": "code_handover-022#q1",
+      "memory_id": "code_handover-022",
+      "stratum": "code_handover",
+      "target_token": "curl -s 'http://opensearch-1.internal:9200/_cat/thread_pool/write?v&h=node_name,active,queue,rejected'",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Watch the write queue with `curl -s 'http://opensearch-1.internal:9200/_cat/thread_pool/write?v&h=node_name,active,queue,rejected'`.",
+      "query": "Handover: returns nothing for hyphenated queries since the reindex. Throttle with so you do not saturate the cluster during business hours; a running task can be retuned with without restarting it. Watch the write queue with. If the column climbs above 0 you are throttling too little."
+    },
+    {
+      "query_id": "code_handover-022#q2",
+      "memory_id": "code_handover-022",
+      "stratum": "code_handover",
+      "target_token": "curl -s -XPOST 'http://opensearch-1.internal:9200/notes-v4/_analyze' -H 'Content-Type: application/json' -d '{\"text\":\"post-mortem\",\"analyzer\":\"default\"}'",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Verified with `curl -s -XPOST 'http://opensearch-1.internal:9200/notes-v4/_analyze' -H 'Content-Type: application/json' -d '{\"text\":\"post-mortem\",\"analyzer\":\"default\"}'`, which returns two tokens at positions 0 and 1.",
+      "query": "Handover: returns nothing for hyphenated queries since the reindex. Verified with, which returns two tokens at positions 0 and 1."
+    },
+    {
+      "query_id": "code_handover-022#q3",
+      "memory_id": "code_handover-022",
+      "stratum": "code_handover",
+      "target_token": "curl -XPOST 'http://opensearch-1.internal:9200/_reindex?wait_for_completion=false' -H 'Content-Type: application/json' -d @infra/opensearch/reindex-v3-to-v5.json",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The command that worked in staging is `curl -XPOST 'http://opensearch-1.internal:9200/_reindex?wait_for_completion=false' -H 'Content-Type: application/json' -d @infra/opensearch/reindex-v3-to-v5.json`.",
+      "query": "Handover: returns nothing for hyphenated queries since the. The command that worked in staging is."
+    },
+    {
+      "query_id": "code_handover-023#q1",
+      "memory_id": "code_handover-023",
+      "stratum": "code_handover",
+      "target_token": "tests/webhooks/test_paylane_idempotency.py::test_duplicate_event_id_charges_once",
+      "target_is_corpus_unique": true,
+      "source_sentence": "I wrote a failing test at `tests/webhooks/test_paylane_idempotency.py::test_duplicate_event_id_charges_once`.",
+      "query": "Handover, on retries. I wrote a failing test at."
+    },
+    {
+      "query_id": "code_handover-023#q2",
+      "memory_id": "code_handover-023",
+      "stratum": "code_handover",
+      "target_token": "CREATE UNIQUE INDEX idx_webhook_events_event_id ON webhook_events (event_id);",
+      "target_is_corpus_unique": true,
+      "source_sentence": "There is already a unique index waiting for it: `CREATE UNIQUE INDEX idx_webhook_events_event_id ON webhook_events (event_id);` was created in migration `0088_webhook_events`, but nothing ever writes to that table.",
+      "query": "Handover, duplicate charges on paylane retries. There is already a unique index waiting for it: was created in migration, but nothing ever writes to that table."
+    },
+    {
+      "query_id": "code_handover-023#q3",
+      "memory_id": "code_handover-023",
+      "stratum": "code_handover",
+      "target_token": "verify_signature(body: bytes, sig: str, secret: str) -> bool",
+      "target_is_corpus_unique": true,
+      "source_sentence": "`verify_signature(body: bytes, sig: str, secret: str) -> bool` uses `hmac.compare_digest` and reads `PAYLANE_WEBHOOK_SECRET`.",
+      "query": "Handover, duplicate charges on paylane webhook retries. The check is fine, leave it alone. uses and reads. I wrote a failing test at."
+    },
+    {
+      "query_id": "code_handover-025#q1",
+      "memory_id": "code_handover-025",
+      "stratum": "code_handover",
+      "target_token": "dbt run --select stg_events+ --target prod --profiles-dir /opt/airflow/dbt/profiles",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Run just this slice with `dbt run --select stg_events+ --target prod --profiles-dir /opt/airflow/dbt/profiles`.",
+      "query": "Handover: the nightly fails at and the DAG has been. I prefer upstream, because feeds four downstream models (, ) and patching each one is exactly how we end up with drift between them. Run just this slice with. The full nightly is and takes 51 minutes."
+    },
+    {
+      "query_id": "code_handover-025#q2",
+      "memory_id": "code_handover-025",
+      "stratum": "code_handover",
+      "target_token": "Database Error in model fct_sessions (models/marts/fct_sessions.sql) 100038 (22018): Numeric value 'n/a' is not recognized",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The failure is `Database Error in model fct_sessions (models/marts/fct_sessions.sql) 100038 (22018): Numeric value 'n/a' is not recognized`.",
+      "query": "Handover: the nightly dbt run fails at and the DAG has been. Airflow DAG is, task, running on. The failure is. Upstream started emitting the literal string in after the mobile SDK release."
+    },
+    {
+      "query_id": "code_handover-025#q3",
+      "memory_id": "code_handover-025",
+      "stratum": "code_handover",
+      "target_token": "try_cast(duration_ms as number(38,0))",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Use `try_cast(duration_ms as number(38,0))` and add a not_null test with a where clause, or fix it upstream in `stg_events.sql` by mapping the string to null with `nullif(duration_ms, 'n/a')`.",
+      "query": "Handover: the nightly dbt run fails at and the DAG has been. Use and add a not_null test with a where clause, or fix it upstream in by mapping the string to null with."
+    },
+    {
+      "query_id": "decisions_rationale-001#q1",
+      "memory_id": "decisions_rationale-001",
+      "stratum": "decisions_rationale",
+      "target_token": "docs/adr/0031-vector-store.md",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The tradeoff we accepted: p95 stays above our 50ms internal target until we tune `ef_search` or shard, and that is recorded as a KNOWN LIMIT in `docs/adr/0031-vector-store.md`.",
+      "query": "Decision on (ticket ): the memory store for stays on inside rather. The tradeoff we accepted: p95 stays above our internal target until we tune or shard, and that is recorded as a KNOWN LIMIT in."
+    },
+    {
+      "query_id": "decisions_rationale-001#q2",
+      "memory_id": "decisions_rationale-001",
+      "stratum": "decisions_rationale",
+      "target_token": "memory_facts.retained_at",
+      "target_is_corpus_unique": true,
+      "source_sentence": "It was rejected anyway because every recall query joins the vector hit against `memory_facts.tag_scope` and `memory_facts.retained_at` for tag filtering, and splitting that across two datastores forces a dual-write path with no transactional guarantee - the outbox we would have needed was judged more engineering surface than the 27ms it would buy.",
+      "query": "Decision on (ticket ): the store for stays on inside rather. It was rejected anyway because every recall query joins the vector hit against and for tag filtering, and splitting that across two datastores forces a dual-write path with no transactional guarantee - the outbox we would have needed was judged more engineering surface than the it would buy."
+    },
+    {
+      "query_id": "decisions_rationale-001#q3",
+      "memory_id": "decisions_rationale-001",
+      "stratum": "decisions_rationale",
+      "target_token": "memory_facts.tag_scope",
+      "target_is_corpus_unique": true,
+      "source_sentence": "It was rejected anyway because every recall query joins the vector hit against `memory_facts.tag_scope` and `memory_facts.retained_at` for tag filtering, and splitting that across two datastores forces a dual-write path with no transactional guarantee - the outbox we would have needed was judged more engineering surface than the 27ms it would buy.",
+      "query": "Decision on (ticket ): the store for stays on inside rather. It was rejected anyway because every recall query joins the vector hit against and for tag filtering, and splitting that across two datastores forces a dual-write path with no transactional guarantee - the outbox we would have needed was judged more engineering surface than the it would buy."
+    },
+    {
+      "query_id": "decisions_rationale-002#q1",
+      "memory_id": "decisions_rationale-002",
+      "stratum": "decisions_rationale",
+      "target_token": "redis://cache-01.internal:6379",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Redis Streams was the incumbent and by far the cheaper migration - we already ran `redis://cache-01.internal:6379` for the session cache and the consumer code in `src/ingest/consumer.py` would not have changed at all.",
+      "query": "Ticket, decided after the design review: publishes to rather than. Redis Streams was the incumbent and by far the cheaper migration - we already ran for the session cache and the consumer code in would not have changed at all."
+    },
+    {
+      "query_id": "decisions_rationale-002#q2",
+      "memory_id": "decisions_rationale-002",
+      "stratum": "decisions_rationale",
+      "target_token": "src/ingest/consumer.py",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Redis Streams was the incumbent and by far the cheaper migration - we already ran `redis://cache-01.internal:6379` for the session cache and the consumer code in `src/ingest/consumer.py` would not have changed at all.",
+      "query": "Ticket, decided after the design review: publishes to rather than. Redis Streams was the incumbent and by far the cheaper migration - we already ran for the session cache and the code in would not have changed at all."
+    },
+    {
+      "query_id": "decisions_rationale-002#q3",
+      "memory_id": "decisions_rationale-002",
+      "stratum": "decisions_rationale",
+      "target_token": "NATS JetStream 2.11.3",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Ticket PLAT-2210, decided after the 2026-03-04 design review: `ingest-gateway` publishes to NATS JetStream 2.11.3 rather than Redis Streams 7.4.2.",
+      "query": "Ticket, decided after the design review: publishes to rather than."
+    },
+    {
+      "query_id": "decisions_rationale-003#q1",
+      "memory_id": "decisions_rationale-003",
+      "stratum": "decisions_rationale",
+      "target_token": "ValueError: Invalid isoformat string",
+      "target_is_corpus_unique": true,
+      "source_sentence": "orjson lost because it does not validate: we were hand-rolling `_coerce_fact()` guards at five call sites, and two of them let `retained_at` through as a naive datetime, which is what produced `ValueError: Invalid isoformat string` in run `2026-01-29T04:12Z`.",
+      "query": "We standardised the wire codec in on instead of, recorded in. lost because it does not validate: we were hand-rolling guards at five call sites, and two of them let through as a naive datetime, which is what produced in run."
+    },
+    {
+      "query_id": "decisions_rationale-003#q2",
+      "memory_id": "decisions_rationale-003",
+      "stratum": "decisions_rationale",
+      "target_token": "docs/adr/0044-wire-codec.md",
+      "target_is_corpus_unique": true,
+      "source_sentence": "We standardised the wire codec in `hindsight-api` on `msgspec` 0.19.0 instead of `orjson` 3.10.15, recorded in `docs/adr/0044-wire-codec.md`.",
+      "query": "We standardised the wire codec in on instead of, recorded in."
+    },
+    {
+      "query_id": "decisions_rationale-003#q3",
+      "memory_id": "decisions_rationale-003",
+      "stratum": "decisions_rationale",
+      "target_token": "msgspec.json.encode",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Both beat the standard library by a wide margin - on the 512KB `fact_batch.json` fixture, `orjson.dumps` ran 1.8ms and `msgspec.json.encode` ran 2.1ms, so orjson is genuinely the faster encoder and we are not pretending otherwise.",
+      "query": "We standardised the wire codec in on instead of, recorded in. Both beat the standard library by a wide margin - on the fixture, ran and ran, so is genuinely the faster r and we are not pretending otherwise."
+    },
+    {
+      "query_id": "decisions_rationale-004#q1",
+      "memory_id": "decisions_rationale-004",
+      "stratum": "decisions_rationale",
+      "target_token": "HINDSIGHT_PASETO_KEY_PREVIOUS",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Costs accepted: `pyseto` 1.8.4 is a much smaller ecosystem, the browser SDK needed a hand-written decoder, and key rotation now runs through `HINDSIGHT_PASETO_KEY_CURRENT` and `HINDSIGHT_PASETO_KEY_PREVIOUS` instead of a JWKS endpoint.",
+      "query": "Auth decision for the bridge (ticket ): tokens are, not JWT signed. Costs accepted: is a much smaller ecosystem, the browser SDK needed a hand-written decoder, and key rotation now runs through and instead of a JWKS endpoint."
+    },
+    {
+      "query_id": "decisions_rationale-004#q2",
+      "memory_id": "decisions_rationale-004",
+      "stratum": "decisions_rationale",
+      "target_token": "HINDSIGHT_PASETO_KEY_CURRENT",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Costs accepted: `pyseto` 1.8.4 is a much smaller ecosystem, the browser SDK needed a hand-written decoder, and key rotation now runs through `HINDSIGHT_PASETO_KEY_CURRENT` and `HINDSIGHT_PASETO_KEY_PREVIOUS` instead of a JWKS endpoint.",
+      "query": "Auth decision for the bridge (ticket ): tokens are, not JWT signed. Costs accepted: is a much smaller ecosystem, the browser SDK needed a hand-written decoder, and key rotation now runs through and instead of a JWKS endpoint."
+    },
+    {
+      "query_id": "decisions_rationale-004#q3",
+      "memory_id": "decisions_rationale-004",
+      "stratum": "decisions_rationale",
+      "target_token": "src/auth/tokens.py",
+      "target_is_corpus_unique": true,
+      "source_sentence": "We rejected it after the `alg: none` class and the HS256/RS256 confusion class both surfaced in the threat model review - `verify_token()` in `src/auth/tokens.py` accepted whatever algorithm the header claimed.",
+      "query": "Auth decision for the bridge (ticket ): are, not JWT signed. We rejected it after the class and the confusion class both surfaced in the threat model review - in accepted whatever algorithm the header claimed."
+    },
+    {
+      "query_id": "decisions_rationale-006#q1",
+      "memory_id": "decisions_rationale-006",
+      "stratum": "decisions_rationale",
+      "target_token": "api.voyageai.example.com",
+      "target_is_corpus_unique": true,
+      "source_sentence": "First, it is a hosted API, so every consolidation run would ship raw memory text to `api.voyageai.example.com`, contradicting the self-hosted guarantee we make in `README.md`.",
+      "query": "Embedding model for the consolidation pipeline stays at dimensions rather than switching. First, it is a hosted API, so every consolidation run would ship raw memory text to, contradicting the self-hosted guarantee we make in."
+    },
+    {
+      "query_id": "decisions_rationale-006#q2",
+      "memory_id": "decisions_rationale-006",
+      "stratum": "decisions_rationale",
+      "target_token": "memory_chunks.embedding",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Second, doubling to 2048 dims grows the `memory_chunks.embedding` column from 4.6GB to 9.2GB, which pushes the working set past the 16GB of RAM on `db-01`.",
+      "query": "E model for the consolidation pipeline stays at dimensions rather than switching. Second, doubling to dims grows the column from to, which pushes the working set past the of RAM on."
+    },
+    {
+      "query_id": "decisions_rationale-006#q3",
+      "memory_id": "decisions_rationale-006",
+      "stratum": "decisions_rationale",
+      "target_token": "deploy/env/prod.env",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Until then `EMBED_MODEL=bge-m3` and `EMBED_DIM=1024` are pinned in `deploy/env/prod.env`.",
+      "query": "Embedding model for the consolidation pipeline stays at dimensions rather than switching. Until then and are pinned in."
+    },
+    {
+      "query_id": "decisions_rationale-007#q1",
+      "memory_id": "decisions_rationale-007",
+      "stratum": "decisions_rationale",
+      "target_token": "Rust 1.85",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The chunker sidecar `chunkd` is written in Go 1.24 rather than Rust 1.85, decided with Priya Raghunathan on 2026-05-19.",
+      "query": "The chunker sidecar is written in rather than, decided with Priya Raghunathan on."
+    },
+    {
+      "query_id": "decisions_rationale-007#q2",
+      "memory_id": "decisions_rationale-007",
+      "stratum": "decisions_rationale",
+      "target_token": "recall()",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The explicit tradeoff: if `chunkd` ever moves into the synchronous path for `recall()` we revisit, because at 40 chunks per call the gap becomes 336us and starts to matter.",
+      "query": "The chunker sidecar is written in rather than, decided with Priya Raghunathan. The explicit tradeoff: if ever moves into the synchronous path for we revisit, because at the gap becomes and starts to matter."
+    },
+    {
+      "query_id": "decisions_rationale-007#q3",
+      "memory_id": "decisions_rationale-007",
+      "stratum": "decisions_rationale",
+      "target_token": "Go 1.24",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The chunker sidecar `chunkd` is written in Go 1.24 rather than Rust 1.85, decided with Priya Raghunathan on 2026-05-19.",
+      "query": "The chunker sidecar is written in rather than, decided with Priya Raghunathan on."
+    },
+    {
+      "query_id": "decisions_rationale-010#q1",
+      "memory_id": "decisions_rationale-010",
+      "stratum": "decisions_rationale",
+      "target_token": "pypi.internal.example.com/simple",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Poetry worked and had the better plugin story for our private index at `pypi.internal.example.com/simple`, so this was not a correctness argument.",
+      "query": "Packaging decision, ticket: the monorepo moved to workspaces with a single, replacing. Poetry worked and had the better plugin story for our private index at, so this was not a correctness argument."
+    },
+    {
+      "query_id": "decisions_rationale-010#q2",
+      "memory_id": "decisions_rationale-010",
+      "stratum": "decisions_rationale",
+      "target_token": ".github/workflows/lock.yml",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The migration cost we paid, in order: every `pyproject.toml` in all seven packages needed `[tool.uv.sources]` entries; `uv` does not support the `poetry-dynamic-versioning` plugin, so version strings moved into `src/<pkg>/__about__.py`; and `uv pip compile` output is not byte-identical across platforms, which forced us to pin lock generation to `linux/amd64` in `.github/workflows/lock.yml`.",
+      "query": "Packaging decision, ticket: the monorepo moved to workspaces with a single, replacing. The migration cost we paid, in order: every in all seven packages needed entries; uv does not support the plugin, so version strings moved into; and output is not byte-identical across platforms, which forced us to pin lock generation to in."
+    },
+    {
+      "query_id": "decisions_rationale-010#q3",
+      "memory_id": "decisions_rationale-010",
+      "stratum": "decisions_rationale",
+      "target_token": "poetry-dynamic-versioning",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The migration cost we paid, in order: every `pyproject.toml` in all seven packages needed `[tool.uv.sources]` entries; `uv` does not support the `poetry-dynamic-versioning` plugin, so version strings moved into `src/<pkg>/__about__.py`; and `uv pip compile` output is not byte-identical across platforms, which forced us to pin lock generation to `linux/amd64` in `.github/workflows/lock.yml`.",
+      "query": "Packaging decision, ticket: the monorepo moved to workspaces with a single, replacing. The migration cost we paid, in order: every in all seven packages needed entries; uv does not support the plugin, so strings moved into; and output is not byte-identical across platforms, which forced us to pin lock generation to in."
+    },
+    {
+      "query_id": "decisions_rationale-012#q1",
+      "memory_id": "decisions_rationale-012",
+      "stratum": "decisions_rationale",
+      "target_token": "src/llm/retry.py",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Retry policy for outbound LLM calls, decided after the rate-limit storm on 2026-06-08: exponential backoff with full jitter at `base=0.5s`, `cap=30s`, `max_attempts=6`, implemented in `retry_with_jitter()` in `src/llm/retry.py`.",
+      "query": "Retry policy for outbound LLM calls, decided after the rate-limit storm on: exponential backoff with full jitter at, implemented in in."
+    },
+    {
+      "query_id": "decisions_rationale-012#q2",
+      "memory_id": "decisions_rationale-012",
+      "stratum": "decisions_rationale",
+      "target_token": "max_attempts=6",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Retry policy for outbound LLM calls, decided after the rate-limit storm on 2026-06-08: exponential backoff with full jitter at `base=0.5s`, `cap=30s`, `max_attempts=6`, implemented in `retry_with_jitter()` in `src/llm/retry.py`.",
+      "query": "Retry policy for outbound LLM calls, decided after the rate-limit storm on: exponential backoff with full jitter at, implemented in in."
+    },
+    {
+      "query_id": "decisions_rationale-012#q3",
+      "memory_id": "decisions_rationale-012",
+      "stratum": "decisions_rationale",
+      "target_token": "max_retries=6",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The alternative was the vendor SDK's built-in retry, which is one flag - `max_retries=6` on the client constructor - and needs no code from us.",
+      "query": "Retry policy for outbound LLM calls, decided after the rate-limit storm on:. The alternative was the vendor SDK's built-in retry, which is one flag - on the client constructor - and needs no code from us."
+    },
+    {
+      "query_id": "decisions_rationale-017#q1",
+      "memory_id": "decisions_rationale-017",
+      "stratum": "decisions_rationale",
+      "target_token": "templates/admin/bulk_tag.html",
+      "target_is_corpus_unique": true,
+      "source_sentence": "What we gave up: no offline state, no optimistic UI, and the bulk-tag editor in `templates/admin/bulk_tag.html` needed a 60-line vanilla JS island because htmx alone could not express multi-select.",
+      "query": "The admin console is server-rendered with, not with. What we gave up: no offline state, no optimistic UI, and the bulk-tag editor in needed a vanilla JS island because htmx alone could not express multi-select."
+    },
+    {
+      "query_id": "decisions_rationale-017#q2",
+      "memory_id": "decisions_rationale-017",
+      "stratum": "decisions_rationale",
+      "target_token": "admin.hindsight.internal",
+      "target_is_corpus_unique": true,
+      "source_sentence": "We rejected React because it drags in a separate build pipeline, a `node_modules` tree of 412MB, and a second deployable behind `admin.hindsight.internal`, all to serve a tool used by fewer than 30 internal operators.",
+      "query": "The admin console is server-rendered with, not with. We rejected React because it drags in a separate build pipeline, a tree of, and a second deployable behind, all to serve a tool used by fewer than."
+    },
+    {
+      "query_id": "decisions_rationale-017#q3",
+      "memory_id": "decisions_rationale-017",
+      "stratum": "decisions_rationale",
+      "target_token": "src/admin/templates/",
+      "target_is_corpus_unique": true,
+      "source_sentence": "htmx keeps the console inside the existing FastAPI app under `src/admin/templates/`, and the whole thing is 1,900 lines.",
+      "query": "The admin console is server-rendered with, not with. htmx keeps the console inside the existing app under, and the whole thing is."
+    },
+    {
+      "query_id": "decisions_rationale-020#q1",
+      "memory_id": "decisions_rationale-020",
+      "stratum": "decisions_rationale",
+      "target_token": "source_kind = 'handover'",
+      "target_is_corpus_unique": true,
+      "source_sentence": "We rejected it because the query we run most is 'all facts where `source_kind = 'handover'` and `confidence >= 0.8`', and a GIN index over JSONB measured 210ms p95 against 12ms for the b-tree on the typed table at 8.4M rows.",
+      "query": "Fact metadata is stored in a typed table with one row per. We rejected it because the query we run most is 'all facts where and ', and a index over measured p95 against for the b-tree on the typed table at."
+    },
+    {
+      "query_id": "decisions_rationale-020#q2",
+      "memory_id": "decisions_rationale-020",
+      "stratum": "decisions_rationale",
+      "target_token": "fetch_facts_with_attrs()",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Cost of the typed table: every new attribute needs a migration, and the join in `fetch_facts_with_attrs()` in `src/store/facts.py` is a `LATERAL` we had to hand-tune.",
+      "query": "Fact metadata is stored in a typed table with one row per. Cost of the typed table: every new attribute needs a migration, and the join in in is a we had to hand-tune."
+    },
+    {
+      "query_id": "decisions_rationale-020#q3",
+      "memory_id": "decisions_rationale-020",
+      "stratum": "decisions_rationale",
+      "target_token": "src/store/facts.py",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Cost of the typed table: every new attribute needs a migration, and the join in `fetch_facts_with_attrs()` in `src/store/facts.py` is a `LATERAL` we had to hand-tune.",
+      "query": "Fact metadata is stored in a typed table with one row per. Cost of the typed table: every new attribute needs a migration, and the join in in is a we had to hand-tune."
+    },
+    {
+      "query_id": "decisions_rationale-023#q1",
+      "memory_id": "decisions_rationale-023",
+      "stratum": "decisions_rationale",
+      "target_token": "scripts/reindex_lexical.py --full",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Limits accepted: no cross-node index, reindex is a full rebuild through `scripts/reindex_lexical.py --full`, and that takes 22 minutes on 8.4M rows.",
+      "query": "L search: we embedded in-process instead of running. Limits accepted: no cross-node index, is a full rebuild through, and that takes on."
+    },
+    {
+      "query_id": "decisions_rationale-023#q2",
+      "memory_id": "decisions_rationale-023",
+      "stratum": "decisions_rationale",
+      "target_token": "/var/lib/hindsight/tantivy",
+      "target_is_corpus_unique": true,
+      "source_sentence": "tantivy indexes into `/var/lib/hindsight/tantivy` and the hybrid scorer `hybrid_score()` in `src/recall/hybrid.py` blends it with the vector hit at `alpha=0.35`.",
+      "query": "Lexical search: we embedded in-process instead of running. indexes into and the hybrid scorer in blends it with the vector hit at."
+    },
+    {
+      "query_id": "decisions_rationale-023#q3",
+      "memory_id": "decisions_rationale-023",
+      "stratum": "decisions_rationale",
+      "target_token": "src/recall/hybrid.py",
+      "target_is_corpus_unique": true,
+      "source_sentence": "tantivy indexes into `/var/lib/hindsight/tantivy` and the hybrid scorer `hybrid_score()` in `src/recall/hybrid.py` blends it with the vector hit at `alpha=0.35`.",
+      "query": "Lexical search: we embedded in-process instead of running. tantivy indexes into and the scorer in blends it with the vector hit at."
+    },
+    {
+      "query_id": "decisions_rationale-024#q1",
+      "memory_id": "decisions_rationale-024",
+      "stratum": "decisions_rationale",
+      "target_token": "bench/consolidate_bench.py --compare 3.12,3.13t",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The revisit trigger is explicit: when both wheels appear on the private index and the single-thread penalty drops below 3%, re-run `bench/consolidate_bench.py --compare 3.12,3.13t`.",
+      "query": "Runtime decision, ticket: stays on and does not move to the 3.13. The revisit trigger is explicit: when both wheels appear on the private index and the single-thread penalty drops below, re-run."
+    },
+    {
+      "query_id": "decisions_rationale-024#q2",
+      "memory_id": "decisions_rationale-024",
+      "stratum": "decisions_rationale",
+      "target_token": "ProcessPoolExecutor(max_workers=4)",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Free-threading would let `consolidate_batch()` in `src/consolidate/runner.py` use real threads instead of the current `ProcessPoolExecutor(max_workers=4)`, saving roughly 480MB of RSS in forked interpreters, and that is a real win we want eventually.",
+      "query": "Runtime decision, ticket: stays on and does not move to the 3.13. Free-threading would let in use real threads instead of the current, saving roughly of RSS in forked interpreters, and that is a real win we want eventually."
+    },
+    {
+      "query_id": "decisions_rationale-024#q3",
+      "memory_id": "decisions_rationale-024",
+      "stratum": "decisions_rationale",
+      "target_token": "bench/consolidate_bench.py",
+      "target_is_corpus_unique": true,
+      "source_sentence": "We rejected it for now because `asyncpg` 0.30.0 and `tantivy-py` 0.24.0 ship no free-threaded wheels, so both fall back to source builds that fail against `--disable-gil` interpreters, and single-threaded performance on 3.13t measured 9% slower in our own `bench/consolidate_bench.py`.",
+      "query": "Runtime decision, ticket: stays on and does not move to the 3.13. We rejected it for now because and ship no free-threaded wheels, so both fall back to source builds that fail against interpreters, and single-threaded performance on measured slower in our own."
+    },
+    {
+      "query_id": "decisions_rationale-025#q1",
+      "memory_id": "decisions_rationale-025",
+      "stratum": "decisions_rationale",
+      "target_token": "docs/adr/0070-mcp-surface.md",
+      "target_is_corpus_unique": true,
+      "source_sentence": "MCP surface decision (`docs/adr/0070-mcp-surface.md`, 2026-07-16): the memory server exposes eight named tools - `recall`, `reflect`, `retain`, `list_memories`, `list_mental_models`, `get_mental_model`, `refresh_mental_model`, `clear_mental_model` - rather than one dispatch tool taking an `action` parameter, which is the pattern `streamlinear` uses.",
+      "query": "MCP decision (, ): the memory server exposes eight named tools -, - rather than one dispatch tool taking an parameter, which is the pattern uses."
+    },
+    {
+      "query_id": "decisions_rationale-025#q2",
+      "memory_id": "decisions_rationale-025",
+      "stratum": "decisions_rationale",
+      "target_token": "docs/mcp-reference.md",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Tradeoff accepted: 1,670 tokens per turn of permanent overhead, and every new capability now needs a schema entry in `src/mcp/tools.py` plus a row in `docs/mcp-reference.md`.",
+      "query": "MCP surface decision (, ): the memory server exposes eight named tools. Tradeoff accepted: per turn of permanent overhead, and every new capability now needs a schema entry in plus a row in."
+    },
+    {
+      "query_id": "decisions_rationale-025#q3",
+      "memory_id": "decisions_rationale-025",
+      "stratum": "decisions_rationale",
+      "target_token": "refresh_mental_model",
+      "target_is_corpus_unique": true,
+      "source_sentence": "MCP surface decision (`docs/adr/0070-mcp-surface.md`, 2026-07-16): the memory server exposes eight named tools - `recall`, `reflect`, `retain`, `list_memories`, `list_mental_models`, `get_mental_model`, `refresh_mental_model`, `clear_mental_model` - rather than one dispatch tool taking an `action` parameter, which is the pattern `streamlinear` uses.",
+      "query": "MCP surface decision (, ): the memory server exposes eight named tools -, - rather than one dispatch tool taking an parameter, which is the pattern uses."
+    },
+    {
+      "query_id": "meetings_people-001#q1",
+      "memory_id": "meetings_people-001",
+      "stratum": "meetings_people",
+      "target_token": "docs/kestrel/replay.md",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Action items assigned in the room: Priya writes the v2 replay compatibility note into `docs/kestrel/replay.md`; Tomas owns the shadow rollout runbook; Nadia books the review.",
+      "query": "Architecture review on for the ingestion rewrite. Action items assigned in the room: Priya writes the v2 compatibility note into; Tomas owns the shadow rollout runbook; Nadia books the review."
+    },
+    {
+      "query_id": "meetings_people-001#q2",
+      "memory_id": "meetings_people-001",
+      "stratum": "meetings_people",
+      "target_token": "KESTREL_V3_SHADOW",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Tomas Bergqvist (SRE lead) disagreed on the record: he wants `ingest_batch_v3` running behind the `KESTREL_V3_SHADOW` env var by 2026-04-01 so shadow traffic can start before the summer freeze.",
+      "query": "Architecture review on for the ingestion rewrite. (SRE lead) disagreed on the record: he wants running behind the env var by so shadow traffic can start before the summer freeze."
+    },
+    {
+      "query_id": "meetings_people-001#q3",
+      "memory_id": "meetings_people-001",
+      "stratum": "meetings_people",
+      "target_token": "ingest_batch_v3",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Tomas Bergqvist (SRE lead) disagreed on the record: he wants `ingest_batch_v3` running behind the `KESTREL_V3_SHADOW` env var by 2026-04-01 so shadow traffic can start before the summer freeze.",
+      "query": "Architecture review on for the ion rewrite. (SRE lead) disagreed on the record: he wants running behind the env var by so shadow traffic can start before the summer freeze."
+    },
+    {
+      "query_id": "meetings_people-002#q1",
+      "memory_id": "meetings_people-002",
+      "stratum": "meetings_people",
+      "target_token": "tests/test_scheduler_drift.py::test_backfill_window",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Standup note, 2026-01-19: Wes Adeyemi said the flaky test in `tests/test_scheduler_drift.py::test_backfill_window` is not flaky at all - it fails deterministically when `TZ=Pacific/Chatham` is set, and he already has a fix in PR #2214.",
+      "query": "Standup note,: said the flaky test in is not flaky at all - it fails deterministically when is set, and he already has a fix in."
+    },
+    {
+      "query_id": "meetings_people-002#q2",
+      "memory_id": "meetings_people-002",
+      "stratum": "meetings_people",
+      "target_token": "Scheduler._next_fire_time",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Marguerite Lindqvist pushed back that the fix masks a real bug in `Scheduler._next_fire_time` and asked that PR #2214 stay open until she has reviewed it herself.",
+      "query": "Standup note,: said the flaky test in is not flaky at all. pushed back that the fix masks a real bug in and asked that stay open until she has reviewed it herself."
+    },
+    {
+      "query_id": "meetings_people-002#q3",
+      "memory_id": "meetings_people-002",
+      "stratum": "meetings_people",
+      "target_token": "TZ=Pacific/Chatham",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Standup note, 2026-01-19: Wes Adeyemi said the flaky test in `tests/test_scheduler_drift.py::test_backfill_window` is not flaky at all - it fails deterministically when `TZ=Pacific/Chatham` is set, and he already has a fix in PR #2214.",
+      "query": "Standup note,: said the flaky test in is not flaky at all - it fails deterministically when is set, and he already has a fix in."
+    },
+    {
+      "query_id": "meetings_people-004#q1",
+      "memory_id": "meetings_people-004",
+      "stratum": "meetings_people",
+      "target_token": "QuoteCache.invalidate_prefix",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Timeline agreed in the room: the p99 on `/v1/quotes` went from 210ms to 4,800ms at 09:14 UTC after deploy `a3f91c7` shipped a change to `QuoteCache.invalidate_prefix`.",
+      "query": "Incident review for, held with 14 attendees. Timeline agreed in the room: the on went from to at after deploy shipped a change to."
+    },
+    {
+      "query_id": "meetings_people-004#q2",
+      "memory_id": "meetings_people-004",
+      "stratum": "meetings_people",
+      "target_token": "runbooks/quotes-latency.md",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Sunniva Kalloe, who was on call, said she rolled back at 09:41 UTC without paging the owning team because the runbook `runbooks/quotes-latency.md` told her to.",
+      "query": "Incident review for, held with 14 attendees. who was on call, said she rolled back at without paging the owning team because the told her to."
+    },
+    {
+      "query_id": "meetings_people-004#q3",
+      "memory_id": "meetings_people-004",
+      "stratum": "meetings_people",
+      "target_token": "invalidate-prefix",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Olamide ruled that neither call was wrong and assigned two follow-ups: Desmond rewrites `runbooks/quotes-latency.md` by 2026-06-16, and Sunniva adds a `--dry-run` flag to `invalidate-prefix` so the next on-call can preview the blast radius.",
+      "query": "Incident review for, held with 14 attendees. Olamide ruled that neither call was wrong and assigned two follow-ups: Desmond rewrites by, and Sunniva adds a flag to so the next on-call can preview the blast radius."
+    },
+    {
+      "query_id": "meetings_people-006#q1",
+      "memory_id": "meetings_people-006",
+      "stratum": "meetings_people",
+      "target_token": "ENABLE_CUSTOM_RETRY=1",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Aurelio agreed to prototype `retry_with_jitter()` behind `ENABLE_CUSTOM_RETRY=1` and report back at the 2026-06-02 sync.",
+      "query": "Design sync on the retry library. Aurelio agreed to prototype behind and report back at the sync."
+    },
+    {
+      "query_id": "meetings_people-006#q2",
+      "memory_id": "meetings_people-006",
+      "stratum": "meetings_people",
+      "target_token": "common/net/retry.py",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Aurelio Mkhize wants a hand-rolled `retry_with_jitter()` in `common/net/retry.py`, because `tenacity` pulls in a transitive dependency we cannot vendor.",
+      "query": "Design sync on the retry library. wants a hand-rolled in, because pulls in a transitive dependency we cannot vendor."
+    },
+    {
+      "query_id": "meetings_people-006#q3",
+      "memory_id": "meetings_people-006",
+      "stratum": "meetings_people",
+      "target_token": "Bea Lindqvist-Oduya",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Bea Lindqvist-Oduya wants `tenacity` kept as is.",
+      "query": "Design sync on the retry library. wants kept as is. wants a hand-rolled in, because pulls in a transitive dependency we cannot vendor."
+    },
+    {
+      "query_id": "meetings_people-008#q1",
+      "memory_id": "meetings_people-008",
+      "stratum": "meetings_people",
+      "target_token": "defaultdict(list)",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Thijs's objection was narrow and specific: in the coding round the candidate could not explain why `defaultdict(list)` was mutating shared state, and Thijs considers that disqualifying at this level.",
+      "query": "Hiring debrief for req, senior backend. Thijs's objection was narrow and specific: in the coding round the candidate could not explain why was mutating shared state, and Thijs considers that disqualifying at this level."
+    },
+    {
+      "query_id": "meetings_people-008#q2",
+      "memory_id": "meetings_people-008",
+      "stratum": "meetings_people",
+      "target_token": "2026-08-11",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Odalys asked that the decision be revisited if the candidate reapplies after 2026-08-11.",
+      "query": "Hiring debrief for req, senior backend. Odalys asked that the decision be revisited if the candidate reapplies after."
+    },
+    {
+      "query_id": "meetings_people-008#q3",
+      "memory_id": "meetings_people-008",
+      "stratum": "meetings_people",
+      "target_token": "PLT-0219",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Hiring debrief 2026-02-11 for req PLT-0219, senior backend.",
+      "query": "Hiring debrief for req, senior backend."
+    },
+    {
+      "query_id": "meetings_people-009#q1",
+      "memory_id": "meetings_people-009",
+      "stratum": "meetings_people",
+      "target_token": "s3://hq-analytics-cold/",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Ilya Osadchuk owns the cost work: he committed to a 22% reduction in ClickHouse storage spend by moving cold partitions to `s3://hq-analytics-cold/`, tracked in DATA-338.",
+      "query": "Q3 planning offsite, and, in, twelve people. owns the cost work: he committed to a reduction in storage spend by moving cold partitions to, tracked in."
+    },
+    {
+      "query_id": "meetings_people-009#q2",
+      "memory_id": "meetings_people-009",
+      "stratum": "meetings_people",
+      "target_token": "auth-service",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Ana Belen Ferreiro owns migrating `auth-service` off `python3.9` to `python3.12`, tracked in ENG-5511, target 2026-08-14.",
+      "query": "Q3 planning offsite, and, in, twelve people. owns migrating off to, tracked in, target."
+    },
+    {
+      "query_id": "meetings_people-009#q3",
+      "memory_id": "meetings_people-009",
+      "stratum": "meetings_people",
+      "target_token": "ClickHouse",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Ilya Osadchuk owns the cost work: he committed to a 22% reduction in ClickHouse storage spend by moving cold partitions to `s3://hq-analytics-cold/`, tracked in DATA-338.",
+      "query": "Q3 planning offsite, and, in, twelve people. owns the cost work: he committed to a reduction in storage spend by moving cold partitions to, tracked in."
+    },
+    {
+      "query_id": "meetings_people-015#q1",
+      "memory_id": "meetings_people-015",
+      "stratum": "meetings_people",
+      "target_token": "deploy/aurora/helm-values.yaml",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Remove the `--insecure-skip-verify` flag from `deploy/aurora/helm-values.yaml` - owner Tabitha Ngcobo, due 2026-06-04.",
+      "query": "Security review meeting for the launch. Remove the flag from - owner, due."
+    },
+    {
+      "query_id": "meetings_people-015#q2",
+      "memory_id": "meetings_people-015",
+      "stratum": "meetings_people",
+      "target_token": "--insecure-skip-verify",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Remove the `--insecure-skip-verify` flag from `deploy/aurora/helm-values.yaml` - owner Tabitha Ngcobo, due 2026-06-04.",
+      "query": "Security review meeting for the launch. Remove the flag from - owner, due."
+    },
+    {
+      "query_id": "meetings_people-015#q3",
+      "memory_id": "meetings_people-015",
+      "stratum": "meetings_people",
+      "target_token": "POST /gateway/v1/token",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Add rate limiting on `POST /gateway/v1/token` at 100 req/min per client - owner Sadiq Verhoeven, due 2026-06-11.",
+      "query": "Security review meeting for the launch. Add rate limiting on at per client - owner, due."
+    },
+    {
+      "query_id": "meetings_people-016#q1",
+      "memory_id": "meetings_people-016",
+      "stratum": "meetings_people",
+      "target_token": "Joaquin Ferreira-Lund",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Correction to my note from 2026-02-25: the proposal to drop `IE11` support from the Kestrel dashboard came from Meike Osterhagen, not from Joaquin Ferreira-Lund.",
+      "query": "Correction to my note from: the proposal to drop support from the dashboard came from, not from."
+    },
+    {
+      "query_id": "meetings_people-016#q2",
+      "memory_id": "meetings_people-016",
+      "stratum": "meetings_people",
+      "target_token": "2026-06-01",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The agreed removal date is 2026-06-01 and the tracking ticket is WEB-2077, owned by Meike.",
+      "query": "Correction to my note from: the proposal to drop support from the. The agreed removal date is and the tracking ticket is, owned by Meike."
+    },
+    {
+      "query_id": "meetings_people-016#q3",
+      "memory_id": "meetings_people-016",
+      "stratum": "meetings_people",
+      "target_token": "2026-02-25",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Correction to my note from 2026-02-25: the proposal to drop `IE11` support from the Kestrel dashboard came from Meike Osterhagen, not from Joaquin Ferreira-Lund.",
+      "query": "Correction to my note from: the proposal to drop support from the dashboard came from, not from."
+    },
+    {
+      "query_id": "meetings_people-017#q1",
+      "memory_id": "meetings_people-017",
+      "stratum": "meetings_people",
+      "target_token": "grpc://scoring.internal:8443",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Piotr Nakagawa: still debugging the `DeadlineExceeded` errors against `grpc://scoring.internal:8443`, thinks it is a keepalive misconfiguration, no ticket filed yet.",
+      "query": "Standup. still debugging the errors against, thinks it is a keepalive misconfiguration, no ticket filed yet."
+    },
+    {
+      "query_id": "meetings_people-017#q2",
+      "memory_id": "meetings_people-017",
+      "stratum": "meetings_people",
+      "target_token": "DeadlineExceeded",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Piotr Nakagawa: still debugging the `DeadlineExceeded` errors against `grpc://scoring.internal:8443`, thinks it is a keepalive misconfiguration, no ticket filed yet.",
+      "query": "Standup. still debugging the errors against, thinks it is a keepalive misconfiguration, no ticket filed yet."
+    },
+    {
+      "query_id": "meetings_people-017#q3",
+      "memory_id": "meetings_people-017",
+      "stratum": "meetings_people",
+      "target_token": "bulk_upsert()",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Adaeze Lindholm: finished the `bulk_upsert()` path, blocked on a review from Ilya Osadchuk since 2026-06-15.",
+      "query": "Standup. finished the path, blocked on a review from since."
+    },
+    {
+      "query_id": "meetings_people-022#q1",
+      "memory_id": "meetings_people-022",
+      "stratum": "meetings_people",
+      "target_token": "Yuki Oyelaran-Sato",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Yuki Oyelaran-Sato presented the numbers: conversion up 2.4% at p=0.03 over 41,200 sessions, but average order value down 1.1%.",
+      "query": "Experiment review for the checkout redesign, experiment key. presented the numbers: conversion up at over, but average order value down."
+    },
+    {
+      "query_id": "meetings_people-022#q2",
+      "memory_id": "meetings_people-022",
+      "stratum": "meetings_people",
+      "target_token": "chk_redesign_v2",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Experiment review 2026-06-10 for the checkout redesign, experiment key `chk_redesign_v2`.",
+      "query": "Experiment review for the checkout, experiment key."
+    },
+    {
+      "query_id": "meetings_people-022#q3",
+      "memory_id": "meetings_people-022",
+      "stratum": "meetings_people",
+      "target_token": "2026-05-18",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Aurelio Mkhize objected on methodology - the experiment ran 2026-05-18 through 2026-06-08 and therefore includes the payday spike - and asked for a two-week holdout before ship.",
+      "query": "Experiment review for the checkout redesign, experiment key. objected on methodology - the experiment ran through and therefore includes the payday spike - and asked for a two-week holdout before ship."
+    },
+    {
+      "query_id": "meetings_people-023#q1",
+      "memory_id": "meetings_people-023",
+      "stratum": "meetings_people",
+      "target_token": "flush_stale_locks.sh",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Ferran flagged one item with no taker: the undocumented `flush_stale_locks.sh` script, which must be run manually after any Postgres failover.",
+      "query": "Handover meeting, as leaves the team on. Ferran flagged one item with no taker: the undocumented script, which must be run manually after any failover."
+    },
+    {
+      "query_id": "meetings_people-023#q2",
+      "memory_id": "meetings_people-023",
+      "stratum": "meetings_people",
+      "target_token": "ops-tooling",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Ownership transfers agreed in the room, each with a named receiver: the `ops-tooling` repo goes to Georgiana Petrescu; the PagerDuty schedule `ops-primary` goes to Sunniva Kalloe; the `bastion-02` cron inventory goes to Tabitha Ngcobo; the vendor relationship with Halcyon Metrics goes to Ravi Shanmugam.",
+      "query": "Handover meeting, as leaves the team on. Ownership transfers agreed in the room, each with a named receiver: the repo goes to; the schedule goes to; the cron inventory goes to; the vendor relationship with goes to."
+    },
+    {
+      "query_id": "meetings_people-023#q3",
+      "memory_id": "meetings_people-023",
+      "stratum": "meetings_people",
+      "target_token": "ops-primary",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Ownership transfers agreed in the room, each with a named receiver: the `ops-tooling` repo goes to Georgiana Petrescu; the PagerDuty schedule `ops-primary` goes to Sunniva Kalloe; the `bastion-02` cron inventory goes to Tabitha Ngcobo; the vendor relationship with Halcyon Metrics goes to Ravi Shanmugam.",
+      "query": "Handover meeting, as leaves the team on. Ownership transfers agreed in the room, each with a named receiver: the repo goes to; the schedule goes to; the cron inventory goes to; the vendor relationship with goes to."
+    },
+    {
+      "query_id": "meetings_people-024#q1",
+      "memory_id": "meetings_people-024",
+      "stratum": "meetings_people",
+      "target_token": "warm_route_table()",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Capacity meeting 2026-02-19: Zubair Haddadi wants the `dispatch-gateway` autoscaler `minReplicas` raised from 4 to 12, because the cold start in `warm_route_table()` costs 6.2s.",
+      "query": "Capacity meeting: wants the autoscaler raised, because the cold start in costs."
+    },
+    {
+      "query_id": "meetings_people-024#q2",
+      "memory_id": "meetings_people-024",
+      "stratum": "meetings_people",
+      "target_token": "minReplicas` to 8",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Nadia Fournier set `minReplicas` to 8 as an interim value effective 2026-02-20 and asked Ilya to prototype the Redis cache in ENG-4903 by 2026-03-12.",
+      "query": "Capacity meeting: wants the autoscaler raised, because the cold start in costs. set as an interim value effective and asked Ilya to prototype the cache in by."
+    },
+    {
+      "query_id": "meetings_people-024#q3",
+      "memory_id": "meetings_people-024",
+      "stratum": "meetings_people",
+      "target_token": "dispatch-gateway",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Capacity meeting 2026-02-19: Zubair Haddadi wants the `dispatch-gateway` autoscaler `minReplicas` raised from 4 to 12, because the cold start in `warm_route_table()` costs 6.2s.",
+      "query": "Capacity meeting: wants the autoscaler raised, because the cold start in costs."
+    },
+    {
+      "query_id": "meetings_people-025#q1",
+      "memory_id": "meetings_people-025",
+      "stratum": "meetings_people",
+      "target_token": "2026-09-30",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Item 4, Norsholm Rail renewal: Callum Nkemdirim said the account is at risk over the SLA question; Zubair Haddadi said ENG-4488 lands 2026-09-30 and not earlier.",
+      "query": "Weekly leadership,. Item 4, renewal: said the account is at risk over the question; said lands and not earlier."
+    },
+    {
+      "query_id": "meetings_people-025#q2",
+      "memory_id": "meetings_people-025",
+      "stratum": "meetings_people",
+      "target_token": "2026-07-15",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Weekly leadership, 2026-07-15.",
+      "query": "Weekly leadership,. Four items. Item 1, hiring: reported out and, and said the engineering acceptance rate has dropped to from in."
+    },
+    {
+      "query_id": "meetings_people-025#q3",
+      "memory_id": "meetings_people-025",
+      "stratum": "meetings_people",
+      "target_token": "2026-06-03",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Item 3, Aurora Gateway launch: Isolde Marchetti confirmed that both security blockers from 2026-05-28 are closed, and Sadiq Verhoeven confirmed the `AURORA_SIGNING_KEY` rotation completed on 2026-06-03.",
+      "query": "Weekly leadership,. Item 3, launch: confirmed that both security blockers from are closed, and confirmed the rotation completed on."
+    },
+    {
+      "query_id": "short_factual-001#q1",
+      "memory_id": "short_factual-001",
+      "stratum": "short_factual",
+      "target_token": "pytest --cov=orchard_api --cov-report=term-missing",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The coverage run `pytest --cov=orchard_api --cov-report=term-missing` is CI-only and must never fire from a pre-commit hook, because it takes over 400s on a laptop.",
+      "query": "Default local test command for the repo is. The coverage run is CI-only and must never fire from a pre-commit hook, because it takes over on a laptop."
+    },
+    {
+      "query_id": "short_factual-001#q2",
+      "memory_id": "short_factual-001",
+      "stratum": "short_factual",
+      "target_token": "pytest -q --maxfail=1",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Default local test command for the `orchard-api` repo is `pytest -q --maxfail=1`.",
+      "query": "Default local test command for the repo is."
+    },
+    {
+      "query_id": "short_factual-001#q3",
+      "memory_id": "short_factual-001",
+      "stratum": "short_factual",
+      "target_token": "orchard-api",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Default local test command for the `orchard-api` repo is `pytest -q --maxfail=1`.",
+      "query": "Default local test command for the repo is."
+    },
+    {
+      "query_id": "short_factual-002#q1",
+      "memory_id": "short_factual-002",
+      "stratum": "short_factual",
+      "target_token": "https://api.meridian-internal.dev",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The Meridian billing service exposes `POST /v3/invoices/reconcile` at `https://api.meridian-internal.dev`.",
+      "query": "The M billing service exposes at."
+    },
+    {
+      "query_id": "short_factual-002#q2",
+      "memory_id": "short_factual-002",
+      "stratum": "short_factual",
+      "target_token": "X-Meridian-Tenant: acct_7fdc21",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Every call needs the header `X-Meridian-Tenant: acct_7fdc21` and is rate limited to 12 requests per minute; exceeding that returns HTTP 429 with the body code `RECONCILE_THROTTLED`.",
+      "query": "The billing service exposes at. Every call needs the header and is rate limited to; exceeding that returns with the body code."
+    },
+    {
+      "query_id": "short_factual-002#q3",
+      "memory_id": "short_factual-002",
+      "stratum": "short_factual",
+      "target_token": "POST /v3/invoices/reconcile",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The Meridian billing service exposes `POST /v3/invoices/reconcile` at `https://api.meridian-internal.dev`.",
+      "query": "The Meridian billing service exposes at."
+    },
+    {
+      "query_id": "short_factual-003#q1",
+      "memory_id": "short_factual-003",
+      "stratum": "short_factual",
+      "target_token": "HINDSIGHT_EMBED_MODEL",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Local dev for `hindsight-eval` needs three env vars exported before `make serve`: `HINDSIGHT_DB_URL`, `HINDSIGHT_EMBED_MODEL` and `HINDSIGHT_LOG_LEVEL`.",
+      "query": "Local dev for needs three env vars exported before:, and."
+    },
+    {
+      "query_id": "short_factual-003#q2",
+      "memory_id": "short_factual-003",
+      "stratum": "short_factual",
+      "target_token": "HINDSIGHT_LOG_LEVEL",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Local dev for `hindsight-eval` needs three env vars exported before `make serve`: `HINDSIGHT_DB_URL`, `HINDSIGHT_EMBED_MODEL` and `HINDSIGHT_LOG_LEVEL`.",
+      "query": "Local dev for needs three env vars exported before:, and."
+    },
+    {
+      "query_id": "short_factual-003#q3",
+      "memory_id": "short_factual-003",
+      "stratum": "short_factual",
+      "target_token": "HINDSIGHT_DB_URL",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Local dev for `hindsight-eval` needs three env vars exported before `make serve`: `HINDSIGHT_DB_URL`, `HINDSIGHT_EMBED_MODEL` and `HINDSIGHT_LOG_LEVEL`.",
+      "query": "Local dev for needs three env vars exported before:, and."
+    },
+    {
+      "query_id": "short_factual-004#q1",
+      "memory_id": "short_factual-004",
+      "stratum": "short_factual",
+      "target_token": "git revert a41f9c2e --no-edit",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The revert is `git revert a41f9c2e --no-edit`; do not cherry-pick `b73dd10` on top of it, that commit depends on the reverted chunker signature and will not compile.",
+      "query": "The regression in nightly ingest was introduced by commi on branch,. The is; do not cherry-pick on top of it, that commit depends on the ed chunker signature and will not compile."
+    },
+    {
+      "query_id": "short_factual-004#q2",
+      "memory_id": "short_factual-004",
+      "stratum": "short_factual",
+      "target_token": "feat/chunker-v2",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The regression in nightly ingest was introduced by commit `a41f9c2e` on branch `feat/chunker-v2`, tracked as ticket `ORCH-1184`.",
+      "query": "The regression in nightly ingest was introduced by commit a41f9c2e on branch, tracked as ticket."
+    },
+    {
+      "query_id": "short_factual-004#q3",
+      "memory_id": "short_factual-004",
+      "stratum": "short_factual",
+      "target_token": "ORCH-1184",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The regression in nightly ingest was introduced by commit `a41f9c2e` on branch `feat/chunker-v2`, tracked as ticket `ORCH-1184`.",
+      "query": "The regression in nightly ingest was introduced by commit a41f9c2e on branch, tracked as ticket."
+    },
+    {
+      "query_id": "short_factual-005#q1",
+      "memory_id": "short_factual-005",
+      "stratum": "short_factual",
+      "target_token": "MAX_FETCH_ATTEMPTS = 5",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Backoff is `0.5 * (2 ** attempt)` seconds capped at 30s, with `MAX_FETCH_ATTEMPTS = 5` defined at module top.",
+      "query": "In the retry wrapper catches only and. Backoff is seconds capped at, with defined at module top."
+    },
+    {
+      "query_id": "short_factual-005#q2",
+      "memory_id": "short_factual-005",
+      "stratum": "short_factual",
+      "target_token": "0.5 * (2 ** attempt)",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Backoff is `0.5 * (2 ** attempt)` seconds capped at 30s, with `MAX_FETCH_ATTEMPTS = 5` defined at module top.",
+      "query": "In the retry wrapper catches only and. Backoff is seconds capped at, with defined at module top."
+    },
+    {
+      "query_id": "short_factual-005#q3",
+      "memory_id": "short_factual-005",
+      "stratum": "short_factual",
+      "target_token": "pipeline/fetcher.py",
+      "target_is_corpus_unique": true,
+      "source_sentence": "In `pipeline/fetcher.py` the retry wrapper catches only `TransientFetchError` and `httpx.ReadTimeout`.",
+      "query": "In the retry wrapper catches only and."
+    },
+    {
+      "query_id": "short_factual-006#q1",
+      "memory_id": "short_factual-006",
+      "stratum": "short_factual",
+      "target_token": "ValidationError: Input tag 'v1' found using 'kind'",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Version `2.10.0` breaks `model_validate_json` for our `Discriminator`-tagged unions and surfaces as `ValidationError: Input tag 'v1' found using 'kind'`.",
+      "query": "Pin in. Version breaks for our -tagged unions and surfaces as."
+    },
+    {
+      "query_id": "short_factual-006#q2",
+      "memory_id": "short_factual-006",
+      "stratum": "short_factual",
+      "target_token": "pydantic/pydantic#9911",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The pin carries a comment pointing at upstream issue `pydantic/pydantic#9911`.",
+      "query": "Pin in. The pin carries a comment pointing at upstream issue."
+    },
+    {
+      "query_id": "short_factual-006#q3",
+      "memory_id": "short_factual-006",
+      "stratum": "short_factual",
+      "target_token": "requirements/base.txt",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Pin `pydantic==2.9.2` in `requirements/base.txt`.",
+      "query": "Pin in. Version breaks for our -tagged unions and surfaces as."
+    },
+    {
+      "query_id": "short_factual-007#q1",
+      "memory_id": "short_factual-007",
+      "stratum": "short_factual",
+      "target_token": "docs/runbooks/rotate-plaudit-key.md",
+      "target_is_corpus_unique": true,
+      "source_sentence": "It rotates on the first Monday of each quarter and the rotation steps live in `docs/runbooks/rotate-plaudit-key.md`.",
+      "query": "The staging Verbatex connector authenticates with API key, stored in the 1Password. It s on the first Monday of each quarter and the rotation steps live in."
+    },
+    {
+      "query_id": "short_factual-007#q2",
+      "memory_id": "short_factual-007",
+      "stratum": "short_factual",
+      "target_token": "pk_stg_EXAMPLE_NOT_A_REAL_KEY_0000",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The staging Verbatex connector authenticates with API key `pk_stg_EXAMPLE_NOT_A_REAL_KEY_0000`, stored in the 1Password item `Verbatex / staging` and never in `.env`.",
+      "query": "The staging Verbatex connector authenticates with API key, stored in the 1Password item and never in."
+    },
+    {
+      "query_id": "short_factual-007#q3",
+      "memory_id": "short_factual-007",
+      "stratum": "short_factual",
+      "target_token": "Verbatex / staging",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The staging Verbatex connector authenticates with API key `pk_stg_EXAMPLE_NOT_A_REAL_KEY_0000`, stored in the 1Password item `Verbatex / staging` and never in `.env`.",
+      "query": "The connector authenticates with API key, stored in the 1Password item and never in."
+    },
+    {
+      "query_id": "short_factual-008#q1",
+      "memory_id": "short_factual-008",
+      "stratum": "short_factual",
+      "target_token": "postgresql://evaluser:evalpass@127.0.0.1:55432/hindsight_eval",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The DSN is `postgresql://evaluser:evalpass@127.0.0.1:55432/hindsight_eval`.",
+      "query": "Local P for the eval harness listens on, not the P default,. Local P for the eval harness listens on, not the P default, because the Orbital Freight VPN already binds the standard port. The DSN is. Anything that reads from the ambient shell picks up the wrong database, so pass explicitly to every harness command."
+    },
+    {
+      "query_id": "short_factual-008#q2",
+      "memory_id": "short_factual-008",
+      "stratum": "short_factual",
+      "target_token": "DATABASE_URL",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Anything that reads `DATABASE_URL` from the ambient shell picks up the wrong database, so pass `--dsn` explicitly to every harness command.",
+      "query": "Local Postgres for the eval harness listens on, not the Postgres default,. Anything that reads from the ambient shell picks up the wrong database, so pass explicitly to every harness command."
+    },
+    {
+      "query_id": "short_factual-008#q3",
+      "memory_id": "short_factual-008",
+      "stratum": "short_factual",
+      "target_token": "55432/tcp",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Local Postgres for the eval harness listens on `55432/tcp`, not the Postgres default, because the Orbital Freight VPN already binds the standard port.",
+      "query": "Local Postgres for the eval harness listens on, not the Postgres default, because the Orbital Freight VPN already binds the standard port."
+    },
+    {
+      "query_id": "short_factual-009#q1",
+      "memory_id": "short_factual-009",
+      "stratum": "short_factual",
+      "target_token": "/opt/hindsight/bin/refresh_corpus.sh --stratum all --dry-run=false",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The corpus refresh job runs at `17 3 * * 1-5` UTC on the `eval-runner` host and invokes `/opt/hindsight/bin/refresh_corpus.sh --stratum all --dry-run=false`.",
+      "query": "The job runs at UTC on the host and invokes."
+    },
+    {
+      "query_id": "short_factual-009#q2",
+      "memory_id": "short_factual-009",
+      "stratum": "short_factual",
+      "target_token": "17 3 * * 1-5",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The corpus refresh job runs at `17 3 * * 1-5` UTC on the `eval-runner` host and invokes `/opt/hindsight/bin/refresh_corpus.sh --stratum all --dry-run=false`.",
+      "query": "The corpus refresh job runs at UTC on the host and invokes."
+    },
+    {
+      "query_id": "short_factual-009#q3",
+      "memory_id": "short_factual-009",
+      "stratum": "short_factual",
+      "target_token": "eval-runner",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The corpus refresh job runs at `17 3 * * 1-5` UTC on the `eval-runner` host and invokes `/opt/hindsight/bin/refresh_corpus.sh --stratum all --dry-run=false`.",
+      "query": "The corpus refresh job runs at UTC on the host and invokes."
+    },
+    {
+      "query_id": "short_factual-010#q1",
+      "memory_id": "short_factual-010",
+      "stratum": "short_factual",
+      "target_token": "kubectl rollout restart deploy/search-api -n prod-search",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The flag is read once at boot in `services/search/bootstrap.go`, so flipping it needs a rolling restart: `kubectl rollout restart deploy/search-api -n prod-search`.",
+      "query": "Feature flag is off i uction and on for the internal tenant. The flag is read once at boot in, so flipping it needs a rolling:."
+    },
+    {
+      "query_id": "short_factual-010#q2",
+      "memory_id": "short_factual-010",
+      "stratum": "short_factual",
+      "target_token": "services/search/bootstrap.go",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The flag is read once at boot in `services/search/bootstrap.go`, so flipping it needs a rolling restart: `kubectl rollout restart deploy/search-api -n prod-search`.",
+      "query": "Feature flag is off in production and on for the internal tenant. The flag is read once at boot in, so flipping it needs a rolling restart:."
+    },
+    {
+      "query_id": "short_factual-010#q3",
+      "memory_id": "short_factual-010",
+      "stratum": "short_factual",
+      "target_token": "ff.rerank_v3_enabled",
+      "target_is_corpus_unique": true,
+      "source_sentence": "Feature flag `ff.rerank_v3_enabled` is off in production and on for the internal tenant `tnt_0042`.",
+      "query": "Feature flag is off in production and on for the internal tenant."
+    },
+    {
+      "query_id": "short_factual-011#q1",
+      "memory_id": "short_factual-011",
+      "stratum": "short_factual",
+      "target_token": "# previously used requests",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The user does not want generated code comments that narrate history: no `# previously used requests`, no `# changed in v2`.",
+      "query": "The user does not want generated code comments that narrate history: no, no."
+    },
+    {
+      "query_id": "short_factual-011#q2",
+      "memory_id": "short_factual-011",
+      "stratum": "short_factual",
+      "target_token": "# changed in v2",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The user does not want generated code comments that narrate history: no `# previously used requests`, no `# changed in v2`.",
+      "query": "The user does not want generated code comments that narrate history: no, no."
+    },
+    {
+      "query_id": "short_factual-013#q1",
+      "memory_id": "short_factual-013",
+      "stratum": "short_factual",
+      "target_token": "typer.Option(..., \"--stratum\", \"-s\", help=\"Corpus stratum\")",
+      "target_is_corpus_unique": true,
+      "source_sentence": "The CLI option must stay `typer.Option(..., \"--stratum\", \"-s\", help=\"Corpus stratum\")`; the short form is referenced in three runbooks and cannot change.",
+      "query": "The CLI option must stay; the short form is referenced in three runbooks and cannot change."
+    },
+    {
+      "query_id": "short_factual-013#q2",
+      "memory_id": "short_factual-013",
+      "stratum": "short_factual",
+      "target_token": "sys.stdin.isatty()",
+      "target_is_corpus_unique": true,
+      "source_sentence": "`_stdin_prompt()` reads from stdin only when `sys.stdin.isatty()` is False, and otherwise raises `PromptUnavailable` rather than blocking a CI job forever.",
+      "query": "The CLI option must stay; the short form is referenced in three. reads from stdin only when is False, and otherwise raises rather than blocking a CI job forever."
+    },
+    {
+      "query_id": "short_factual-013#q3",
+      "memory_id": "short_factual-013",
+      "stratum": "short_factual",
+      "target_token": "PromptUnavailable",
+      "target_is_corpus_unique": true,
+      "source_sentence": "`_stdin_prompt()` reads from stdin only when `sys.stdin.isatty()` is False, and otherwise raises `PromptUnavailable` rather than blocking a CI job forever.",
+      "query": "The CLI option must stay; the short form is referenced in three. reads from stdin only when is False, and otherwise raises rather than blocking a CI job forever."
+    },
+    {
+      "query_id": "short_factual-024#q1",
+      "memory_id": "short_factual-024",
+      "stratum": "short_factual",
+      "target_token": "error: The lockfile is not up-to-date",
+      "target_is_corpus_unique": true,
+      "source_sentence": "A `pip install` inside the venv desynchronises `uv.lock`, and CI's `uv lock --check` then fails with `error: The lockfile is not up-to-date`.",
+      "query": "This repo is uv-only: to install and to test. A inside the venv desynchronises, and CI's then fails with."
+    },
+    {
+      "query_id": "short_factual-024#q2",
+      "memory_id": "short_factual-024",
+      "stratum": "short_factual",
+      "target_token": "uv lock --check",
+      "target_is_corpus_unique": true,
+      "source_sentence": "A `pip install` inside the venv desynchronises `uv.lock`, and CI's `uv lock --check` then fails with `error: The lockfile is not up-to-date`.",
+      "query": "This repo is uv-only: to install and to test. A inside the venv desynchronises, and CI's then fails with."
+    },
+    {
+      "query_id": "short_factual-024#q3",
+      "memory_id": "short_factual-024",
+      "stratum": "short_factual",
+      "target_token": "uv run pytest",
+      "target_is_corpus_unique": true,
+      "source_sentence": "This repo is uv-only: `uv sync --frozen` to install and `uv run pytest` to test.",
+      "query": "This repo is uv-only: to install and to test."
+    }
+  ]
+}

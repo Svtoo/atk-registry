@@ -39,6 +39,10 @@ plugins:
   path: plugins/google-workspace
   description: Google Workspace MCP — search Gmail, read Drive files, manage Calendar
     events, edit Docs and Sheets from any AI assistant.
+- name: hindsight
+  path: plugins/hindsight
+  description: Self-hosted agent memory with retain/recall/reflect over MCP; runs
+    locally in Docker or connects to a remote instance
 - name: langfuse
   path: plugins/langfuse
   description: Open-source LLM observability and tracing platform
