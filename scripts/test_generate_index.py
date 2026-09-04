@@ -68,7 +68,6 @@ def test_operator_only_paths_are_reported():
         {
             "custom/docker-compose.override.yml": "services: {}\n",
             "custom/model-eval-runs/run.json": "{}\n",
-            ".env": "TOKEN=abc\n",
         }
     )
 
@@ -76,8 +75,19 @@ def test_operator_only_paths_are_reported():
     violations = find_hygiene_violations(plugin_dir)
 
     # Then
-    assert len(violations) == 3
+    assert len(violations) == 2
     assert all("operator-only path" in v for v in violations)
+
+
+def test_an_ignored_env_file_is_not_reported():
+    # Given
+    plugin_dir = _plugin({".env": "TOKEN=abc\n", "README.md": "docs\n"})
+
+    # When
+    violations = find_hygiene_violations(plugin_dir)
+
+    # Then
+    assert violations == []
 
 
 def test_a_binary_file_is_skipped_rather_than_decoded():
