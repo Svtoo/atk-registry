@@ -99,17 +99,30 @@ def test_missing_or_empty_transcript_is_not_an_error():
     assert find_parent(empty) is None
 
 
-def test_real_corpus_fork_and_resume_resolve_to_their_parents():
-    """The two known real cases: a deliberate fork and a resume."""
-    root = Path.home() / ".claude" / "projects"
+def _project_slug(path: Path) -> str:
+    """Encode a project path the way Claude names its transcript directory."""
+    return str(path).replace("/", "-").replace(".", "-")
+
+
+LOCAL_CORPUS = Path(__file__).parent / "corpus_cases.json"
+
+
+def _corpus_cases() -> list[tuple[str, str, str]]:
+    """Real transcript cases: the atk-home fork, plus any recorded locally."""
     cases = [
-        ("-Users-user--atk",
+        (_project_slug(Path.home() / ".atk"),
          "979d92f1-33a5-4f5c-b0b7-371c2b905f56",
          "6edf1f5a-2e61-4f44-8bbc-3ecffdf2e5b1"),
-        ("-Users-user-project-eval-planning",
-         "b9fd7b87-8ad8-466b-a76c-5d7a4ede666c",
-         "f5e229a8-0919-4817-be49-c161929195c2"),
     ]
+    if LOCAL_CORPUS.is_file():
+        cases += [tuple(c) for c in json.loads(LOCAL_CORPUS.read_text())]
+    return cases
+
+
+def test_real_corpus_fork_and_resume_resolve_to_their_parents():
+    """Real transcripts resolve to the parent they replay."""
+    root = Path.home() / ".claude" / "projects"
+    cases = _corpus_cases()
     checked = 0
     for slug, child, expected_parent in cases:
         p = root / slug / f"{child}.jsonl"
@@ -117,7 +130,7 @@ def test_real_corpus_fork_and_resume_resolve_to_their_parents():
             continue          # corpus-dependent; skip when either side is absent
         assert find_parent(p) == expected_parent, f"{child} -> {find_parent(p)}"
         checked += 1
-    print(f"    (corpus cases checked: {checked}/2)")
+    print(f"    (corpus cases checked: {checked}/{len(cases)})")
 
 
 if __name__ == "__main__":

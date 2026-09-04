@@ -279,8 +279,8 @@ def test_an_active_app_notice_is_server_rendered_into_every_page():
 def test_project_hash_accepts_windows_hashes_but_still_blocks_traversal():
     """Windows project hashes start with the drive letter, not a hyphen; the
     regex must accept them while still rejecting anything path-like."""
-    assert serve._PROJECT_HASH_RE.match("-Users-sasha-code-myrepo")
-    assert serve._PROJECT_HASH_RE.match("C--Users-enalm-code-myrepo")
+    assert serve._PROJECT_HASH_RE.match("-Users-you-code-myrepo")
+    assert serve._PROJECT_HASH_RE.match("C--Users-user-code-myrepo")
 
     for hostile in ("..", "../etc", "a/b", "a\\b", "a.b", "", "-" * 300):
         assert not serve._PROJECT_HASH_RE.match(hostile), hostile
