@@ -16,6 +16,7 @@ Options:
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -28,6 +29,40 @@ from atk.source import resolve_source
 REGISTRY_ROOT = Path(__file__).parent.parent
 PLUGINS_DIR = REGISTRY_ROOT / "plugins"
 INDEX_FILE = REGISTRY_ROOT / "index.yaml"
+
+PLACEHOLDER_USERS = frozenset({"x", "you", "user", "someone", "..."})
+HOME_PATHS = (
+    re.compile(r"""/Users/([^/\s"',)\]]+)[^\s"',)\]]*"""),
+    re.compile(r"""-Users-([^-/\s"',)\]]+)[^\s"',)\]]*"""),
+)
+
+OPERATOR_ONLY_DIRS = frozenset({"custom"})
+OPERATOR_ONLY_NAMES = frozenset({".env"})
+
+
+def find_hygiene_violations(plugin_dir: Path) -> list[str]:
+    """Report files carrying an operator's identity or private configuration."""
+    violations: list[str] = []
+
+    for path in sorted(p for p in plugin_dir.rglob("*") if p.is_file()):
+        rel = path.relative_to(plugin_dir)
+
+        if OPERATOR_ONLY_DIRS.intersection(rel.parts) or rel.name in OPERATOR_ONLY_NAMES:
+            violations.append(f"{rel}: operator-only path, never ships to the registry")
+            continue
+
+        try:
+            text = path.read_text()
+        except UnicodeDecodeError:
+            continue
+
+        for pattern in HOME_PATHS:
+            for match in pattern.finditer(text):
+                if match.group(1).lower() in PLACEHOLDER_USERS:
+                    continue
+                violations.append(f"{rel}: {match.group(0)}")
+
+    return violations
 
 
 def discover_plugins() -> list[Path]:
@@ -45,6 +80,10 @@ def validate_plugin(plugin_dir: Path) -> RegistryPluginEntry | str:
         RegistryPluginEntry on success, error message string on failure.
     """
     name = plugin_dir.name
+
+    violations = find_hygiene_violations(plugin_dir)
+    if violations:
+        return "Hygiene violations:\n    " + "\n    ".join(violations)
 
     resolved = resolve_source(name)
     if resolved.source_type != SourceType.REGISTRY:
