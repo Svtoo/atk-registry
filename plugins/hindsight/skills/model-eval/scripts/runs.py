@@ -18,11 +18,9 @@ import shlex
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# Found through ATK's home, not by walking out of this skill; model-eval.sh
-# exports both so every step of a run agrees on them.
-PLUGIN_DIR = os.environ.get("HINDSIGHT_PLUGIN_DIR") or os.path.join(
-    os.environ.get("ATK_HOME") or os.path.expanduser("~/.atk"),
-    "plugins", "hindsight")
+sys.path.insert(0, HERE)
+from evalcommon import PLUGIN_DIR  # noqa: E402
+
 RUNS_DIR = os.environ.get("MODEL_EVAL_RUNS_DIR") or os.path.join(
     PLUGIN_DIR, "custom", "model-eval-runs")
 

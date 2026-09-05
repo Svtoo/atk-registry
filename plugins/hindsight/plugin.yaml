@@ -36,7 +36,7 @@ env_vars:
     default: default
     description: Memory bank this agent reads and writes. The MCP endpoint is scoped to it, so the agent cannot reach another bank. Use separate banks to isolate unrelated work.
   - name: HINDSIGHT_LLM_PROVIDER
-    required: true
+    required: false
     description: "Local mode only. Where the model runs: 'ollama' for this machine, or a hosted provider such as 'openrouter', 'groq', 'openai', 'anthropic'."
   - name: HINDSIGHT_LLM_MODEL
     required: false

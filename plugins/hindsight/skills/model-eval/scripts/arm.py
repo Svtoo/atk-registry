@@ -10,13 +10,13 @@ the bank config is written and then read back, and a mismatch is fatal.
 """
 import argparse, json, os, sys, time, urllib.error, urllib.request
 
+import evalcommon
 import parity
 import snapshot
 from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CORPUS = os.path.join(os.path.dirname(HERE), "corpus")
-INSTRUCTIONS = os.path.join(HERE, "retain-instructions.md")
 ROOT = "/v1/default"
 STACK_VARS = ("EVAL_LLM_PROVIDER", "EVAL_LLM_MODEL", "EVAL_LLM_BASE_URL", "EVAL_LLM_EXTRA_BODY",
               "EVAL_LLM_STRICT_SCHEMA", "EVAL_LLM_MAX_CONCURRENT")
@@ -93,7 +93,7 @@ def configure(base, bank, instructions, run_dir):
             f"{prod.get('retain_extraction_mode')!r}, expected 'custom'",
             "the eval copies production; fix production first")
     if (prod.get("retain_custom_instructions") or "").strip() != instructions.strip():
-        die("production's retain instructions differ from retain-instructions.md",
+        die("production's retain instructions differ from the plugin's retain-instructions.md",
             "the arms must extract against the instructions production actually uses")
 
     api(base, "PUT", f"{ROOT}/banks/{bank}", {})
@@ -210,10 +210,7 @@ def main():
     ap.add_argument("--drain-timeout", type=int, default=3600)
     args = ap.parse_args()
 
-    with open(INSTRUCTIONS, encoding="utf-8") as fh:
-        instructions = fh.read().strip()
-    if not instructions:
-        die(f"{INSTRUCTIONS} is empty")
+    instructions = evalcommon.retain_instructions()
 
     memories = load_corpus(args.subset or None)
     if args.limit:

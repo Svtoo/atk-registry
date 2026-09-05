@@ -35,6 +35,23 @@ from typing import Any, Callable, Iterable, NoReturn, Sequence
 HARNESS_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(HARNESS_DIR)
 CORPUS_DIR = os.path.join(ROOT_DIR, "corpus")
+# The plugin is found through ATK's home, never by walking out of this skill;
+# model-eval.sh exports the variable so every step of a run agrees on it.
+PLUGIN_DIR = os.environ.get("HINDSIGHT_PLUGIN_DIR") or os.path.join(
+    os.environ.get("ATK_HOME") or os.path.expanduser("~/.atk"), "plugins", "hindsight")
+
+
+def retain_instructions() -> str:
+    """The retain instructions conform applies: custom/ wins over the shipped file."""
+    for path in (os.path.join(PLUGIN_DIR, "custom", "retain-instructions.md"),
+                 os.path.join(PLUGIN_DIR, "retain-instructions.md")):
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read().strip()
+            if text:
+                return text
+    die(f"no retain instructions under {PLUGIN_DIR}",
+        "the arms must extract against the instructions production uses")
 
 STRATA = ("code_handover", "decisions_rationale", "meetings_people", "short_factual")
 

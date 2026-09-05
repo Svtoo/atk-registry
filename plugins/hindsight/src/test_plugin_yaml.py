@@ -23,6 +23,13 @@ class SetupOrderTest(unittest.TestCase):
         self.assertLess(names.index("HINDSIGHT_LLM_MODEL"),
                         names.index("HINDSIGHT_LLM_API_KEY"))
 
+    def test_the_provider_is_optional_and_has_no_default(self):
+        with open(PLUGIN_YAML) as fh:
+            block = fh.read().split("- name: HINDSIGHT_LLM_PROVIDER", 1)[1].split("- name:", 1)[0]
+        # Then remote mode is not asked for it as required, and local mode gets no guess
+        self.assertIn("required: false", block)
+        self.assertNotIn("default:", block)
+
 
 if __name__ == "__main__":
     unittest.main()
