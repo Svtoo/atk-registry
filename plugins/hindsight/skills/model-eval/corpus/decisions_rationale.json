@@ -1,0 +1,693 @@
+{
+  "stratum": "decisions_rationale",
+  "memories": [
+    {
+      "id": "decisions_rationale-001",
+      "text": "Decision on 2026-02-11 (ticket ARC-4471): the memory store for `hindsight-core` stays on pgvector 0.8.1 inside PostgreSQL 17.2 rather than moving to Qdrant 1.13.4. We benchmarked both on the 2.4M-chunk `recall_bench_v3` set: Qdrant returned p95 latency of 41ms against pgvector's 68ms with `hnsw` (m=16, ef_construction=200), so on raw ANN speed Qdrant won. It was rejected anyway because every recall query joins the vector hit against `memory_facts.tag_scope` and `memory_facts.retained_at` for tag filtering, and splitting that across two datastores forces a dual-write path with no transactional guarantee - the outbox we would have needed was judged more engineering surface than the 27ms it would buy. The tradeoff we accepted: p95 stays above our 50ms internal target until we tune `ef_search` or shard, and that is recorded as a KNOWN LIMIT in `docs/adr/0031-vector-store.md`. Revisit trigger: if the corpus passes 10M chunks, or if p95 exceeds 150ms on `SELECT ... ORDER BY embedding <=> $1 LIMIT 40`.",
+      "hard_tokens": [
+        "2026-02-11",
+        "ARC-4471",
+        "hindsight-core",
+        "pgvector 0.8.1",
+        "PostgreSQL 17.2",
+        "Qdrant 1.13.4",
+        "2.4M",
+        "recall_bench_v3",
+        "41ms",
+        "68ms",
+        "hnsw",
+        "m=16",
+        "ef_construction=200",
+        "memory_facts.tag_scope",
+        "memory_facts.retained_at",
+        "27ms",
+        "50ms",
+        "ef_search",
+        "docs/adr/0031-vector-store.md",
+        "10M chunks",
+        "150ms",
+        "SELECT ... ORDER BY embedding <=> $1 LIMIT 40"
+      ],
+      "expected_min_facts": 7,
+      "traps": [
+        "may invert the decision and report Qdrant 1.13.4 as chosen because it won the latency benchmark",
+        "may drop the HNSW parameters m=16 and ef_construction=200 as 'tuned index settings'",
+        "may collapse memory_facts.tag_scope and memory_facts.retained_at into 'metadata columns'",
+        "may paraphrase the revisit trigger query instead of quoting SELECT ... ORDER BY embedding <=> $1 LIMIT 40"
+      ]
+    },
+    {
+      "id": "decisions_rationale-002",
+      "text": "Ticket PLAT-2210, decided after the 2026-03-04 design review: `ingest-gateway` publishes to NATS JetStream 2.11.3 rather than Redis Streams 7.4.2. Redis Streams was the incumbent and by far the cheaper migration - we already ran `redis://cache-01.internal:6379` for the session cache and the consumer code in `src/ingest/consumer.py` would not have changed at all. We rejected it because `XAUTOCLAIM` gives at-least-once delivery only while the consumer group's PEL survives, and our two Redis restarts in January dropped 1,140 pending entries with no replay path. JetStream's file-backed stream created with `--replicas=3` survives a restart, and the `AckExplicit` policy plus `max_deliver=5` gives us a dead-letter path into `INGEST_DLQ`. The cost we accepted: about 320MB of extra RSS per node, a new operational surface, and `nats-server` listening on 4222 in every environment. Nobody should read this note as 'Redis Streams is durable enough' - it is the explicitly rejected option.",
+      "hard_tokens": [
+        "PLAT-2210",
+        "2026-03-04",
+        "ingest-gateway",
+        "NATS JetStream 2.11.3",
+        "Redis Streams 7.4.2",
+        "redis://cache-01.internal:6379",
+        "src/ingest/consumer.py",
+        "XAUTOCLAIM",
+        "1,140",
+        "--replicas=3",
+        "AckExplicit",
+        "max_deliver=5",
+        "INGEST_DLQ",
+        "320MB",
+        "nats-server",
+        "4222"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may record Redis Streams 7.4.2 as the chosen transport since it is named first and described favourably",
+        "may drop XAUTOCLAIM and describe it as 'the Redis claim mechanism'",
+        "may merge --replicas=3, AckExplicit and max_deliver=5 into one 'durability settings' fact"
+      ]
+    },
+    {
+      "id": "decisions_rationale-003",
+      "text": "We standardised the wire codec in `hindsight-api` on `msgspec` 0.19.0 instead of `orjson` 3.10.15, recorded in `docs/adr/0044-wire-codec.md`. Both beat the standard library by a wide margin - on the 512KB `fact_batch.json` fixture, `orjson.dumps` ran 1.8ms and `msgspec.json.encode` ran 2.1ms, so orjson is genuinely the faster encoder and we are not pretending otherwise. orjson lost because it does not validate: we were hand-rolling `_coerce_fact()` guards at five call sites, and two of them let `retained_at` through as a naive datetime, which is what produced `ValueError: Invalid isoformat string` in run `2026-01-29T04:12Z`. `msgspec.Struct` types give decode-time validation in the same pass, so `_coerce_fact()` and all five call sites were deleted. Accepted tradeoff: 0.3ms slower per batch, plus a hard requirement that the struct definitions in `src/api/schema.py` stay in sync with the Postgres DDL.",
+      "hard_tokens": [
+        "hindsight-api",
+        "msgspec",
+        "0.19.0",
+        "orjson",
+        "3.10.15",
+        "docs/adr/0044-wire-codec.md",
+        "512KB",
+        "fact_batch.json",
+        "orjson.dumps",
+        "1.8ms",
+        "msgspec.json.encode",
+        "2.1ms",
+        "_coerce_fact()",
+        "retained_at",
+        "ValueError: Invalid isoformat string",
+        "2026-01-29T04:12Z",
+        "msgspec.Struct",
+        "0.3ms",
+        "src/api/schema.py"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may report orjson 3.10.15 as adopted because it benchmarked faster",
+        "may paraphrase the exception as 'an isoformat error' instead of quoting ValueError: Invalid isoformat string",
+        "may lose msgspec.json.encode and orjson.dumps by describing them as 'the encoders'"
+      ]
+    },
+    {
+      "id": "decisions_rationale-004",
+      "text": "Auth decision for the `/mcp/` bridge (ticket SEC-1188): tokens are PASETO v4.local, not JWT signed with HS256. JWT was proposed because `PyJWT` 2.10.1 was already a transitive dependency and every client library speaks it. We rejected it after the `alg: none` class and the HS256/RS256 confusion class both surfaced in the threat model review - `verify_token()` in `src/auth/tokens.py` accepted whatever algorithm the header claimed. PASETO v4.local removes algorithm agility entirely: version and purpose live in the token prefix `v4.local.`, so a downgrade is not expressible. Costs accepted: `pyseto` 1.8.4 is a much smaller ecosystem, the browser SDK needed a hand-written decoder, and key rotation now runs through `HINDSIGHT_PASETO_KEY_CURRENT` and `HINDSIGHT_PASETO_KEY_PREVIOUS` instead of a JWKS endpoint. The rotation window is 72h, enforced by the cron in `ops/rotate_keys.sh`.",
+      "hard_tokens": [
+        "/mcp/",
+        "SEC-1188",
+        "PASETO v4.local",
+        "HS256",
+        "PyJWT",
+        "2.10.1",
+        "alg: none",
+        "HS256/RS256",
+        "verify_token()",
+        "src/auth/tokens.py",
+        "v4.local.",
+        "pyseto",
+        "1.8.4",
+        "HINDSIGHT_PASETO_KEY_CURRENT",
+        "HINDSIGHT_PASETO_KEY_PREVIOUS",
+        "72h",
+        "ops/rotate_keys.sh"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may state JWT with HS256 was adopted since it is listed first with supporting reasons",
+        "may collapse HINDSIGHT_PASETO_KEY_CURRENT and HINDSIGHT_PASETO_KEY_PREVIOUS into 'two env vars for key rotation'",
+        "may drop the literal prefix v4.local. as unimportant punctuation"
+      ]
+    },
+    {
+      "id": "decisions_rationale-005",
+      "text": "Schema migrations for `hindsight-core` moved off Alembic 1.14.0 to plain SQL files run by `dbmate` 2.24.0, decided in `docs/adr/0052-migrations.md` after the incident on 2026-04-02. Autogenerate was the argument for keeping Alembic - `alembic revision --autogenerate -m \"add tag_scope index\"` writes the diff for you, and nobody enjoys hand-writing DDL. It was rejected because autogenerate silently emitted `op.drop_index('ix_memory_facts_embedding')` against the pgvector HNSW index it could not model, and applying revision `9f3ac21b7d40` in staging dropped that index and took recall p95 from 68ms to 4.7s. dbmate has no model reflection whatsoever, which is exactly the property we wanted: every statement in `db/migrations/20260402150211_add_tag_scope_index.sql` is written and reviewed by a human. Tradeoff accepted: there is no automatic downgrade path, so each file must carry its own `-- migrate:down` block, and CI enforces that with `scripts/check_migrations.py --require-down`.",
+      "hard_tokens": [
+        "hindsight-core",
+        "Alembic 1.14.0",
+        "dbmate",
+        "2.24.0",
+        "docs/adr/0052-migrations.md",
+        "2026-04-02",
+        "alembic revision --autogenerate -m \"add tag_scope index\"",
+        "op.drop_index('ix_memory_facts_embedding')",
+        "9f3ac21b7d40",
+        "68ms",
+        "4.7s",
+        "db/migrations/20260402150211_add_tag_scope_index.sql",
+        "-- migrate:down",
+        "scripts/check_migrations.py --require-down"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may shorten the migration filename db/migrations/20260402150211_add_tag_scope_index.sql to a description",
+        "may drop the quoted -m \"add tag_scope index\" argument from the alembic command",
+        "may present Alembic autogenerate as the endorsed workflow because its benefit is stated first"
+      ]
+    },
+    {
+      "id": "decisions_rationale-006",
+      "text": "Embedding model for the consolidation pipeline stays `bge-m3` at 1024 dimensions rather than switching to `voyage-3-large` at 2048, ticket ML-0907. On our internal `recall_bench_v3` set voyage-3-large scored nDCG@10 of 0.741 against bge-m3's 0.712 - a real 2.9-point win, not noise. We rejected it on two grounds. First, it is a hosted API, so every consolidation run would ship raw memory text to `api.voyageai.example.com`, contradicting the self-hosted guarantee we make in `README.md`. Second, doubling to 2048 dims grows the `memory_chunks.embedding` column from 4.6GB to 9.2GB, which pushes the working set past the 16GB of RAM on `db-01`. The decision carries an explicit revisit trigger: if a locally runnable 2048-dim model reaches nDCG@10 above 0.760 we re-run the comparison. Until then `EMBED_MODEL=bge-m3` and `EMBED_DIM=1024` are pinned in `deploy/env/prod.env`.",
+      "hard_tokens": [
+        "bge-m3",
+        "1024",
+        "voyage-3-large",
+        "2048",
+        "ML-0907",
+        "recall_bench_v3",
+        "nDCG@10",
+        "0.741",
+        "0.712",
+        "2.9-point",
+        "api.voyageai.example.com",
+        "README.md",
+        "memory_chunks.embedding",
+        "4.6GB",
+        "9.2GB",
+        "16GB",
+        "db-01",
+        "0.760",
+        "EMBED_MODEL=bge-m3",
+        "EMBED_DIM=1024",
+        "deploy/env/prod.env"
+      ],
+      "expected_min_facts": 7,
+      "traps": [
+        "may attribute the winning nDCG@10 of 0.741 to the chosen model bge-m3, inverting the comparison",
+        "may collapse EMBED_MODEL=bge-m3 and EMBED_DIM=1024 into 'the pinned embedding settings'",
+        "may drop the revisit threshold 0.760 as a minor detail"
+      ]
+    },
+    {
+      "id": "decisions_rationale-007",
+      "text": "The chunker sidecar `chunkd` is written in Go 1.24 rather than Rust 1.85, decided with Priya Raghunathan on 2026-05-19. Rust won the microbenchmark outright: `cargo bench` reported 11.4us per 4KB chunk against Go's 19.8us, and the Rust build produced a 3.1MB static binary versus 8.7MB for Go. We still chose Go, because the sidecar's real work is `tokenizers` FFI plus gRPC serialization, the team has four Go maintainers and zero Rust ones, and the chunker sits behind a 250ms budget where 8.4us per chunk is noise. The explicit tradeoff: if `chunkd` ever moves into the synchronous path for `recall()` we revisit, because at 40 chunks per call the gap becomes 336us and starts to matter. Do not record this as 'Rust was too slow' - Rust was faster and lost on maintainer availability.",
+      "hard_tokens": [
+        "chunkd",
+        "Go 1.24",
+        "Rust 1.85",
+        "2026-05-19",
+        "cargo bench",
+        "11.4us",
+        "4KB",
+        "19.8us",
+        "3.1MB",
+        "8.7MB",
+        "tokenizers",
+        "gRPC",
+        "250ms",
+        "8.4us",
+        "recall()",
+        "40 chunks per call",
+        "336us"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may report Rust 1.85 as the chosen language because it won every measured comparison",
+        "may compress 11.4us, 19.8us, 3.1MB and 8.7MB into 'Rust benchmarked better'",
+        "may lose the causal chain that the deciding factor was four Go maintainers and zero Rust ones"
+      ]
+    },
+    {
+      "id": "decisions_rationale-008",
+      "text": "Deployment target for the self-hosted bundle is Docker Compose plus systemd - not Kubernetes, and not Nomad 1.9.6. Recorded in `docs/adr/0019-deploy-target.md`. Kubernetes gives rolling updates, `PodDisruptionBudget` and a real operator story, and two of our three design partners already run EKS, so it was the serious contender. We rejected it because the primary persona for the bundle is one engineer on one box, and `helm install hindsight ./charts/hindsight` fails for that person the moment they have no default `StorageClass`; support load from the 0.4.x Helm chart was 61% of all issues filed at `github.example.com/hindsight/hindsight/issues`. Compose keeps the whole system behind `docker compose up -d` against `deploy/compose/docker-compose.yml`, with Postgres bind-mounted at `/var/lib/hindsight/pgdata`. Accepted limits, written down rather than hidden: no multi-node HA, no rolling restart - `docker compose restart api` drops in-flight requests for roughly 1.8s - and both are stated in `docs/operations.md`.",
+      "hard_tokens": [
+        "docs/adr/0019-deploy-target.md",
+        "Nomad 1.9.6",
+        "PodDisruptionBudget",
+        "EKS",
+        "helm install hindsight ./charts/hindsight",
+        "StorageClass",
+        "0.4.x",
+        "61%",
+        "github.example.com/hindsight/hindsight/issues",
+        "docker compose up -d",
+        "deploy/compose/docker-compose.yml",
+        "/var/lib/hindsight/pgdata",
+        "docker compose restart api",
+        "1.8s",
+        "docs/operations.md"
+      ],
+      "expected_min_facts": 7,
+      "traps": [
+        "may drop Nomad 1.9.6 entirely since it is dismissed in a single clause",
+        "may merge docker compose up -d and docker compose restart api into one 'compose commands' fact",
+        "may report Kubernetes as chosen because its advantages are enumerated first"
+      ]
+    },
+    {
+      "id": "decisions_rationale-009",
+      "text": "Recall result caching uses an in-process `functools.lru_cache(maxsize=2048)` wrapper in `src/recall/cache.py`, and deliberately not Redis. Redis would let all four API workers share one cache and survive a `SIGHUP`, which is the better design on paper. It lost because the cache key includes `tag_scope` plus the full query string, and hit rate measured over 14 days of production traffic was 6.3% - far too low to justify a 0.9ms network hop on every miss. Revisit if hit rate ever exceeds 25%.",
+      "hard_tokens": [
+        "functools.lru_cache(maxsize=2048)",
+        "src/recall/cache.py",
+        "SIGHUP",
+        "tag_scope",
+        "14 days",
+        "6.3%",
+        "0.9ms",
+        "25%"
+      ],
+      "expected_min_facts": 4,
+      "traps": [
+        "may paraphrase functools.lru_cache(maxsize=2048) as 'an LRU cache' and lose maxsize=2048",
+        "may report Redis as the chosen cache because its benefits are stated before the rejection",
+        "may drop the 25% revisit threshold"
+      ]
+    },
+    {
+      "id": "decisions_rationale-010",
+      "text": "Packaging decision, ticket DEV-0412: the monorepo moved to uv 0.9.7 workspaces with a single `uv.lock`, replacing Poetry 1.8.5 and its seven per-package `poetry.lock` files. Poetry worked and had the better plugin story for our private index at `pypi.internal.example.com/simple`, so this was not a correctness argument. It lost on cold-cache CI time: `poetry install --sync` averaged 3m52s on the `ci-runner-large` image while `uv sync --frozen` averaged 19s, and that step runs about 140 times a day. The migration cost we paid, in order: every `pyproject.toml` in all seven packages needed `[tool.uv.sources]` entries; `uv` does not support the `poetry-dynamic-versioning` plugin, so version strings moved into `src/<pkg>/__about__.py`; and `uv pip compile` output is not byte-identical across platforms, which forced us to pin lock generation to `linux/amd64` in `.github/workflows/lock.yml`.",
+      "hard_tokens": [
+        "DEV-0412",
+        "uv 0.9.7",
+        "uv.lock",
+        "Poetry 1.8.5",
+        "poetry.lock",
+        "pypi.internal.example.com/simple",
+        "poetry install --sync",
+        "3m52s",
+        "ci-runner-large",
+        "uv sync --frozen",
+        "19s",
+        "140 times a day",
+        "pyproject.toml",
+        "[tool.uv.sources]",
+        "poetry-dynamic-versioning",
+        "src/<pkg>/__about__.py",
+        "uv pip compile",
+        "linux/amd64",
+        ".github/workflows/lock.yml"
+      ],
+      "expected_min_facts": 8,
+      "traps": [
+        "may collapse the three enumerated migration costs into one 'migration required config changes' fact",
+        "may drop [tool.uv.sources] or src/<pkg>/__about__.py as implementation noise",
+        "may confuse which command produced 3m52s and which produced 19s"
+      ]
+    },
+    {
+      "id": "decisions_rationale-011",
+      "text": "Chunking: we settled on semantic-boundary chunking with a 700-token target and 80-token overlap, implemented in `split_on_headings()` in `src/chunk/semantic.py`, rather than fixed 512-token windows. Fixed windows were simpler and gave the embedder perfectly uniform batches, which mattered for GPU utilisation - throughput fell from 2,900 chunks/s to 2,150 chunks/s when we moved to variable length. We accepted that 26% throughput loss because fixed windows split code blocks mid-function: the eval showed 31 of 120 code-dense handovers losing at least one identifier across a boundary, and a memory that ends mid-signature is worse than no memory at all. Guard rail: `MAX_CHUNK_TOKENS=1200` still hard-truncates, and `split_on_headings()` raises `ChunkBoundaryError` when a single fenced block exceeds it, rather than splitting inside the fence.",
+      "hard_tokens": [
+        "700-token",
+        "80-token",
+        "split_on_headings()",
+        "src/chunk/semantic.py",
+        "512-token",
+        "2,900 chunks/s",
+        "2,150 chunks/s",
+        "26%",
+        "31 of 120",
+        "MAX_CHUNK_TOKENS=1200",
+        "ChunkBoundaryError"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may report fixed 512-token windows as the adopted strategy because they are faster",
+        "may drop MAX_CHUNK_TOKENS=1200 and ChunkBoundaryError as 'a guard rail'",
+        "may lose the distinction between the 700-token target and the 80-token overlap"
+      ]
+    },
+    {
+      "id": "decisions_rationale-012",
+      "text": "Retry policy for outbound LLM calls, decided after the rate-limit storm on 2026-06-08: exponential backoff with full jitter at `base=0.5s`, `cap=30s`, `max_attempts=6`, implemented in `retry_with_jitter()` in `src/llm/retry.py`. The alternative was the vendor SDK's built-in retry, which is one flag - `max_retries=6` on the client constructor - and needs no code from us. We rejected it because the SDK retries on `429` and `529` but not on `httpx.ReadTimeout`, and 71% of that night's failures were read timeouts at 60s rather than rate limits. Our wrapper retries on `429`, `500`, `502`, `503`, `529` and `httpx.ReadTimeout`, and gives up immediately on `400` and `401` because those are never transient. The cost: we now own retry semantics and `retry_with_jitter()` must be updated by hand whenever the SDK adds an error class.",
+      "hard_tokens": [
+        "2026-06-08",
+        "base=0.5s",
+        "cap=30s",
+        "max_attempts=6",
+        "retry_with_jitter()",
+        "src/llm/retry.py",
+        "max_retries=6",
+        "429",
+        "529",
+        "httpx.ReadTimeout",
+        "71%",
+        "60s",
+        "500",
+        "502",
+        "503",
+        "400",
+        "401"
+      ],
+      "expected_min_facts": 7,
+      "traps": [
+        "may summarise the retry status list as 'retries on 5xx and rate limits', losing 429, 500, 502, 503, 529",
+        "may drop the non-retryable codes 400 and 401 entirely",
+        "may merge base=0.5s, cap=30s and max_attempts=6 into 'standard backoff parameters'",
+        "may report the SDK's max_retries=6 as the adopted mechanism"
+      ]
+    },
+    {
+      "id": "decisions_rationale-013",
+      "text": "Feature flags: we built our own, serving `flagd`-compatible definitions from a single `config/flags.yaml` read by `is_enabled(flag_name, tenant_id)` in `src/flags/__init__.py`, instead of adopting LaunchDarkly. LaunchDarkly's targeting UI and audit log are genuinely better and the SDK integration is four lines, so the build-versus-buy case was close. It was rejected because the self-hosted bundle cannot depend on a SaaS control plane that phones home to `app.launchdarkly.com`, and a flag evaluation failing closed during a network partition would have taken `recall()` offline. Ours is dumber on purpose: flags are static per deploy, changing one requires `docker compose restart api`, and there is no percentage rollout at all. We accepted that because we currently ship 11 flags and none of them need per-user targeting.",
+      "hard_tokens": [
+        "flagd",
+        "config/flags.yaml",
+        "is_enabled(flag_name, tenant_id)",
+        "src/flags/__init__.py",
+        "LaunchDarkly",
+        "app.launchdarkly.com",
+        "recall()",
+        "docker compose restart api",
+        "11 flags"
+      ],
+      "expected_min_facts": 5,
+      "traps": [
+        "may record LaunchDarkly as adopted because its advantages lead the paragraph",
+        "may paraphrase is_enabled(flag_name, tenant_id) without its parameter names",
+        "may drop the three accepted limitations by summarising them as 'simpler flags'"
+      ]
+    },
+    {
+      "id": "decisions_rationale-014",
+      "text": "Observability decision, `docs/adr/0061-telemetry.md`: the API exports OTLP over gRPC to a self-hosted `otel-collector` 0.121.0 on 4317, and the Datadog agent was removed. The Datadog agent gave better out-of-the-box dashboards and its Postgres integration already parsed `pg_stat_statements`, so this was a real loss of capability. We rejected it because the agent must run privileged to read `/proc` for host metrics and the self-hosted bundle ships to customers who will not grant that, and because per-host pricing made the single-box persona cost more than the service it monitors. The collector runs unprivileged and `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317` is the only knob most operators ever touch. What we gave up and accepted: no host-level metrics at all, sampling fixed at `OTEL_TRACES_SAMPLER_ARG=0.1`, and four dashboards we now hand-maintain in `ops/grafana/`.",
+      "hard_tokens": [
+        "docs/adr/0061-telemetry.md",
+        "OTLP",
+        "otel-collector",
+        "0.121.0",
+        "4317",
+        "pg_stat_statements",
+        "/proc",
+        "OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317",
+        "OTEL_TRACES_SAMPLER_ARG=0.1",
+        "ops/grafana/"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may drop pg_stat_statements when summarising the rejected Datadog integration",
+        "may write the endpoint env var without its value, losing OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317",
+        "may report Datadog as retained because its strengths are described first"
+      ]
+    },
+    {
+      "id": "decisions_rationale-015",
+      "text": "We run the integration suite with `pytest -p xdist -n 8 --dist loadfile` against eight throwaway Postgres schemas, not one shared database with per-test transaction rollback. Rollback is measurably faster - the suite went from 6m10s to 9m41s when we switched away from it - but it cannot exercise anything that commits, and `test_consolidation_merges_duplicates` needs a real commit for the `AFTER INSERT` trigger on `memory_facts` to fire. Schema-per-worker costs 3m31s of wall clock and roughly 900MB of extra disk in CI, and we pay it. `conftest.py` creates the schema in a session-scoped fixture and drops it in a `finalizer`, so a killed worker leaks a schema; `scripts/reap_test_schemas.sh` runs nightly to clean those up.",
+      "hard_tokens": [
+        "pytest -p xdist -n 8 --dist loadfile",
+        "6m10s",
+        "9m41s",
+        "test_consolidation_merges_duplicates",
+        "AFTER INSERT",
+        "memory_facts",
+        "3m31s",
+        "900MB",
+        "conftest.py",
+        "finalizer",
+        "scripts/reap_test_schemas.sh"
+      ],
+      "expected_min_facts": 5,
+      "traps": [
+        "may paraphrase the pytest invocation and lose -n 8 or --dist loadfile",
+        "may report transaction rollback as the chosen strategy because it is faster",
+        "may drop the leak-cleanup script scripts/reap_test_schemas.sh as an aside"
+      ]
+    },
+    {
+      "id": "decisions_rationale-016",
+      "text": "Cross-store consistency between Postgres and the search index uses a transactional outbox in `outbox_events` with a poller - not two-phase commit, and not dual writes. Dual write is what we shipped in 0.3.2 and it is why `INDEX_DRIFT` fired 23 times in Q1: the second write fails, nobody notices, and recall silently misses facts. XA two-phase commit was the theoretically correct option, but `asyncpg` has no XA support and OpenSearch has none at all, so it was never actually on the table. The outbox gives at-least-once delivery with idempotent upserts keyed on `(fact_id, revision)`, and the poller `outbox_drain()` in `src/outbox/drain.py` runs every 250ms. Accepted tradeoffs: index lag up to 900ms at p99, and `outbox_events` grows without bound unless `scripts/prune_outbox.py --older-than 7d` runs on schedule.",
+      "hard_tokens": [
+        "outbox_events",
+        "0.3.2",
+        "INDEX_DRIFT",
+        "23 times",
+        "asyncpg",
+        "OpenSearch",
+        "(fact_id, revision)",
+        "outbox_drain()",
+        "src/outbox/drain.py",
+        "250ms",
+        "900ms",
+        "scripts/prune_outbox.py --older-than 7d"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may flatten the two rejected alternatives (dual writes and XA two-phase commit) into one",
+        "may drop the --older-than 7d flag from the prune command",
+        "may lose the idempotency key (fact_id, revision) by calling it 'a composite key'"
+      ]
+    },
+    {
+      "id": "decisions_rationale-017",
+      "text": "The admin console is server-rendered Jinja2 with htmx 2.0.4, not React 19 with Vite. React was the default assumption and two of us know it well; the console is 14 screens, three of which are tables with inline edit. We rejected React because it drags in a separate build pipeline, a `node_modules` tree of 412MB, and a second deployable behind `admin.hindsight.internal`, all to serve a tool used by fewer than 30 internal operators. htmx keeps the console inside the existing FastAPI app under `src/admin/templates/`, and the whole thing is 1,900 lines. What we gave up: no offline state, no optimistic UI, and the bulk-tag editor in `templates/admin/bulk_tag.html` needed a 60-line vanilla JS island because htmx alone could not express multi-select. If we ever need real client state, we port that one screen - not the console.",
+      "hard_tokens": [
+        "Jinja2",
+        "htmx 2.0.4",
+        "React 19",
+        "Vite",
+        "14 screens",
+        "node_modules",
+        "412MB",
+        "admin.hindsight.internal",
+        "30 internal operators",
+        "FastAPI",
+        "src/admin/templates/",
+        "1,900 lines",
+        "templates/admin/bulk_tag.html",
+        "60-line"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may report React 19 with Vite as the stack in use",
+        "may drop templates/admin/bulk_tag.html when summarising the one exception",
+        "may merge the three rejection reasons into 'React was too heavy'"
+      ]
+    },
+    {
+      "id": "decisions_rationale-018",
+      "text": "Rate limiting lives in the application - `RateLimiter.check()` in `src/api/limits.py`, backed by a Redis token bucket at `redis://cache-01.internal:6379/2` - rather than in Envoy 1.33 at the edge. Envoy's `local_ratelimit` filter is faster and would keep the API dumb, and the config was already written. It was rejected because our limits are per-API-key and per-endpoint-class - `retain` costs 5 tokens, `recall` costs 1 token, `reflect` costs 20 tokens - and Envoy cannot see the endpoint class until the router has picked a route, which would have meant duplicating the routing table inside the filter config. Application-side we already hold the key when the cost is computed. Cost accepted: one Redis round trip of about 0.6ms per request, and if Redis is unreachable `RateLimiter.check()` fails open by design, documented in `docs/adr/0038-rate-limiting.md` as a deliberate availability-over-enforcement choice.",
+      "hard_tokens": [
+        "RateLimiter.check()",
+        "src/api/limits.py",
+        "redis://cache-01.internal:6379/2",
+        "Envoy 1.33",
+        "local_ratelimit",
+        "retain",
+        "recall",
+        "reflect",
+        "5 tokens",
+        "1 token",
+        "20 tokens",
+        "0.6ms",
+        "docs/adr/0038-rate-limiting.md"
+      ],
+      "expected_min_facts": 7,
+      "traps": [
+        "may collapse the three per-endpoint costs into 'weighted per-endpoint costs', losing 5 tokens, 1 token and 20 tokens",
+        "may drop the database index /2 from redis://cache-01.internal:6379/2",
+        "may report Envoy 1.33 local_ratelimit as the implementation because it is described as faster",
+        "may omit the fail-open behaviour, which is the load-bearing safety caveat"
+      ]
+    },
+    {
+      "id": "decisions_rationale-019",
+      "text": "Blob storage for uploaded transcripts is the local filesystem under `/var/lib/hindsight/blobs` with a `sha256` content-address layout - not MinIO, and not S3. S3 was the obvious answer and `boto3` is three lines of code, but the bundle must run with no outbound network at all: one design partner runs it fully air-gapped. MinIO was the middle option and was rejected because it adds a second stateful service plus its own credential rotation for `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD`. The filesystem gives `fsync` durability for free and `blob_path()` in `src/blobs/store.py` is 40 lines total. Accepted limits: no replication, blobs are not portable across hosts, and `docker compose down -v` deletes them permanently - which is why `docs/operations.md` tells operators to back up `/var/lib/hindsight` with `restic` before any upgrade. If a customer ever needs multi-node, we add an S3 backend behind the existing `BlobStore` protocol rather than replacing the local one.",
+      "hard_tokens": [
+        "/var/lib/hindsight/blobs",
+        "sha256",
+        "MinIO",
+        "boto3",
+        "MINIO_ROOT_USER",
+        "MINIO_ROOT_PASSWORD",
+        "fsync",
+        "blob_path()",
+        "src/blobs/store.py",
+        "40 lines",
+        "docker compose down -v",
+        "docs/operations.md",
+        "/var/lib/hindsight",
+        "restic",
+        "BlobStore"
+      ],
+      "expected_min_facts": 7,
+      "traps": [
+        "may flatten the two distinct rejections (S3 for air-gap, MinIO for extra stateful service) into one",
+        "may drop the -v from docker compose down -v, which changes what the command does",
+        "may shorten /var/lib/hindsight/blobs to /var/lib/hindsight"
+      ]
+    },
+    {
+      "id": "decisions_rationale-020",
+      "text": "Fact metadata is stored in a typed `fact_attributes` table with one row per key, not in a `JSONB` column on `memory_facts`. JSONB was faster to ship and we prototyped it on branch `spike/jsonb-attrs` at commit `7c1de4a`. We rejected it because the query we run most is 'all facts where `source_kind = 'handover'` and `confidence >= 0.8`', and a GIN index over JSONB measured 210ms p95 against 12ms for the b-tree on the typed table at 8.4M rows. The second reason is governance: JSONB let three spellings of the same key - `source_kind`, `sourceKind`, `source-kind` - reach production before anyone noticed. Cost of the typed table: every new attribute needs a migration, and the join in `fetch_facts_with_attrs()` in `src/store/facts.py` is a `LATERAL` we had to hand-tune.",
+      "hard_tokens": [
+        "fact_attributes",
+        "JSONB",
+        "memory_facts",
+        "spike/jsonb-attrs",
+        "7c1de4a",
+        "source_kind = 'handover'",
+        "confidence >= 0.8",
+        "GIN",
+        "210ms",
+        "12ms",
+        "8.4M rows",
+        "source_kind",
+        "sourceKind",
+        "source-kind",
+        "fetch_facts_with_attrs()",
+        "src/store/facts.py",
+        "LATERAL"
+      ],
+      "expected_min_facts": 7,
+      "traps": [
+        "may collapse the three key spellings source_kind, sourceKind and source-kind into 'inconsistent key naming'",
+        "may drop the branch name spike/jsonb-attrs or the SHA 7c1de4a",
+        "may swap which measurement belongs to JSONB (210ms) and which to the typed table (12ms)"
+      ]
+    },
+    {
+      "id": "decisions_rationale-021",
+      "text": "Local model serving for the extraction pass runs vLLM 0.9.2 behind `http://gpu-01.internal:8000/v1`, not Ollama 0.6.3. Ollama is far easier to operate - one binary, `ollama pull qwen3-32b`, no CUDA pinning - and it is what we used for the first three months. It was rejected for the batch extraction path because it serialises requests per model and gave 41 tok/s aggregate, while vLLM's continuous batching reached 780 tok/s aggregate at a batch of 32 on the same RTX 6000 Ada. Extraction over the 120k-memory backlog would have taken 19 days on Ollama. vLLM costs us a pinned `torch==2.7.1` and CUDA 12.8, a 90-second cold start, and an OOM at `--max-model-len 32768` unless `--gpu-memory-utilization 0.88` is set. Ollama stays in the dev compose file for laptops; it is explicitly not the production server.",
+      "hard_tokens": [
+        "vLLM 0.9.2",
+        "http://gpu-01.internal:8000/v1",
+        "Ollama 0.6.3",
+        "ollama pull qwen3-32b",
+        "41 tok/s",
+        "780 tok/s",
+        "batch of 32",
+        "RTX 6000 Ada",
+        "120k-memory",
+        "19 days",
+        "torch==2.7.1",
+        "CUDA 12.8",
+        "90-second",
+        "--max-model-len 32768",
+        "--gpu-memory-utilization 0.88"
+      ],
+      "expected_min_facts": 7,
+      "traps": [
+        "may record Ollama 0.6.3 as the production server because it is described as easier and is still in use for dev",
+        "may collapse --max-model-len 32768 and --gpu-memory-utilization 0.88 into 'memory flags'",
+        "may drop the version pin torch==2.7.1 down to 'torch'"
+      ]
+    },
+    {
+      "id": "decisions_rationale-022",
+      "text": "Secrets management: `sops` 3.9.4 with age recipients, encrypting `deploy/secrets/prod.enc.yaml` in the repo, instead of HashiCorp Vault 1.18. Vault is the better answer at scale - dynamic database credentials, real leases, an audit device - and the platform team already runs one at `https://vault.internal.example.com:8200`. It was rejected for this repo because the self-hosted bundle has no Vault and we will not maintain two secret paths; a customer running `docker compose up -d` has to be able to decrypt with nothing but a `SOPS_AGE_KEY_FILE`. Tradeoffs accepted and written into `docs/adr/0027-secrets.md`: secrets rotate only on deploy; revoking a leaked value means re-encrypting every file and rotating the underlying credential by hand; and `git log` retains the ciphertext of every past secret forever, so a compromised age private key is retroactive across the whole history.",
+      "hard_tokens": [
+        "sops",
+        "3.9.4",
+        "age recipients",
+        "deploy/secrets/prod.enc.yaml",
+        "HashiCorp Vault 1.18",
+        "https://vault.internal.example.com:8200",
+        "docker compose up -d",
+        "SOPS_AGE_KEY_FILE",
+        "docs/adr/0027-secrets.md",
+        "git log",
+        "age private key"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may report HashiCorp Vault 1.18 as adopted because it is called 'the better answer'",
+        "may collapse the three accepted tradeoffs into one 'rotation is manual' fact",
+        "may drop SOPS_AGE_KEY_FILE as an implementation detail"
+      ]
+    },
+    {
+      "id": "decisions_rationale-023",
+      "text": "Lexical search: we embedded `tantivy-py` 0.24.0 in-process instead of running Elasticsearch 9.0. Elasticsearch has better analyzers, real BM25 tuning knobs and a whole ecosystem of tooling, and we shipped it in 0.2.x. It was rejected on footprint - the JVM wanted 4GB of heap minimum and the single-box persona has 16GB total, of which Postgres already claims 8GB - and on operational complexity for users who run Java nowhere else. tantivy indexes into `/var/lib/hindsight/tantivy` and the hybrid scorer `hybrid_score()` in `src/recall/hybrid.py` blends it with the vector hit at `alpha=0.35`. Measured effect: nDCG@10 moved from 0.712 vector-only to 0.769 hybrid, a larger gain than any embedding-model swap we tested. Limits accepted: no cross-node index, reindex is a full rebuild through `scripts/reindex_lexical.py --full`, and that takes 22 minutes on 8.4M rows.",
+      "hard_tokens": [
+        "tantivy-py",
+        "0.24.0",
+        "Elasticsearch 9.0",
+        "BM25",
+        "0.2.x",
+        "JVM",
+        "4GB",
+        "16GB",
+        "8GB",
+        "/var/lib/hindsight/tantivy",
+        "hybrid_score()",
+        "src/recall/hybrid.py",
+        "alpha=0.35",
+        "nDCG@10",
+        "0.712",
+        "0.769",
+        "scripts/reindex_lexical.py --full",
+        "22 minutes",
+        "8.4M rows"
+      ],
+      "expected_min_facts": 7,
+      "traps": [
+        "may report Elasticsearch 9.0 as the search backend since its strengths lead the note",
+        "may drop the --full flag from scripts/reindex_lexical.py --full",
+        "may merge the three memory figures 4GB, 16GB and 8GB into 'memory pressure'"
+      ]
+    },
+    {
+      "id": "decisions_rationale-024",
+      "text": "Runtime decision, ticket PLAT-2604: `hindsight-api` stays on CPython 3.12.9 and does not move to the 3.13 free-threaded build (`python3.13t`). Free-threading would let `consolidate_batch()` in `src/consolidate/runner.py` use real threads instead of the current `ProcessPoolExecutor(max_workers=4)`, saving roughly 480MB of RSS in forked interpreters, and that is a real win we want eventually. We rejected it for now because `asyncpg` 0.30.0 and `tantivy-py` 0.24.0 ship no free-threaded wheels, so both fall back to source builds that fail against `--disable-gil` interpreters, and single-threaded performance on 3.13t measured 9% slower in our own `bench/consolidate_bench.py`. The revisit trigger is explicit: when both wheels appear on the private index and the single-thread penalty drops below 3%, re-run `bench/consolidate_bench.py --compare 3.12,3.13t`. Do not record this as 'free-threading was rejected' in general - it is deferred pending wheels.",
+      "hard_tokens": [
+        "PLAT-2604",
+        "hindsight-api",
+        "CPython 3.12.9",
+        "python3.13t",
+        "consolidate_batch()",
+        "src/consolidate/runner.py",
+        "ProcessPoolExecutor(max_workers=4)",
+        "480MB",
+        "asyncpg",
+        "0.30.0",
+        "tantivy-py",
+        "0.24.0",
+        "--disable-gil",
+        "3.13t",
+        "9%",
+        "bench/consolidate_bench.py",
+        "3%",
+        "bench/consolidate_bench.py --compare 3.12,3.13t"
+      ],
+      "expected_min_facts": 7,
+      "traps": [
+        "may record the outcome as a permanent rejection of free-threading rather than a deferral pending wheels",
+        "may drop the --compare 3.12,3.13t argument from the revisit command",
+        "may lose ProcessPoolExecutor(max_workers=4) by describing it as 'multiprocessing'",
+        "may confuse the 9% current penalty with the 3% revisit threshold"
+      ]
+    },
+    {
+      "id": "decisions_rationale-025",
+      "text": "MCP surface decision (`docs/adr/0070-mcp-surface.md`, 2026-07-16): the memory server exposes eight named tools - `recall`, `reflect`, `retain`, `list_memories`, `list_mental_models`, `get_mental_model`, `refresh_mental_model`, `clear_mental_model` - rather than one dispatch tool taking an `action` parameter, which is the pattern `streamlinear` uses. The dispatch design is genuinely cheaper in context: it measured 640 tokens of tool schema against 2,310 tokens for the eight named tools, a 1,670-token saving on every single turn, and we wanted it to win. We rejected it because tool-choice accuracy fell: across a 200-episode eval the dispatch version picked the wrong `action` 14 times, and 9 of those 14 were `retain` where `recall` was correct - a silent write where a read was intended, which is the single worst failure this system can produce. The named-tool version scored 2 wrong picks on the same eval, both harmless reads. Tradeoff accepted: 1,670 tokens per turn of permanent overhead, and every new capability now needs a schema entry in `src/mcp/tools.py` plus a row in `docs/mcp-reference.md`. Deferred rather than rejected: a `hindsight_admin` dispatch tool for the low-frequency operations, since a wrong `action` there cannot corrupt the memory bank.",
+      "hard_tokens": [
+        "docs/adr/0070-mcp-surface.md",
+        "2026-07-16",
+        "recall",
+        "reflect",
+        "retain",
+        "list_memories",
+        "list_mental_models",
+        "get_mental_model",
+        "refresh_mental_model",
+        "clear_mental_model",
+        "action",
+        "streamlinear",
+        "640 tokens",
+        "2,310 tokens",
+        "1,670-token",
+        "200-episode",
+        "14 times",
+        "9 of those 14",
+        "2 wrong picks",
+        "1,670 tokens",
+        "src/mcp/tools.py",
+        "docs/mcp-reference.md",
+        "hindsight_admin"
+      ],
+      "expected_min_facts": 9,
+      "traps": [
+        "may collapse the eight tool names into 'eight named tools' and lose list_mental_models, refresh_mental_model and clear_mental_model",
+        "may report the single dispatch tool as adopted because its token saving is stated approvingly",
+        "may drop the deferred hindsight_admin follow-up, turning a deferral into a rejection",
+        "may lose the 9-of-14 breakdown that makes the retain/recall confusion the deciding evidence"
+      ]
+    }
+  ]
+}
