@@ -1,0 +1,641 @@
+{
+  "stratum": "meetings_people",
+  "memories": [
+    {
+      "id": "meetings_people-001",
+      "text": "Architecture review on 2026-03-11 for the Kestrel ingestion rewrite. Priya Raghunathan (staff engineer, Platform) argued that the batch path should stay on `ingest_batch_v2` until Q3, because the replay tooling only understands the v2 checkpoint format. Tomas Bergqvist (SRE lead) disagreed on the record: he wants `ingest_batch_v3` running behind the `KESTREL_V3_SHADOW` env var by 2026-04-01 so shadow traffic can start before the summer freeze. Nadia Fournier (EM) took neither side and instead made the call that both paths ship in parallel, with a decision review on ENG-4821 no later than 2026-05-15. Action items assigned in the room: Priya writes the v2 replay compatibility note into `docs/kestrel/replay.md`; Tomas owns the shadow rollout runbook; Nadia books the review.",
+      "hard_tokens": [
+        "2026-03-11",
+        "Kestrel",
+        "Priya Raghunathan",
+        "ingest_batch_v2",
+        "Q3",
+        "Tomas Bergqvist",
+        "ingest_batch_v3",
+        "KESTREL_V3_SHADOW",
+        "2026-04-01",
+        "Nadia Fournier",
+        "ENG-4821",
+        "2026-05-15",
+        "docs/kestrel/replay.md"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may merge Priya's position and Tomas's position into a single 'the team decided' fact",
+        "may attribute the both-paths-ship decision to Priya or Tomas instead of Nadia Fournier",
+        "may drop the env var name KESTREL_V3_SHADOW while keeping the prose about shadow traffic",
+        "may collapse the three action items into one 'follow-ups assigned' fact"
+      ]
+    },
+    {
+      "id": "meetings_people-002",
+      "text": "Standup note, 2026-01-19: Wes Adeyemi said the flaky test in `tests/test_scheduler_drift.py::test_backfill_window` is not flaky at all - it fails deterministically when `TZ=Pacific/Chatham` is set, and he already has a fix in PR #2214. Marguerite Lindqvist pushed back that the fix masks a real bug in `Scheduler._next_fire_time` and asked that PR #2214 stay open until she has reviewed it herself. No decision was recorded; the disagreement is still open as of 2026-01-19.",
+      "hard_tokens": [
+        "2026-01-19",
+        "Wes Adeyemi",
+        "tests/test_scheduler_drift.py::test_backfill_window",
+        "TZ=Pacific/Chatham",
+        "PR #2214",
+        "Marguerite Lindqvist",
+        "Scheduler._next_fire_time"
+      ],
+      "expected_min_facts": 5,
+      "traps": [
+        "may report the disagreement as resolved when the note says it is open",
+        "may shorten the test node id to 'test_backfill_window'",
+        "may merge Wes's claim and Marguerite's objection into one fact about a flaky test being fixed"
+      ]
+    },
+    {
+      "id": "meetings_people-003",
+      "text": "Vendor call 2026-02-04 with Halcyon Metrics. Their AE, Dominic Traore, quoted $148,500/year for the Tier 3 plan with a 12% multi-year discount if we commit through 2029-01-31. On our side Freya Oyelaran (Finance) said anything above $120,000/year needs CFO sign-off and that she will not approve it in this quarter. Ravi Shanmugam (Data Platform) countered that the ingest volume overage on our current Tier 2 plan already cost $9,340 in January alone, so by his math Tier 3 is the cheaper option. Freya's position did not change on the call. Next step recorded on FIN-771: Ravi produces a 6-month overage projection by 2026-02-18, and Freya books the CFO slot only after she has seen it.",
+      "hard_tokens": [
+        "2026-02-04",
+        "Halcyon Metrics",
+        "Dominic Traore",
+        "$148,500/year",
+        "Tier 3",
+        "12%",
+        "2029-01-31",
+        "Freya Oyelaran",
+        "$120,000/year",
+        "Ravi Shanmugam",
+        "Tier 2",
+        "$9,340",
+        "FIN-771",
+        "6-month",
+        "2026-02-18"
+      ],
+      "expected_min_facts": 7,
+      "traps": [
+        "may present Ravi's cost argument as the agreed conclusion and drop Freya's refusal",
+        "may round $148,500/year or $9,340 to approximate figures",
+        "may drop the conditionality that Freya books the CFO slot only after seeing the projection"
+      ]
+    },
+    {
+      "id": "meetings_people-004",
+      "text": "Incident review for INC-2026-0088, held 2026-06-02 with 14 attendees. Facilitator: Olamide Berhane. Timeline agreed in the room: the p99 on `/v1/quotes` went from 210ms to 4,800ms at 09:14 UTC after deploy `a3f91c7` shipped a change to `QuoteCache.invalidate_prefix`. Sunniva Kalloe, who was on call, said she rolled back at 09:41 UTC without paging the owning team because the runbook `runbooks/quotes-latency.md` told her to. Desmond Achterberg, who owns the service, said the runbook is stale and that he had already asked for it to be rewritten in ENG-3990 back in November. Olamide ruled that neither call was wrong and assigned two follow-ups: Desmond rewrites `runbooks/quotes-latency.md` by 2026-06-16, and Sunniva adds a `--dry-run` flag to `invalidate-prefix` so the next on-call can preview the blast radius. A third item, owned by Olamide himself, is to raise the rollback alert threshold from 3 to 5 consecutive failures.",
+      "hard_tokens": [
+        "INC-2026-0088",
+        "2026-06-02",
+        "Olamide Berhane",
+        "p99",
+        "/v1/quotes",
+        "210ms",
+        "4,800ms",
+        "09:14 UTC",
+        "a3f91c7",
+        "QuoteCache.invalidate_prefix",
+        "Sunniva Kalloe",
+        "09:41 UTC",
+        "runbooks/quotes-latency.md",
+        "Desmond Achterberg",
+        "ENG-3990",
+        "2026-06-16",
+        "--dry-run",
+        "invalidate-prefix",
+        "from 3 to 5"
+      ],
+      "expected_min_facts": 9,
+      "traps": [
+        "may blame Sunniva Kalloe for the rollback instead of recording Olamide's ruling that neither call was wrong",
+        "may drop the git SHA a3f91c7 or the two UTC timestamps",
+        "may collapse the three follow-ups into one 'action items assigned' fact",
+        "may describe the latency change qualitatively instead of quoting 210ms and 4,800ms"
+      ]
+    },
+    {
+      "id": "meetings_people-005",
+      "text": "1:1 with Kenji Abaroa on 2026-04-22. He asked to move off the `billing-core` rotation by 2026-07-01 and onto the inference team. I committed to raising it with Hana Lovgren, the inference EM, before 2026-05-06, but I explicitly did not promise him the transfer. Kenji also said he is the only person who understands `ProrationEngine.settle_midcycle` and that this is a bus-factor risk he has now flagged twice. I owe him a written knowledge-transfer plan, tracked in ENG-5102. Separately, he declined the new on-call comp change: he wants to keep the flat $500/month rather than move to the per-page rate.",
+      "hard_tokens": [
+        "Kenji Abaroa",
+        "2026-04-22",
+        "billing-core",
+        "2026-07-01",
+        "Hana Lovgren",
+        "2026-05-06",
+        "ProrationEngine.settle_midcycle",
+        "ENG-5102",
+        "$500/month"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may turn 'I committed to raising it' into 'the transfer was approved'",
+        "may drop the explicit non-promise, which is the load-bearing part of the attribution",
+        "may paraphrase ProrationEngine.settle_midcycle as 'the proration code'"
+      ]
+    },
+    {
+      "id": "meetings_people-006",
+      "text": "Design sync 2026-05-19 on the retry library. Bea Lindqvist-Oduya wants `tenacity` kept as is. Aurelio Mkhize wants a hand-rolled `retry_with_jitter()` in `common/net/retry.py`, because `tenacity` pulls in a transitive dependency we cannot vendor. Sione Faletau abstained and asked only that whatever lands exposes `max_elapsed_seconds` rather than `stop_after_attempt`. No decision was reached. Aurelio agreed to prototype `retry_with_jitter()` behind `ENABLE_CUSTOM_RETRY=1` and report back at the 2026-06-02 sync.",
+      "hard_tokens": [
+        "2026-05-19",
+        "Bea Lindqvist-Oduya",
+        "tenacity",
+        "Aurelio Mkhize",
+        "retry_with_jitter()",
+        "common/net/retry.py",
+        "Sione Faletau",
+        "max_elapsed_seconds",
+        "stop_after_attempt",
+        "ENABLE_CUSTOM_RETRY=1",
+        "2026-06-02"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may record a decision where none was made",
+        "may merge Sione Faletau's abstention into one of the two opposing positions",
+        "may keep max_elapsed_seconds but drop stop_after_attempt, losing the contrast"
+      ]
+    },
+    {
+      "id": "meetings_people-007",
+      "text": "Customer call with Norsholm Rail, account NRS-4402, on 2026-03-27. Their platform lead, Ingrid Vasseur, said the 99.5% availability in our current MSA is not enough for their dispatch integration and asked for 99.9% with a 15-minute RTO. Our AE, Callum Nkemdirim, said yes on the call. Our SRE representative, Zubair Haddadi, contradicted him five minutes later: the `dispatch-gateway` service runs on a single-region Postgres and cannot meet 99.9% before the multi-region work in ENG-4488 lands. Callum retracted the commitment in writing the same day. Agreed outcome: Zubair sends Ingrid the current architecture constraints by 2026-04-03, and no SLA change is signed until ENG-4488 is closed.",
+      "hard_tokens": [
+        "Norsholm Rail",
+        "NRS-4402",
+        "2026-03-27",
+        "Ingrid Vasseur",
+        "99.5%",
+        "MSA",
+        "99.9%",
+        "15-minute RTO",
+        "Callum Nkemdirim",
+        "Zubair Haddadi",
+        "dispatch-gateway",
+        "Postgres",
+        "ENG-4488",
+        "2026-04-03",
+        "SLA"
+      ],
+      "expected_min_facts": 8,
+      "traps": [
+        "may record that we committed to 99.9%, dropping the retraction",
+        "may attribute the availability objection to Callum Nkemdirim instead of Zubair Haddadi",
+        "may merge 99.5% and 99.9% into a vague 'higher availability'"
+      ]
+    },
+    {
+      "id": "meetings_people-008",
+      "text": "Hiring debrief 2026-02-11 for req PLT-0219, senior backend. Panel and votes: Odalys Wren (hire), Thijs Kamaruddin (no hire), Priyamvada Sekhon (strong hire), Bastien Oyelowo (no hire, low confidence). Odalys weighted the system design round, where the candidate correctly identified the write-amplification problem in the LSM design. Thijs's objection was narrow and specific: in the coding round the candidate could not explain why `defaultdict(list)` was mutating shared state, and Thijs considers that disqualifying at this level. Priyamvada said Thijs's round ran 20 minutes over time and that the signal is therefore unreliable. The recruiter, Marisol Quintanilla, recorded the outcome as no-hire by default, because the bar requires two strong hires. Odalys asked that the decision be revisited if the candidate reapplies after 2026-08-11.",
+      "hard_tokens": [
+        "2026-02-11",
+        "PLT-0219",
+        "Odalys Wren",
+        "Thijs Kamaruddin",
+        "Priyamvada Sekhon",
+        "Bastien Oyelowo",
+        "LSM",
+        "defaultdict(list)",
+        "20 minutes",
+        "Marisol Quintanilla",
+        "2026-08-11"
+      ],
+      "expected_min_facts": 8,
+      "traps": [
+        "may collapse the four individual votes into 'the panel was split'",
+        "may attribute the no-hire outcome to the panel rather than to Marisol Quintanilla applying the bar",
+        "may paraphrase defaultdict(list) as 'a Python data structure question'"
+      ]
+    },
+    {
+      "id": "meetings_people-009",
+      "text": "Q3 planning offsite, 2026-06-24 and 2026-06-25, in Roros, twelve people. Locked commitments by owner. Ana Belen Ferreiro owns migrating `auth-service` off `python3.9` to `python3.12`, tracked in ENG-5511, target 2026-08-14. Ilya Osadchuk owns the cost work: he committed to a 22% reduction in ClickHouse storage spend by moving cold partitions to `s3://hq-analytics-cold/`, tracked in DATA-338. Mercedes Anyanwu owns the `pricing-v4` launch and said explicitly that she will not commit to a date until the legal review of the rate card is finished; Nadia Fournier accepted that and left the date field empty in the plan. Two items were explicitly cut: the mobile SDK refresh, proposed by Yannick Sarr and cut by Nadia on cost, and the internal admin UI rewrite, proposed by Ilya and then cut by Ilya himself once he saw the headcount. Risk owners: Ana Belen owns the `psycopg2` to `psycopg3` risk, Ilya owns the ClickHouse migration risk, and nobody volunteered for the `pricing-v4` legal risk, so Nadia took it by default.",
+      "hard_tokens": [
+        "2026-06-24",
+        "2026-06-25",
+        "Roros",
+        "Ana Belen Ferreiro",
+        "auth-service",
+        "python3.9",
+        "python3.12",
+        "ENG-5511",
+        "2026-08-14",
+        "Ilya Osadchuk",
+        "22%",
+        "ClickHouse",
+        "s3://hq-analytics-cold/",
+        "DATA-338",
+        "Mercedes Anyanwu",
+        "pricing-v4",
+        "Nadia Fournier",
+        "Yannick Sarr",
+        "psycopg2",
+        "psycopg3"
+      ],
+      "expected_min_facts": 11,
+      "traps": [
+        "may merge the two cut items and lose that one was cut by Nadia and the other by Ilya himself",
+        "may state a date for pricing-v4 that Mercedes explicitly refused to give",
+        "may collapse the three risk owners into one fact",
+        "may shorten s3://hq-analytics-cold/ or drop the python3.9 / python3.12 pair"
+      ]
+    },
+    {
+      "id": "meetings_people-010",
+      "text": "Slack thread in #platform-eng on 2026-05-07: Georgiana Petrescu proposed deleting `scripts/legacy_export.sh` on the grounds that nothing calls it. Ferran Okoye replied within the hour that the nightly cron on `bastion-02` still invokes it with `--format=tsv`, and that deleting it would silently break the Vanguard Logistics feed. Georgiana withdrew the proposal and instead filed OPS-1290 to move the cron over to `scripts/export.py --format tsv`. Ferran owns verifying the cutover on 2026-05-21.",
+      "hard_tokens": [
+        "#platform-eng",
+        "2026-05-07",
+        "Georgiana Petrescu",
+        "scripts/legacy_export.sh",
+        "Ferran Okoye",
+        "bastion-02",
+        "--format=tsv",
+        "Vanguard Logistics",
+        "OPS-1290",
+        "scripts/export.py --format tsv",
+        "2026-05-21"
+      ],
+      "expected_min_facts": 5,
+      "traps": [
+        "may record the script as deleted",
+        "may collapse --format=tsv and --format tsv into one flag spelling",
+        "may drop the Vanguard Logistics dependency that motivated the reversal"
+      ]
+    },
+    {
+      "id": "meetings_people-011",
+      "text": "Exec review 2026-07-08. The revenue slide was presented by Wilhelmina Achebe, CFO: ARR $18.4M, up 31% year over year, net revenue retention 112%. She flagged that $2.1M of that ARR sits with three accounts and called concentration the single largest risk to the plan. Devansh Rautela, CRO, disagreed with the framing - he said the concentration is a consequence of deliberate enterprise focus, and that the 2027 pipeline already holds $4.6M in stage-3 opportunities. The CEO, Solveig Braathen, did not resolve the disagreement; she asked for both views to be written into the board deck verbatim and gave Wilhelmina the pen. Deck deadline: 2026-07-22.",
+      "hard_tokens": [
+        "2026-07-08",
+        "Wilhelmina Achebe",
+        "ARR",
+        "$18.4M",
+        "31%",
+        "112%",
+        "$2.1M",
+        "Devansh Rautela",
+        "$4.6M",
+        "stage-3",
+        "Solveig Braathen",
+        "2026-07-22"
+      ],
+      "expected_min_facts": 8,
+      "traps": [
+        "may merge the CFO's risk framing and the CRO's rebuttal into a single balanced statement",
+        "may drop one of $18.4M, $2.1M, $4.6M as redundant",
+        "may record the disagreement as resolved by the CEO"
+      ]
+    },
+    {
+      "id": "meetings_people-012",
+      "text": "Sprint 41 retro, 2026-04-09. Kept: the `make check` pre-push hook, praised by three people. Dropped: the Friday demo, which Anouk Sillanpaa said costs more than it returns and which nobody defended. Ongoing tension: Rustam Beridze wants PRs kept under 400 lines and enforced by CI; Lucia Vanterpool said a hard gate would push people to split changes artificially and asked for a warning only. The team voted 6-3 for the warning. Rustam accepted the outcome and will implement it as a non-blocking comment in `.github/workflows/pr-size.yml` by 2026-04-23.",
+      "hard_tokens": [
+        "Sprint 41",
+        "2026-04-09",
+        "make check",
+        "Anouk Sillanpaa",
+        "Rustam Beridze",
+        "400 lines",
+        "Lucia Vanterpool",
+        "6-3",
+        ".github/workflows/pr-size.yml",
+        "2026-04-23"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may record Rustam as having won the PR-size argument",
+        "may drop the 6-3 vote count",
+        "may merge the kept item and the dropped item into one 'retro outcomes' fact"
+      ]
+    },
+    {
+      "id": "meetings_people-013",
+      "text": "API contract meeting 2026-03-05 between Payments and Fraud. Payments, represented by Etienne Kowalczyk, will emit `payment.authorized` events carrying a `risk_hint` field. Fraud, represented by Ngozi Halvorsen, said `risk_hint` must be nullable, because their scorer cannot guarantee a value inside the 80ms budget; Etienne agreed to nullable. Second point of contention: Etienne asked for the fraud decision to be synchronous over `POST /v2/score`, and Ngozi refused, offering `POST /v2/score/async` with a webhook callback instead. That one is unresolved. Both agreed to write the two options into RFC-0094 and let Nadia Fournier decide by 2026-03-19.",
+      "hard_tokens": [
+        "2026-03-05",
+        "Etienne Kowalczyk",
+        "payment.authorized",
+        "risk_hint",
+        "Ngozi Halvorsen",
+        "80ms",
+        "POST /v2/score",
+        "POST /v2/score/async",
+        "RFC-0094",
+        "Nadia Fournier",
+        "2026-03-19"
+      ],
+      "expected_min_facts": 7,
+      "traps": [
+        "may collapse POST /v2/score and POST /v2/score/async into one endpoint",
+        "may report both points as agreed when only the nullable field was settled",
+        "may lose which side asked for synchronous and which side refused"
+      ]
+    },
+    {
+      "id": "meetings_people-014",
+      "text": "Decision recorded 2026-01-30: Hedda Mwangangi, as the DRI for the data warehouse, chose Iceberg over Delta Lake for the new `events_raw` table and wrote her reasoning into ADR-0031. She noted one dissent in the record: Kofi Steinsland preferred Delta Lake for the Databricks integration, but said he would not block.",
+      "hard_tokens": [
+        "2026-01-30",
+        "Hedda Mwangangi",
+        "DRI",
+        "Iceberg",
+        "Delta Lake",
+        "events_raw",
+        "ADR-0031",
+        "Kofi Steinsland",
+        "Databricks"
+      ],
+      "expected_min_facts": 4,
+      "traps": [
+        "may drop Kofi Steinsland's dissent entirely since it did not change the outcome",
+        "may attribute the choice to the team rather than to Hedda Mwangangi as DRI"
+      ]
+    },
+    {
+      "id": "meetings_people-015",
+      "text": "Security review meeting 2026-05-28 for the Aurora Gateway launch. Findings were assigned in the room, one named owner each:\n1. Rotate the `AURORA_SIGNING_KEY` currently shared between staging and production - owner Sadiq Verhoeven, due 2026-06-04.\n2. Remove the `--insecure-skip-verify` flag from `deploy/aurora/helm-values.yaml` - owner Tabitha Ngcobo, due 2026-06-04.\n3. Add rate limiting on `POST /gateway/v1/token` at 100 req/min per client - owner Sadiq Verhoeven, due 2026-06-11.\n4. Fix the CVE-2026-11893 finding in the pinned `libxml2` version - owner Emile Rutkowski, due 2026-06-18.\nIsolde Marchetti, the security lead, ruled that items 1 and 2 are launch blockers and that items 3 and 4 are not. Tabitha disagreed that item 2 is a blocker but did not escalate.",
+      "hard_tokens": [
+        "2026-05-28",
+        "Aurora Gateway",
+        "AURORA_SIGNING_KEY",
+        "Sadiq Verhoeven",
+        "2026-06-04",
+        "--insecure-skip-verify",
+        "deploy/aurora/helm-values.yaml",
+        "Tabitha Ngcobo",
+        "POST /gateway/v1/token",
+        "100 req/min",
+        "2026-06-11",
+        "CVE-2026-11893",
+        "libxml2",
+        "Emile Rutkowski",
+        "2026-06-18",
+        "Isolde Marchetti"
+      ],
+      "expected_min_facts": 10,
+      "traps": [
+        "may collapse the four numbered findings into one 'four security findings were assigned' fact",
+        "may drop the per-item owner and due date, keeping only the finding text",
+        "may lose Tabitha Ngcobo's unescalated disagreement about item 2",
+        "may paraphrase --insecure-skip-verify or shorten deploy/aurora/helm-values.yaml"
+      ]
+    },
+    {
+      "id": "meetings_people-016",
+      "text": "Correction to my note from 2026-02-25: the proposal to drop `IE11` support from the Kestrel dashboard came from Meike Osterhagen, not from Joaquin Ferreira-Lund. Joaquin's contribution was the opposite - he argued that two customers, Norsholm Rail and Trelleborg Foods, still run locked-down fleets, and asked for a 90-day deprecation window. Meike accepted the 90 days. The agreed removal date is 2026-06-01 and the tracking ticket is WEB-2077, owned by Meike.",
+      "hard_tokens": [
+        "2026-02-25",
+        "IE11",
+        "Kestrel",
+        "Meike Osterhagen",
+        "Joaquin Ferreira-Lund",
+        "Norsholm Rail",
+        "Trelleborg Foods",
+        "90-day",
+        "90 days",
+        "2026-06-01",
+        "WEB-2077"
+      ],
+      "expected_min_facts": 5,
+      "traps": [
+        "may re-introduce the original misattribution by naming Joaquin as the proposer",
+        "may drop one of the two named customers",
+        "may merge the correction and the original claim into one ambiguous fact"
+      ]
+    },
+    {
+      "id": "meetings_people-017",
+      "text": "Standup 2026-06-17. Adaeze Lindholm: finished the `bulk_upsert()` path, blocked on a review from Ilya Osadchuk since 2026-06-15. Piotr Nakagawa: still debugging the `DeadlineExceeded` errors against `grpc://scoring.internal:8443`, thinks it is a keepalive misconfiguration, no ticket filed yet. Solene Abubakar: shipped ENG-5230 yesterday, picking up ENG-5231 today. Kwabena Silvestri: out until 2026-06-22, no update. Nadia Fournier reminded everyone that the code freeze starts 2026-06-26.",
+      "hard_tokens": [
+        "2026-06-17",
+        "Adaeze Lindholm",
+        "bulk_upsert()",
+        "Ilya Osadchuk",
+        "2026-06-15",
+        "Piotr Nakagawa",
+        "DeadlineExceeded",
+        "grpc://scoring.internal:8443",
+        "Solene Abubakar",
+        "ENG-5230",
+        "ENG-5231",
+        "Kwabena Silvestri",
+        "2026-06-22",
+        "Nadia Fournier",
+        "2026-06-26"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may merge four separate per-person statuses into one 'team standup update' fact",
+        "may drop the port from grpc://scoring.internal:8443",
+        "may collapse ENG-5230 and ENG-5231 into 'a couple of tickets'"
+      ]
+    },
+    {
+      "id": "meetings_people-018",
+      "text": "Legal sync 2026-04-15 on the Halcyon Metrics DPA. Our counsel, Rosalind Ekwueme, said the sub-processor clause in section 7.3 as drafted lets Halcyon add sub-processors on 5 business days notice, and that she will not sign under 30 days. Their counsel, Bram Odendaal, offered 15 days and said 30 is outside their standard terms. Ravi Shanmugam added from the engineering side that anything under 30 days makes the residency check in `compliance/subprocessors.yaml` impossible to keep current. Rosalind held at 30. Status as of 2026-04-15: open, with the next round scheduled for 2026-04-29.",
+      "hard_tokens": [
+        "2026-04-15",
+        "Halcyon Metrics",
+        "DPA",
+        "Rosalind Ekwueme",
+        "section 7.3",
+        "5 business days",
+        "30 days",
+        "Bram Odendaal",
+        "15 days",
+        "Ravi Shanmugam",
+        "compliance/subprocessors.yaml",
+        "2026-04-29"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may settle on 15 days as the agreed number when nothing was agreed",
+        "may lose which of the three named people asked for which notice period",
+        "may drop compliance/subprocessors.yaml as an implementation detail"
+      ]
+    },
+    {
+      "id": "meetings_people-019",
+      "text": "Product and engineering sync 2026-07-01. Mercedes Anyanwu committed to the `pricing-v4` beta on 2026-09-15, conditional on two things she named explicitly: the rate card legal review closing by 2026-08-01, and Ana Belen Ferreiro's `auth-service` migration (ENG-5511) landing first, because `pricing-v4` needs the new token scopes. Ana Belen said ENG-5511 is on track but would not restate the 2026-08-14 date as a commitment to Mercedes; she said best effort and asked that the dependency be written into the plan. It is now written into PRD-0142.",
+      "hard_tokens": [
+        "2026-07-01",
+        "Mercedes Anyanwu",
+        "pricing-v4",
+        "2026-09-15",
+        "2026-08-01",
+        "Ana Belen Ferreiro",
+        "auth-service",
+        "ENG-5511",
+        "2026-08-14",
+        "PRD-0142"
+      ],
+      "expected_min_facts": 6,
+      "traps": [
+        "may record the 2026-09-15 beta as unconditional",
+        "may upgrade Ana Belen's best-effort statement into a commitment",
+        "may merge the two named conditions into one"
+      ]
+    },
+    {
+      "id": "meetings_people-020",
+      "text": "All-hands 2026-03-18, roughly 180 people. Solveig Braathen announced the return-to-office change: three days a week starting 2026-05-04, with exceptions handled by the employee's manager rather than by HR. Ludovica Anand, Head of People, corrected her live on the second point - exceptions go through `people-ops@` first and then to the manager - and Solveig accepted the correction. Wilhelmina Achebe presented the hiring plan: 24 net new roles in H2, of which 14 are engineering, and confirmed the 2026 merit budget at 3.5%. Two questions were answered on the record: Devansh Rautela said the Frankfurt sales office is not closing, and Ludovica said parental leave is unchanged at 18 weeks. One question was deferred - the equity refresh timing - with Wilhelmina owning a written answer by 2026-04-01.",
+      "hard_tokens": [
+        "2026-03-18",
+        "Solveig Braathen",
+        "2026-05-04",
+        "Ludovica Anand",
+        "people-ops@",
+        "Wilhelmina Achebe",
+        "24 net new roles",
+        "H2",
+        "14 are engineering",
+        "3.5%",
+        "Devansh Rautela",
+        "Frankfurt",
+        "18 weeks",
+        "2026-04-01"
+      ],
+      "expected_min_facts": 8,
+      "traps": [
+        "may keep the original wrong exception process and drop Ludovica Anand's live correction",
+        "may attribute the Frankfurt answer or the parental leave answer to the CEO",
+        "may collapse the hiring numbers into 'expanding headcount'"
+      ]
+    },
+    {
+      "id": "meetings_people-021",
+      "text": "Skip-level with Bastien Oyelowo on 2026-05-13. He gave two pieces of feedback about his manager, Nadia Fournier, and asked that only the first be passed on: (1) she reassigns tickets without telling the previous owner, which happened to him twice, on ENG-4402 and ENG-4417; (2) he believes she favours Ilya Osadchuk in design reviews - this one he explicitly asked me to hold. I committed to raising item (1) with Nadia before 2026-05-20 and to not attributing item (2) to anyone.",
+      "hard_tokens": [
+        "Bastien Oyelowo",
+        "2026-05-13",
+        "Nadia Fournier",
+        "ENG-4402",
+        "ENG-4417",
+        "Ilya Osadchuk",
+        "2026-05-20"
+      ],
+      "expected_min_facts": 5,
+      "traps": [
+        "may merge the two feedback items and lose the confidentiality constraint on item (2)",
+        "may drop the two ticket ids as illustrative detail",
+        "may present item (2) as something to raise with Nadia"
+      ]
+    },
+    {
+      "id": "meetings_people-022",
+      "text": "Experiment review 2026-06-10 for the checkout redesign, experiment key `chk_redesign_v2`. Yuki Oyelaran-Sato presented the numbers: conversion up 2.4% at p=0.03 over 41,200 sessions, but average order value down 1.1%. She recommended shipping. Aurelio Mkhize objected on methodology - the experiment ran 2026-05-18 through 2026-06-08 and therefore includes the payday spike - and asked for a two-week holdout before ship. Hedda Mwangangi said the holdout is unnecessary but agreed to it in order to unblock the decision, noting for the record that she still disagrees. The ship decision is deferred to 2026-06-24. Yuki owns configuring the holdout at 5% of traffic.",
+      "hard_tokens": [
+        "2026-06-10",
+        "chk_redesign_v2",
+        "Yuki Oyelaran-Sato",
+        "2.4%",
+        "p=0.03",
+        "41,200 sessions",
+        "1.1%",
+        "Aurelio Mkhize",
+        "2026-05-18",
+        "2026-06-08",
+        "Hedda Mwangangi",
+        "2026-06-24",
+        "5%"
+      ],
+      "expected_min_facts": 8,
+      "traps": [
+        "may record the experiment as shipped",
+        "may drop the average order value regression of 1.1% and keep only the conversion win",
+        "may read Hedda's grudging agreement as endorsement of the holdout",
+        "may lose p=0.03 or the 41,200 sessions sample size"
+      ]
+    },
+    {
+      "id": "meetings_people-023",
+      "text": "Handover meeting 2026-08-05, as Ferran Okoye leaves the team on 2026-08-29. Ownership transfers agreed in the room, each with a named receiver: the `ops-tooling` repo goes to Georgiana Petrescu; the PagerDuty schedule `ops-primary` goes to Sunniva Kalloe; the `bastion-02` cron inventory goes to Tabitha Ngcobo; the vendor relationship with Halcyon Metrics goes to Ravi Shanmugam. Ferran flagged one item with no taker: the undocumented `flush_stale_locks.sh` script, which must be run manually after any Postgres failover. Nadia Fournier took it provisionally and filed OPS-1401 to get it either automated or documented before 2026-08-29.",
+      "hard_tokens": [
+        "2026-08-05",
+        "Ferran Okoye",
+        "2026-08-29",
+        "ops-tooling",
+        "Georgiana Petrescu",
+        "PagerDuty",
+        "ops-primary",
+        "Sunniva Kalloe",
+        "bastion-02",
+        "Tabitha Ngcobo",
+        "Halcyon Metrics",
+        "Ravi Shanmugam",
+        "flush_stale_locks.sh",
+        "Postgres",
+        "Nadia Fournier",
+        "OPS-1401"
+      ],
+      "expected_min_facts": 8,
+      "traps": [
+        "may collapse the four ownership transfers into one 'Ferran's work was redistributed' fact",
+        "may lose the pairing between each asset and its named new owner",
+        "may drop flush_stale_locks.sh or the condition that it runs after a Postgres failover"
+      ]
+    },
+    {
+      "id": "meetings_people-024",
+      "text": "Capacity meeting 2026-02-19: Zubair Haddadi wants the `dispatch-gateway` autoscaler `minReplicas` raised from 4 to 12, because the cold start in `warm_route_table()` costs 6.2s. Ilya Osadchuk objected on cost - 12 replicas is an extra $3,100/month - and said the real fix is caching the route table in Redis under the key `rt:v1`. Neither conceded. Nadia Fournier set `minReplicas` to 8 as an interim value effective 2026-02-20 and asked Ilya to prototype the Redis cache in ENG-4903 by 2026-03-12.",
+      "hard_tokens": [
+        "2026-02-19",
+        "Zubair Haddadi",
+        "dispatch-gateway",
+        "minReplicas",
+        "from 4 to 12",
+        "warm_route_table()",
+        "6.2s",
+        "Ilya Osadchuk",
+        "$3,100/month",
+        "Redis",
+        "rt:v1",
+        "Nadia Fournier",
+        "`minReplicas` to 8",
+        "2026-02-20",
+        "ENG-4903",
+        "2026-03-12"
+      ],
+      "expected_min_facts": 7,
+      "traps": [
+        "may report minReplicas as set to 12, taking Zubair's ask as the outcome",
+        "may lose that the interim value of 8 was Nadia's call and satisfied neither party",
+        "may drop the Redis key rt:v1 or the 6.2s cold-start figure"
+      ]
+    },
+    {
+      "id": "meetings_people-025",
+      "text": "Weekly leadership, 2026-07-15. Four items.\nItem 1, hiring: Ludovica Anand reported 9 offers out and 6 accepted, and said the engineering acceptance rate has dropped to 62% from 81% in Q1. Devansh Rautela attributed the drop to comp; Ludovica attributed it to a slow loop, median 24 days from screen to offer, and said comp bands were unchanged. The disagreement was noted, not resolved.\nItem 2, infra spend: Ilya Osadchuk reported July at $412,000, which is 8% over plan, driven by the `events_raw` backfill. He owns bringing August back under $380,000.\nItem 3, Aurora Gateway launch: Isolde Marchetti confirmed that both security blockers from 2026-05-28 are closed, and Sadiq Verhoeven confirmed the `AURORA_SIGNING_KEY` rotation completed on 2026-06-03. Launch approved by Solveig Braathen for 2026-07-29.\nItem 4, Norsholm Rail renewal: Callum Nkemdirim said the account is at risk over the SLA question; Zubair Haddadi said ENG-4488 lands 2026-09-30 and not earlier. Solveig assigned Devansh to own the customer conversation and told Callum not to make any availability commitment without Zubair in the room.",
+      "hard_tokens": [
+        "2026-07-15",
+        "Ludovica Anand",
+        "9 offers",
+        "6 accepted",
+        "62%",
+        "81%",
+        "Q1",
+        "Devansh Rautela",
+        "24 days",
+        "Ilya Osadchuk",
+        "$412,000",
+        "8%",
+        "events_raw",
+        "$380,000",
+        "Aurora Gateway",
+        "Isolde Marchetti",
+        "2026-05-28",
+        "Sadiq Verhoeven",
+        "AURORA_SIGNING_KEY",
+        "2026-06-03",
+        "Solveig Braathen",
+        "2026-07-29",
+        "Norsholm Rail",
+        "Callum Nkemdirim",
+        "SLA",
+        "Zubair Haddadi",
+        "ENG-4488",
+        "2026-09-30"
+      ],
+      "expected_min_facts": 13,
+      "traps": [
+        "may merge the four agenda items into one meeting summary fact",
+        "may resolve the hiring disagreement by picking one explanation",
+        "may lose that Solveig gave Callum an explicit constraint rather than an action item",
+        "may drop $412,000 / $380,000 or the 62% from 81% pair"
+      ]
+    }
+  ]
+}
