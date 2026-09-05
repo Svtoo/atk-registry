@@ -8,6 +8,32 @@ SCHEDULE_LABEL = "com.atk.hindsight-backup"
 SCHEDULE_LOG = "Library/Logs/atk-hindsight-backup.log"
 
 
+def job_target():
+    return "gui/%d/%s" % (os.getuid(), SCHEDULE_LABEL)
+
+
+def plist_path():
+    return os.path.join(os.path.expanduser("~"), "Library", "LaunchAgents",
+                        SCHEDULE_LABEL + ".plist")
+
+
+def job_loaded():
+    return shell.run(["launchctl", "print", job_target()],
+                     capture_output=True, check=False).returncode == 0
+
+
+def remove_job():
+    """Boot the job out and delete its plist; True when either existed."""
+    removed = False
+    if job_loaded():
+        shell.run(["launchctl", "bootout", job_target()], check=True)
+        removed = True
+    if os.path.exists(plist_path()):
+        os.remove(plist_path())
+        removed = True
+    return removed
+
+
 def run(cfg, verb):
     # launchd is the whole mechanism here, so there is nothing to degrade to.
     if sys.platform != "darwin":
@@ -15,14 +41,9 @@ def run(cfg, verb):
                   "Run 'atk run hindsight backup --if-stale' hourly from cron "
                   "or a systemd timer instead.")
     domain = "gui/%d" % os.getuid()
-    target = "%s/%s" % (domain, SCHEDULE_LABEL)
-    plist = os.path.join(os.path.expanduser("~"), "Library", "LaunchAgents",
-                         SCHEDULE_LABEL + ".plist")
+    target = job_target()
+    plist = plist_path()
     log_path = os.path.join(os.path.expanduser("~"), SCHEDULE_LOG)
-
-    def job_loaded():
-        return shell.run(["launchctl", "print", target],
-                         capture_output=True, check=False).returncode == 0
 
     def show_status():
         if job_loaded():
@@ -58,10 +79,7 @@ def run(cfg, verb):
         shell.run(["launchctl", "bootstrap", domain, plist], check=True)
         show_status()
     elif verb == "off":
-        if job_loaded():
-            shell.run(["launchctl", "bootout", target], check=True)
-        if os.path.exists(plist):
-            os.remove(plist)
+        remove_job()
         print("  Schedule removed.")
     elif verb == "status":
         show_status()

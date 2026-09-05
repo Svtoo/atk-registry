@@ -9,6 +9,8 @@ from unittest import mock
 
 import fakes
 from hindsight_cli import client, config, shell
+from hindsight_cli import lifecycle as _lifecycle
+lifecycle_sys = _lifecycle.sys
 
 ID_STABLE = [("docker inspect", fakes.ok("cid-1\n")),
              ("up -d", fakes.ok()),
@@ -424,7 +426,16 @@ class InstallTest(LifecycleCase):
         self.assertIn("OLLAMA_HOST", err)
 
 
+NOT_LOADED = ("launchctl print", fakes.fail())
+
+
 class UninstallTest(LifecycleCase):
+    def setUp(self):
+        super().setUp()
+        self.home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.home, True)
+        self.use_env({"HOME": self.home})
+
     def test_remote_uninstall_touches_nothing(self):
         self.use_env({"HINDSIGHT_MODE": "remote"})
         fake = self.use_script([])
@@ -436,6 +447,7 @@ class UninstallTest(LifecycleCase):
     def test_compose_down_failing_fails_the_uninstall_before_it_touches_volumes(self):
         # Given Docker Desktop is not running
         fake = self.use_script([
+            NOT_LOADED,
             ("down --rmi all", fakes.fail(stderr="Cannot connect to the Docker daemon")),
         ])
         # When the plugin is uninstalled
@@ -448,9 +460,48 @@ class UninstallTest(LifecycleCase):
         self.assertIn("atk remove hindsight", err)
         fake.assert_done()
 
+    def test_uninstall_removes_the_backup_schedule_it_installed(self):
+        # Given a loaded launchd job and its plist under this home
+        plist = os.path.join(self.home, "Library", "LaunchAgents", "com.atk.hindsight-backup.plist")
+        os.makedirs(os.path.dirname(plist))
+        open(plist, "w").close()
+        fake = self.use_script([
+            ("launchctl print", fakes.ok()),
+            ("launchctl bootout", fakes.ok()),
+            ("down --rmi all", fakes.ok()),
+            ("volume rm hindsight_data_models", fakes.ok()),
+            ("volume inspect hindsight_data", fakes.fail()),
+        ])
+        # When the plugin is uninstalled
+        code, out, _ = fakes.invoke(["uninstall"])
+        # Then the job is booted out and the plist is gone before anything else
+        self.assertEqual(code, 0)
+        self.assertFalse(os.path.exists(plist))
+        self.assertLess(fake.index_of("launchctl bootout"), fake.index_of("down --rmi all"))
+        self.assertIn("schedule removed", out)
+        fake.assert_done()
+
+    def test_uninstall_off_macos_never_asks_launchd(self):
+        # Given a Linux host, where there is no launchd job to remove
+        patcher = mock.patch.object(lifecycle_sys, "platform", "linux")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        fake = self.use_script([
+            ("down --rmi all", fakes.ok()),
+            ("volume rm hindsight_data_models", fakes.ok()),
+            ("volume inspect hindsight_data", fakes.fail()),
+        ])
+        # When the plugin is uninstalled
+        code, _, _ = fakes.invoke(["uninstall"])
+        # Then no launchctl command is ever issued
+        self.assertEqual(code, 0)
+        self.assertNotIn("launchctl", " ".join(fake.joined_calls()))
+        fake.assert_done()
+
     def test_declined_confirm_keeps_the_memories_volume(self):
         self.confirm.return_value = False
         fake = self.use_script([
+            NOT_LOADED,
             ("down --rmi all", fakes.ok()),
             ("volume rm hindsight_data_models", fakes.ok()),
             ("volume inspect hindsight_data", fakes.ok()),
@@ -464,6 +515,7 @@ class UninstallTest(LifecycleCase):
 
     def test_confirmed_delete_removes_the_memories_volume(self):
         fake = self.use_script([
+            NOT_LOADED,
             ("down --rmi all", fakes.ok()),
             ("volume rm hindsight_data_models", fakes.ok()),
             ("volume inspect hindsight_data", fakes.ok()),
@@ -476,6 +528,7 @@ class UninstallTest(LifecycleCase):
 
     def test_a_confirmed_delete_that_fails_says_the_memories_are_still_there(self):
         fake = self.use_script([
+            NOT_LOADED,
             ("down --rmi all", fakes.ok()),
             ("volume rm hindsight_data_models", fakes.ok()),
             ("volume inspect hindsight_data", fakes.ok()),
@@ -493,6 +546,7 @@ class UninstallTest(LifecycleCase):
 
     def test_missing_volume_asks_nothing(self):
         self.use_script([
+            NOT_LOADED,
             ("down --rmi all", fakes.ok()),
             ("volume rm hindsight_data_models", fakes.ok()),
             ("volume inspect hindsight_data", fakes.fail()),

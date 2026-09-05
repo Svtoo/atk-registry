@@ -4,7 +4,7 @@ import os
 import sys
 import urllib.error
 
-from . import client, config, shell
+from . import client, config, schedule, shell
 
 
 def conform_bank():
@@ -254,6 +254,9 @@ def uninstall(cfg):
         print("  ✅ Uninstalled — remote mode ran nothing locally.")
         print("  The instance at %s is untouched." % cfg.url)
         return 0
+
+    if sys.platform == "darwin" and schedule.remove_job():
+        print("  ✓ Backup schedule removed")
 
     down = shell.compose(cfg, "down", "--rmi", "all", capture_output=True, check=False)
     if down.returncode != 0:
