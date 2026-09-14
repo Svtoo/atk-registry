@@ -4,6 +4,7 @@ projects tree. Only invoke_claude is faked; no network, no `claude -p`.
 Run: ../.venv/bin/python test_run_once.py
 """
 import json
+import re
 import tempfile
 from pathlib import Path
 
@@ -260,6 +261,37 @@ def test_journey_off_rejects_journey_ops_and_renders_no_journey_card():
     assert model["todo"][0]["text"] == TODO_TEXT
     assert 'class="card journey"' not in out.read_text()
     assert "## Journey" not in calls[0], "the state digest must not show journey while off"
+
+
+CLAUDE_CODE_TITLE = "a-customTitle"
+
+
+def _h1(html: str) -> str:
+    return re.search(r"<h1>(.*?)</h1>", html).group(1)
+
+
+def test_a_chat_named_by_claude_code_heads_its_dashboard_with_that_name():
+    # Given a chat Claude Code named with a custom-title record, and an agent that sets no title
+    root = _project_tree(1)
+    with (root / PROJECT_HASH / f"{SESSION_UUID}.jsonl").open("a") as fh:
+        fh.write("\n" + json.dumps(
+            {"type": "custom-title", "customTitle": CLAUDE_CODE_TITLE, "sessionId": SESSION_UUID}))
+    untitled = {"ops": [
+        {"op": "todo.upsert", "text": TODO_TEXT, "status": "open", "reason": "start"},
+    ]}
+    fake, _ = _fake_invoke([f"<update>\n{json.dumps(untitled)}\n</update>\n"])
+    original = regen.invoke_claude
+    regen.invoke_claude = fake
+
+    # When
+    try:
+        out = _run(root)
+    finally:
+        regen.invoke_claude = original
+
+    # Then
+    h1 = _h1(out.read_text())
+    assert h1 == CLAUDE_CODE_TITLE, h1
 
 
 if __name__ == "__main__":

@@ -65,6 +65,9 @@ def build_digest(m: DashboardModel, now_turn: "int | None" = None,
     L += ["", f"## Links ({len(m.links)}) — the nav chips; upsert by id, remove what stopped mattering"]
     for lk in m.links:
         L.append(f"- {lk.id} kind={lk.kind or '-'} label={lk.label} url={lk.url or '-'}")
+        if not lk.url:
+            L.append("  ⚠ no url, so the chip is hidden from the user: fill the "
+                     "real url via link.upsert, or link.remove it if none exists")
 
     L += ["", f"## To-do ({len(m.todo)}) — full history; done steps never leave"]
     for t in m.todo:

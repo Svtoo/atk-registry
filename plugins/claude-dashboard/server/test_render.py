@@ -3,6 +3,8 @@ Locks the exact class contract the layout + dashboard.js wire to (watch-deck ack
 buttons, todo-list, timeline). Run: ../.venv/bin/python test_render.py
 """
 
+import re
+
 import models
 from models import (
     CtaItem, DashboardModel, FreeformSlot, HeadsupItem, JourneyItem, Tldr,
@@ -61,15 +63,24 @@ def test_header_puts_state_in_a_strip_above_the_title():
     assert "<dt>what</dt>" not in html, "the four-row grid is gone"
 
 
-def test_header_falls_back_to_the_chats_own_title():
-    chat_title = "Fix the login flow"
-    untitled = DashboardModel()
-    assert f"<h1>{chat_title}</h1>" in render(untitled, chat_title)
-    assert "<h1>Session</h1>" in render(untitled), "no fallback still renders the generic header"
-    model_title = "Model-chosen title"
-    titled = DashboardModel(title=model_title)
-    assert f"<h1>{model_title}</h1>" in render(titled, chat_title), \
-        "a model-set title must win over the fallback"
+def _h1(html: str) -> str:
+    return re.search(r"<h1>(.*?)</h1>", html).group(1)
+
+
+def test_header_names_the_chat_by_its_claude_code_title_before_the_agents():
+    # Given
+    chat_title, agent_title = "Fix the login flow", "Model-chosen title"
+    agent_titled = DashboardModel(title=agent_title)
+
+    # When
+    both = _h1(render(agent_titled, chat_title))
+    agent_only = _h1(render(agent_titled))
+    neither = _h1(render(DashboardModel()))
+
+    # Then
+    assert both == chat_title, both
+    assert agent_only == agent_title, agent_only
+    assert neither == "Session", neither
 
 
 def test_the_line_under_the_title_prefers_essence_and_falls_back_to_status():
@@ -101,13 +112,15 @@ def test_links_render_as_chips_between_header_and_cta():
     html = render(m)
     assert html.index("</header>") < html.index('class="link-chips"') < html.index('card questions')
     assert '<a class="link-chip" href="https://linear.app/x/ENG-3345">' in html
-    assert "🎫" in html and "🌿" in html
-    assert '<span class="link-chip">🌿 <span class="kind">branch</span> claude/video-ingestion</span>' in html, \
-        "a URL-less link renders as plain text, not an anchor"
+    assert "🎫" in html
+    assert "claude/video-ingestion" not in html, "a URL-less link is not displayed"
 
 
 def test_no_links_render_no_strip():
     assert "link-chips" not in render(DashboardModel(title="T"))
+    only_urlless = DashboardModel(
+        title="T", links=[models.LinkItem(id="l1", label="a-branch", kind="branch")])
+    assert "link-chips" not in render(only_urlless)
 
 
 def test_last_turn_renders_atop_the_cta_card():

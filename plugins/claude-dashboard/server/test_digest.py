@@ -172,6 +172,20 @@ def test_digest_lists_links_with_ids():
     digest = build_digest(m)
     assert "## Links (1)" in digest
     assert "- l1 kind=issue label=ENG-1 url=https://x/1" in digest
+    assert "no url" not in digest
+
+
+def test_digest_flags_a_urlless_link_for_fix_or_drop():
+    from models import LinkItem
+    m = DashboardModel(links=[
+        LinkItem(id="l1", label="ENG-1", url="https://x/1", kind="issue"),
+        LinkItem(id="l2", label="plan doc", kind="doc"),
+    ])
+    lines = build_digest(m).splitlines()
+    flagged = [i for i, ln in enumerate(lines) if "no url" in ln]
+    assert len(flagged) == 1
+    assert lines[flagged[0] - 1].startswith("- l2 ")
+    assert "link.upsert" in lines[flagged[0]] and "link.remove" in lines[flagged[0]]
 
 
 def test_digest_shows_the_last_turn_line():

@@ -23,7 +23,7 @@ from chat_state import ChatState
 from config import Settings
 from logging_config import configure_logging, get_logger, set_log_level
 from notice_center import NoticeCenter
-from regen import AMBIENT_AUTH_VARS, Registry, probe_auth
+from regen import AMBIENT_AUTH_VARS, Registry, chat_title, probe_auth, read_jsonl
 from store import DashboardStore
 
 PORT = int(os.environ.get("PORT", 7878))
@@ -169,10 +169,11 @@ def _iso(epoch: float) -> str:
 
 
 def parse_session_meta(jsonl_path: Path, max_lines: int = 100) -> dict:
-    """Pull ai-title and the first user message from a session JSONL."""
-    ai_title = ""
+    """Pull the chat title and the first user message from a session JSONL."""
+    title = ""
     first_user = ""
     try:
+        title = chat_title(read_jsonl(jsonl_path))
         with jsonl_path.open("r", errors="replace") as fh:
             for i, line in enumerate(fh):
                 if i >= max_lines:
@@ -184,8 +185,6 @@ def parse_session_meta(jsonl_path: Path, max_lines: int = 100) -> dict:
                     d = json.loads(line)
                 except Exception:
                     continue
-                if d.get("type") == "ai-title" and not ai_title:
-                    ai_title = (d.get("aiTitle") or "").strip()
                 if d.get("type") == "user" and not first_user:
                     m = d.get("message", {})
                     c = m.get("content", "")
@@ -196,11 +195,11 @@ def parse_session_meta(jsonl_path: Path, max_lines: int = 100) -> dict:
                             if isinstance(item, dict) and "text" in item:
                                 first_user = item["text"][:200].replace("\n", " ").strip()
                                 break
-                if ai_title and first_user:
+                if first_user:
                     break
     except Exception:
         pass
-    return {"aiTitle": ai_title, "firstUser": first_user}
+    return {"aiTitle": title, "firstUser": first_user}
 
 
 _META_CACHE = _MtimeCache(parse_session_meta, missing={})

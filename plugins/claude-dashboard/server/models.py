@@ -80,7 +80,7 @@ class TodoItem(_Base):
 class LinkItem(_Base):
     id: str
     label: str = Field(max_length=SHORT)
-    url: str = Field("", max_length=SHORT)    # empty: a plain reference, e.g. a branch name
+    url: str = Field("", max_length=SHORT)    # empty: hidden from the page; digest flags it for fix or drop
     kind: str = Field("", max_length=40)      # short type tag: issue | pr | branch | doc | …
     order: int = 0
     changed_turn: int = 0

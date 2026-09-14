@@ -315,6 +315,29 @@ def test_continued_from_link_renders_when_a_chat_has_a_parent():
         serve.CHAT_STATE = None
 
 
+def test_a_generic_dashboard_takes_its_tab_title_from_the_chats_latest_name():
+    import json as _json
+    import re as _re
+    # Given a long chat renamed deep into its transcript, whose dashboard has the generic header
+    session_uuid = "17884243-1430-4c1d-9f58-ec24f487a25a"
+    ai_title, latest_custom_title = "an-aiTitle", "a-latest-customTitle"
+    long_transcript = [_json.dumps({"type": "ai-title", "aiTitle": ai_title})]
+    long_transcript += [_json.dumps({"type": "assistant", "turn": n}) for n in range(500)]
+    long_transcript.append(_json.dumps({"type": "custom-title", "customTitle": latest_custom_title}))
+    (Path(_tmp) / HASH / f"{session_uuid}.jsonl").write_text("\n".join(long_transcript) + "\n")
+    (Path(_tmp) / HASH / session_uuid).mkdir(parents=True, exist_ok=True)
+    (Path(_tmp) / HASH / session_uuid / "dashboard.html").write_text(
+        '<header class="session-header"><h1>Session</h1></header>')
+
+    # When
+    status, _, body = _req("GET", f"/{HASH}/{session_uuid}/dashboard.html")
+
+    # Then
+    assert status == 200, f"dashboard status {status}"
+    tab_title = _re.search(r"<title>(.*?)</title>", body.decode("utf-8", "replace")).group(1)
+    assert tab_title == latest_custom_title, tab_title
+
+
 if __name__ == "__main__":
     try:
         raise SystemExit(main())

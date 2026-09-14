@@ -28,11 +28,11 @@ def _plain(s: str) -> str:
     return _TAG.sub("", s).strip()
 
 
-def _blocks(m: DashboardModel, fallback_title: str = "",
+def _blocks(m: DashboardModel, chat_title: str = "",
             journey: bool = True) -> "list[tuple[str, str]]":
     """Ordered (card, html) for every card; freeform collapsed into one entry, journey last."""
     blocks = [
-        ("header", _header(m, fallback_title)),
+        ("header", _header(m, chat_title)),
         ("links", _links(m)),
         ("cta", _cta(m)),
         ("todo", _todo(m)),
@@ -44,9 +44,9 @@ def _blocks(m: DashboardModel, fallback_title: str = "",
     return blocks
 
 
-def render(m: DashboardModel, fallback_title: str = "", journey: bool = True) -> str:
-    """`fallback_title` fills the header when the model has not set a title."""
-    return "\n".join(html for _, html in _blocks(m, fallback_title, journey) if html)
+def render(m: DashboardModel, chat_title: str = "", journey: bool = True) -> str:
+    """`chat_title`, the chat's name in Claude Code, heads the dashboard ahead of the model's title."""
+    return "\n".join(html for _, html in _blocks(m, chat_title, journey) if html)
 
 
 def block_sizes(m: DashboardModel) -> "dict[str, int]":
@@ -81,8 +81,8 @@ def _meta_strip(m: DashboardModel) -> str:
     return '  <div class="meta-strip">' + "".join(bits) + "</div>"
 
 
-def _header(m: DashboardModel, fallback_title: str = "") -> str:
-    title = m.title or fallback_title or "Session"
+def _header(m: DashboardModel, chat_title: str = "") -> str:
+    title = chat_title or m.title or "Session"
     lines = ['<header class="session-header">', _meta_strip(m), f"  <h1>{title}</h1>"]
     description = m.tldr.essence or m.tldr.status
     if description:
@@ -119,18 +119,16 @@ _LINK_ICON = {"issue": "🎫", "pr": "🔀", "branch": "🌿", "doc": "📄"}
 
 
 def _links(m: DashboardModel) -> str:
-    if not m.links:
-        return ""
     chips = []
     for link in m.links:
+        if not link.url:
+            continue
         icon = _LINK_ICON.get(link.kind, "🔗")
         kind = f'<span class="kind">{link.kind}</span> ' if link.kind else ""
-        inner = f"{icon} {kind}{link.label}"
-        if link.url:
-            href = link.url.replace('"', "&quot;")
-            chips.append(f'  <a class="link-chip" href="{href}">{inner}</a>')
-        else:
-            chips.append(f'  <span class="link-chip">{inner}</span>')
+        href = link.url.replace('"', "&quot;")
+        chips.append(f'  <a class="link-chip" href="{href}">{icon} {kind}{link.label}</a>')
+    if not chips:
+        return ""
     return '<div class="link-chips">\n' + "\n".join(chips) + "\n</div>"
 
 
