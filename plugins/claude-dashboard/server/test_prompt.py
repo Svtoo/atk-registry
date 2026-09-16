@@ -3,7 +3,9 @@ prior turns prose-only, monster turn truncated to fit) and the data-in/strings-o
 assembler. Run: ../.venv/bin/python test_prompt.py
 """
 
-from models import DashboardModel, Tldr
+import json
+
+from models import DashboardModel, Tldr, update_model
 from prompt import (
     FULL_TURNS,
     LIGHT_TURNS,
@@ -212,7 +214,12 @@ def test_assemble_prompt_is_xml_structured_data_in_strings_out():
     assert "ROLE AND RULES" in out.system
     assert "<output_format>" in out.system
     assert "freeform.upsert" in out.system, "the schema must flow into the system prompt"
-    assert '"title"' not in out.system, "pydantic auto-titles are stripped from the schema"
+    schema = json.loads(out.system.split("The op-set JSON matches this schema:\n")[1]
+                        .split("\nOnly the content inside the blocks")[0])
+    title_field = schema["properties"].pop("title")
+    assert title_field["description"] == update_model().model_fields["title"].description, \
+        "the model's own title field reaches the agent"
+    assert '"title"' not in json.dumps(schema), "pydantic auto-titles are stripped from the schema"
     assert "one-line motivation" in out.system, "field descriptions are the contract — they survive"
 
     assert '<dashboard_state turn="6">' in out.user

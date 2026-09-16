@@ -203,7 +203,10 @@ class AssembledPrompt:
 def _strip_schema_titles(node):
     """Drop pydantic's auto-generated "title" keys; they restate field names."""
     if isinstance(node, dict):
-        return {k: _strip_schema_titles(v) for k, v in node.items() if k != "title"}
+        return {k: ({name: _strip_schema_titles(field) for name, field in v.items()}
+                    # keyed by field names, so a field called "title" stays
+                    if k == "properties" else _strip_schema_titles(v))
+                for k, v in node.items() if k != "title"}
     if isinstance(node, list):
         return [_strip_schema_titles(x) for x in node]
     return node

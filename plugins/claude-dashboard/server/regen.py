@@ -84,6 +84,17 @@ def read_jsonl(path: Path) -> list:
     return out
 
 
+def chat_title(events: list) -> str:
+    """The chat's name as Claude Code shows it: its latest custom title, else its AI title."""
+    custom = ai = ""
+    for e in events:
+        if e.get("type") == "custom-title":
+            custom = str(e.get("customTitle") or "").strip()
+        elif e.get("type") == "ai-title":
+            ai = str(e.get("aiTitle") or "").strip()
+    return custom or ai
+
+
 def _is_pure_tool_result(user_event: dict) -> bool:
     content = user_event.get("message", {}).get("content")
     if not isinstance(content, list):
@@ -375,11 +386,8 @@ def run_once(
     events = read_jsonl(jsonl_path)
     all_turns = split_into_turns(events)
     turn_no = len(all_turns)                        # absolute conversation depth
-    # Claude Code's own chat title; the header fallback when the model sets none.
-    ai_title = next(
-        (str(e.get("aiTitle") or "").strip() for e in events if e.get("type") == "ai-title"),
-        "",
-    )
+    # Claude Code's own chat title; it heads the dashboard ahead of the model's.
+    title = chat_title(events)
     # A resumed, compacted, or forked chat replays its parent's events; seed
     # it once with the parent's state so the dashboard continues instead of
     # starting blank. Telemetry stays with the parent.
@@ -472,7 +480,7 @@ def run_once(
         if verdicts:
             # A user click beats any same-turn agent op on the item.
             new_model = _fold.apply_verdicts(new_model, verdicts)
-        html = _render.render(new_model, ai_title, journey=journey)
+        html = _render.render(new_model, title, journey=journey)
         if len(html) < 200:
             raise OutputRejected(f"render too small ({len(html)} bytes) — refusing to overwrite")
     except Exception as exc:

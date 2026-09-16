@@ -28,6 +28,42 @@ def wait_until(pred, timeout: float = 5.0, interval: float = 0.005) -> bool:
     return False
 
 
+AI_TITLE = "an-aiTitle"
+FIRST_CUSTOM_TITLE = "a-first-customTitle"
+LATEST_CUSTOM_TITLE = "a-latest-customTitle"
+
+
+def _ai_title(title: str) -> dict:
+    return {"type": "ai-title", "aiTitle": title, "sessionId": SESS}
+
+
+def _custom_title(title: str) -> dict:
+    return {"type": "custom-title", "customTitle": title, "sessionId": SESS}
+
+
+def test_a_renamed_chat_is_named_by_its_latest_custom_title():
+    # Given a rename, then Claude Code's re-appended metadata: custom title before AI title
+    events = [_ai_title(AI_TITLE), _custom_title(FIRST_CUSTOM_TITLE),
+              _custom_title(LATEST_CUSTOM_TITLE), _ai_title(AI_TITLE)]
+
+    # When
+    title = regen.chat_title(events)
+
+    # Then
+    assert title == LATEST_CUSTOM_TITLE, title
+
+
+def test_a_chat_without_a_custom_title_is_named_by_its_ai_title():
+    # Given
+    events = [_ai_title(AI_TITLE)]
+
+    # When
+    title = regen.chat_title(events)
+
+    # Then
+    assert title == AI_TITLE, title
+
+
 def test_regen_timeout_is_not_retryable_but_subprocessfailed_is():
     timeout_err = regen.RegenTimeout("claude -p exceeded 180s wall-clock")
     transient_err = regen.SubprocessFailed("streaming socket closed")
