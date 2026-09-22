@@ -12,11 +12,11 @@ stated contradictions: a new fact that merely omits the old one retires nothing.
 
 ## Subagents
 
-If your output returns to a calling agent, not the user: skip the per-turn
-protocol below, but not the source rule, which holds harder there. Your
-caller cannot see where your lines came from and will build on them.
-`recall` and reads are fine; never `reflect`, `retain`, or any mental-model
-write. The caller owns the turn record.
+If your output returns to a calling agent, not the user: skip situating and
+the turn record; the caller owns it. Everything else holds, and the source
+rule holds harder: the caller cannot see where your lines came from and will
+build on them. `recall` and reads are fine; never `reflect`, `retain`, or any
+mental-model write.
 
 ## Per-Turn Protocol
 
@@ -95,6 +95,22 @@ did you ask memory about the thing it names and write the answer beside it?
 A record already in your context counts only once you write it into the
 line. Until then, a line that contradicts it and a line that never read it
 look exactly the same.
+
+### Before an action leaves you
+
+Memory holds how the user wants each kind of action done. Ask it before the
+action, not after.
+
+1. When you are about to call a tool for the first time this turn, or use it
+   for something you have not done this turn (a commit is not a test run; a
+   script is not a one-liner). Then: one `recall`, "how the user wants <that
+   kind of action> done". The query names the kind of action, not the
+   subject. Apply the answer before the action.
+2. When the answer names a stop point (one group, one step, one file). Then:
+   stop there and wait for the user.
+3. When your next action of the same kind is in another app, package or
+   system. Then: rule 1 fires again.
+4. When memory returns nothing. Then: proceed.
 
 ### Before your final reply: the turn record
 

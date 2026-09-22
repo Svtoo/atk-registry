@@ -89,8 +89,8 @@ def mental_models_create(ctx: typer.Context,
     """Create a mental model.
 
     One model = one question about one dimension. Write an open question
-    naming the subject and its boundary ("exclude X"); never enumerate the
-    answer. Keep scopes disjoint. 600-800 tokens.
+    naming the subject and what the answer should look like. Never another
+    model, never an exclusion list, never the answer itself. 600-800 tokens.
     """
     return mental_models.create(ctx.obj, model_id, query, name, cron, max_tokens)
 
@@ -111,8 +111,12 @@ def mental_models_set(ctx: typer.Context,
 
 @mm_app.command("refresh")
 def mental_models_refresh(ctx: typer.Context,
-                          model_id: str = typer.Argument(...)):
-    return mental_models.refresh(ctx.obj, model_id)
+                          model_id: str = typer.Argument(...),
+                          wait: bool = typer.Option(
+                              False, "--wait",
+                              help="Block until the refresh lands, then"
+                                   " print the rendered size.")):
+    return mental_models.refresh(ctx.obj, model_id, wait=wait)
 
 
 @mm_app.command("dry-run")
@@ -152,9 +156,10 @@ def mental_models_rebuild(ctx: typer.Context,
     """Clear a model and regenerate it from the whole bank.
 
     Only for drift: a document shaped by many delta refreshes that no
-    longer matches what a fresh build would say. A freshly rebuilt model
-    that is still over budget has a query or budget problem, and
-    rebuilding again reproduces it. Paid.
+    longer matches what a fresh build would say. A model in full mode
+    regenerates on every refresh. A freshly rebuilt model that is still
+    over budget has a query or budget problem, and rebuilding again
+    reproduces it. Paid.
     """
     return mental_models.rebuild(ctx.obj, model_id, yes=yes)
 

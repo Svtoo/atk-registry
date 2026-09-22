@@ -5,6 +5,7 @@ import difflib
 import itertools
 import json
 import re
+import time
 import urllib.error
 
 from cronsim import CronSim
@@ -12,6 +13,9 @@ from cronsim import CronSim
 from . import client, shell
 
 FIRES_CAP = 10000
+
+WAIT_SECONDS = 20
+WAIT_POLLS = 90
 
 
 def _sentence_count(query):
@@ -76,16 +80,28 @@ def show(cfg, model_id):
     return 0
 
 
+def _warn_sibling_mentions(cfg, model_id, query):
+    """Advisory: a model id can also be a plain word, so this never blocks."""
+    roster = _call(cfg, "GET", "?detail=metadata").get("items", [])
+    named = [m["id"] for m in roster
+             if m["id"] != model_id
+             and re.search(r"(?<![\w-])%s(?![\w-])" % re.escape(m["id"]), query)]
+    if named:
+        shell.warn("query names another model: %s; a query is its own subject"
+                   " and form only" % ", ".join(named))
+
+
 def create(cfg, model_id, query, name, cron, max_tokens):
     if not query:
         shell.die("a mental model needs --query: the standing question it answers")
+    _warn_sibling_mentions(cfg, model_id, query)
     # Observations are the consolidated layer, one entry per facet with
     # state changes already applied; raw facts are one entry per retain.
     # exclude_mental_models keeps a model off its siblings, which the
     # reflect agent otherwise ranks as its highest-quality source.
-    # Delta edits the stored document instead of regenerating it; the
-    # first build falls back to full because there is no baseline yet.
-    trigger = {"mode": "delta", "fact_types": ["observation"],
+    # Full regenerates the document every refresh, so its size tracks the
+    # budget; delta edits the stored document and never shrinks it.
+    trigger = {"mode": "full", "fact_types": ["observation"],
                "exclude_mental_models": True}
     if cron:
         trigger["refresh_cron"] = cron
@@ -114,6 +130,7 @@ def set_options(cfg, model_id, query, cron, mode, max_tokens, keep_trace):
     current = _call(cfg, "GET", "/%s?detail=full" % model_id)
     body = {}
     if query:
+        _warn_sibling_mentions(cfg, model_id, query)
         body["source_query"] = query
     if max_tokens is not None:
         body["max_tokens"] = max_tokens
@@ -141,11 +158,31 @@ def _queue_refresh(cfg, model_id):
     print("  refresh queued for %s (runs in the background)" % model_id)
 
 
-def refresh(cfg, model_id):
-    print("  paid LLM run (cents); delta mode applies only facts newer"
-          " than the last refresh")
+MODE_COST = {
+    "full": "full mode regenerates the document from the whole bank",
+    "delta": "delta mode applies only facts newer than the last refresh",
+}
+
+
+def refresh(cfg, model_id, wait=False):
+    # detail=full is the variant that reliably carries the trigger.
+    current = _call(cfg, "GET", "/%s?detail=full" % model_id)
+    mode = (current.get("trigger") or {}).get("mode") or "full"
+    print("  paid LLM run (cents); %s" % MODE_COST[mode])
     _queue_refresh(cfg, model_id)
-    return 0
+    if not wait:
+        return 0
+    before = current.get("last_refreshed_at")
+    for _ in range(WAIT_POLLS):
+        time.sleep(WAIT_SECONDS)
+        stamp = _call(cfg, "GET", "/%s?detail=metadata" % model_id).get("last_refreshed_at")
+        if stamp and stamp != before:
+            doc = _call(cfg, "GET", "/%s?detail=content" % model_id)
+            print(_stat_line(doc.get("trigger") or {}, doc["max_tokens"],
+                             len(doc.get("content") or "")))
+            return 0
+    shell.die("refresh of %s did not land in time" % model_id,
+              "atk run hindsight mental-models -- list")
 
 
 def dry_run(cfg, model_id, as_json=False):
@@ -209,25 +246,27 @@ Restructuring playbook - work it in order, with the data above.
    model that is still fat will come back the same size or larger. That
    case is a query or budget problem, never a rebuild problem.
 
-   Preview before paying for a rebuild: with the model in full mode
-   (set --mode full, restore delta after), dry-run <id> runs the real
-   pipeline, writes nothing, and prints the diff a rebuild would land.
-   It costs a refresh and predicts rather than guarantees: the real run
-   samples again.
+   A model in full mode regenerates on every refresh, so REBUILD is for
+   delta models. Preview before paying for one: with the model in full
+   mode (set --mode full, restore delta after), dry-run <id> runs the
+   real pipeline, writes nothing, and prints the diff a rebuild would
+   land. It costs a refresh and predicts rather than guarantees: the
+   real run samples again.
 
 2. Narrowing must keep the model's identity. Write the new query, then
    check: same subject, tighter boundary? If the subject changed, you are
    doing a split and calling it a narrowing. A query defines a slice: a
    subject plus form constraints (rules in force, no incidents, no dates),
-   never a list of contents. Name an owner, not a list of exclusions: a
-   list of sibling subjects grows with every split and goes stale at the
-   next one, so where two subjects meet, say in one clause which model
-   owns that ground. Naming specific rules or techniques to include or
-   drop pins an answer the model exists to grow past. A slice too wide is
-   cut vertically into
-   subjects (a split), never by carving out a content layer. The refresh
-   agent reads only the memory bank. It cannot see skills, config files,
-   or anything else outside memory, so a query must never reference them.
+   never a list of contents. A query never names another model and
+   carries no exclusion list: the query text is embedded to retrieve the
+   facts, so every sibling word pulls retrieval the wrong way, and the
+   trigger already keeps siblings out of a model's sources. Boundaries
+   come from each model's own positive subject. Naming specific rules or
+   techniques to include or drop pins an answer the model exists to grow
+   past. A slice too wide is cut vertically into subjects (a split), never
+   by carving out a content layer. The refresh agent reads only the memory
+   bank. It cannot see skills, config files, or anything else outside
+   memory, so a query must never reference them.
 
 3. Splits must pay rent. Each fragment needs its own audience, its own
    subject, and enough expected use to justify its refresh cost. Two
@@ -237,10 +276,12 @@ Restructuring playbook - work it in order, with the data above.
    Some overlap survives every split, because a rule that governs two
    subjects belongs to both. It costs a reader's tokens, not a fact:
    facts are stored once as observations and a model is a rendering over
-   them. The duplicates block above says where it happened; give each
-   duplicated rule one owner in that model's query and leave the rest. A
-   delta refresh drops content only when a new fact contradicts it, so a
-   duplicate outlives every refresh until a rebuild.
+   them. The duplicates block above says where it happened; keep the
+   overlap, a rule that governs two subjects belongs to both, and never
+   push it out by naming the other model in a query. A full refresh
+   re-renders from the bank each time; a delta refresh drops content only
+   when a new fact contradicts it, so on a delta model a duplicate
+   outlives every refresh until a rebuild.
 
 4. No edit without consent - free is not harmless. A query edit rewrites
    the model's identity, and nothing rebuilds at edit time: the NEXT
