@@ -3,14 +3,16 @@
 cost surfacing, rebuild and audit."""
 import datetime
 import json
+import time
 import unittest
 from unittest import mock
 
 import fakes
-from hindsight_cli import client, shell
+from hindsight_cli import client, mental_models, shell
 
 MM_URL = "http://localhost:8888/v1/default/banks/default/mental-models"
 MODEL_ID = "writing-code"
+SIBLING = "testing-style"
 QUERY = "How does this user want code written?"
 CRON = "0 17 * * 1,4"
 FULL_TRIGGER = {"mode": "delta", "fact_types": ["observation"],
@@ -19,26 +21,29 @@ FULL_TRIGGER = {"mode": "delta", "fact_types": ["observation"],
 
 class CreateTest(unittest.TestCase):
     def setUp(self):
-        self.http = fakes.FakeHttp([("POST %s" % MM_URL, "{}")])
+        self.http = fakes.FakeHttp([
+            ("GET %s?detail=metadata" % MM_URL,
+             json.dumps({"items": [{"id": SIBLING}]})),
+            ("POST %s" % MM_URL, "{}")])
         patcher = mock.patch.object(client, "http", self.http)
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def test_create_defaults_the_budget_to_800_tokens(self):
+    def test_create_defaults_the_mode_to_full_and_the_budget_to_800_tokens(self):
         # When a model is created without --max-tokens
         code, out, _ = fakes.invoke(
             ["mental-models", "create", MODEL_ID,
              "--query", QUERY, "--cron", CRON])
-        # Then the create request carries the 800 token default
+        # Then the create request carries full mode and the 800 token default
         self.assertEqual(code, 0)
         self.assertEqual(out, "  created %s\n" % MODEL_ID)
-        self.assertEqual(len(self.http.requests), 1)
-        method, url, body = self.http.requests[0]
+        self.assertEqual(len(self.http.requests), 2)
+        method, url, body = self.http.requests[1]
         self.assertEqual(method, "POST")
         self.assertEqual(url, MM_URL)
         self.assertEqual(body, {
             "id": MODEL_ID, "name": MODEL_ID, "source_query": QUERY,
-            "trigger": {"mode": "delta", "fact_types": ["observation"],
+            "trigger": {"mode": "full", "fact_types": ["observation"],
                         "exclude_mental_models": True, "refresh_cron": CRON},
             "max_tokens": 800})
         self.http.assert_done()
@@ -65,8 +70,8 @@ class CreateTest(unittest.TestCase):
         self.assertEqual(
             err, "  ⚠ max-tokens %d: models hold their budget best"
                  " at 600-800\n" % budget)
-        self.assertEqual(len(self.http.requests), 1)
-        self.assertEqual(self.http.requests[0][2]["max_tokens"], budget)
+        self.assertEqual(len(self.http.requests), 2)
+        self.assertEqual(self.http.requests[1][2]["max_tokens"], budget)
 
     def test_create_warns_when_the_query_exceeds_two_sentences(self):
         query = ("How does the user test? What frameworks appear? "
@@ -81,6 +86,20 @@ class CreateTest(unittest.TestCase):
         self.assertEqual(
             err, "  ⚠ query has 3 sentences: multi-facet questions produce"
                  " multi-section documents that overrun their budget\n")
+
+    def test_create_warns_when_the_query_names_another_model(self):
+        query = "How does this user want tests written, unlike %s?" % SIBLING
+        # When a model is created with a query that names a sibling model
+        code, out, err = fakes.invoke(
+            ["mental-models", "create", MODEL_ID, "--query", query,
+             "--cron", CRON])
+        # Then the model is still created and the sibling mention is flagged
+        self.assertEqual(code, 0)
+        self.assertEqual(out, "  created %s\n" % MODEL_ID)
+        self.assertEqual(
+            err, "  ⚠ query names another model: %s; a query is its own"
+                 " subject and form only\n" % SIBLING)
+        self.http.assert_done()
 
 
 class SetTest(unittest.TestCase):
@@ -133,21 +152,58 @@ class SetTest(unittest.TestCase):
         self.assertEqual(err, "  ❌ --mode must be delta or full\n")
         self.assertEqual(len(self.http.requests), 0)
 
+    def set_query(self, query):
+        self.http = fakes.FakeHttp([
+            ("GET %s/%s?detail=full" % (MM_URL, MODEL_ID),
+             json.dumps({"id": MODEL_ID, "trigger": FULL_TRIGGER})),
+            ("GET %s?detail=metadata" % MM_URL,
+             json.dumps({"items": [{"id": MODEL_ID}, {"id": SIBLING}]})),
+            ("PATCH %s/%s" % (MM_URL, MODEL_ID), "{}")])
+        patcher = mock.patch.object(client, "http", self.http)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return fakes.invoke(["mental-models", "set", MODEL_ID, "--query", query])
+
     def test_set_query_flags_the_full_rebuild(self):
         updated_query = "How does this user structure tests?"
         # When the query is set
-        code, out, _ = fakes.invoke(
-            ["mental-models", "set", MODEL_ID, "--query", updated_query])
-        # Then the update names the rebuild consequence
+        code, out, err = self.set_query(updated_query)
+        # Then the update names the rebuild consequence and nothing is flagged
         self.assertEqual(code, 0)
         self.assertEqual(out, ("  updated %s\n"
                                "  query changed: the next refresh is a full"
                                " rebuild; refresh now on approval, do not"
                                " leave it for the cron\n") % MODEL_ID)
-        self.assertEqual(len(self.http.requests), 2)
-        method, _, body = self.http.requests[1]
+        self.assertEqual(err, "")
+        self.assertEqual(len(self.http.requests), 3)
+        method, _, body = self.http.requests[2]
         self.assertEqual(method, "PATCH")
         self.assertEqual(body, {"source_query": updated_query})
+        self.http.assert_done()
+
+    def test_set_warns_when_the_query_names_another_model(self):
+        updated_query = "How does this user structure tests, unlike %s?" % SIBLING
+        # When the query is set to one that names a sibling model
+        code, out, err = self.set_query(updated_query)
+        # Then the update still lands and the sibling mention is flagged
+        self.assertEqual(code, 0)
+        self.assertEqual(out, ("  updated %s\n"
+                               "  query changed: the next refresh is a full"
+                               " rebuild; refresh now on approval, do not"
+                               " leave it for the cron\n") % MODEL_ID)
+        self.assertEqual(
+            err, "  ⚠ query names another model: %s; a query is its own"
+                 " subject and form only\n" % SIBLING)
+        self.assertEqual(self.http.requests[2][2], {"source_query": updated_query})
+        self.http.assert_done()
+
+    def test_set_does_not_warn_when_a_sibling_id_is_only_part_of_a_word(self):
+        updated_query = "How does this user structure tests, unlike %ss?" % SIBLING
+        # When the query is set to one that contains a sibling id inside a longer word
+        code, _, err = self.set_query(updated_query)
+        # Then nothing is flagged
+        self.assertEqual(code, 0)
+        self.assertEqual(err, "")
         self.http.assert_done()
 
     def test_set_keep_trace_turns_the_trace_on_in_the_trigger(self):
@@ -248,23 +304,95 @@ class DryRunTest(unittest.TestCase):
 
 
 class RefreshTest(unittest.TestCase):
-    def setUp(self):
-        self.http = fakes.FakeHttp(
-            [("POST %s/%s/refresh" % (MM_URL, MODEL_ID), "{}")])
+    def refresh_in_mode(self, mode):
+        self.http = fakes.FakeHttp([
+            ("GET %s/%s?detail=full" % (MM_URL, MODEL_ID),
+             json.dumps({"id": MODEL_ID,
+                         "trigger": {**FULL_TRIGGER, "mode": mode}})),
+            ("POST %s/%s/refresh" % (MM_URL, MODEL_ID), "{}")])
         patcher = mock.patch.object(client, "http", self.http)
         patcher.start()
         self.addCleanup(patcher.stop)
+        return fakes.invoke(["mental-models", "refresh", MODEL_ID])
 
-    def test_refresh_states_the_cost_before_queueing(self):
-        # When a refresh is requested
-        code, out, _ = fakes.invoke(["mental-models", "refresh", MODEL_ID])
-        # Then the cost line precedes the queued confirmation
+    def test_refresh_states_the_full_mode_cost_before_queueing(self):
+        # When a refresh is requested for a model in full mode
+        code, out, _ = self.refresh_in_mode("full")
+        # Then the cost line names full mode and precedes the queued confirmation
+        self.assertEqual(code, 0)
+        self.assertEqual(out, ("  paid LLM run (cents); full mode regenerates"
+                               " the document from the whole bank\n"
+                               "  refresh queued for %s (runs in the"
+                               " background)\n") % MODEL_ID)
+        self.assertEqual(len(self.http.requests), 2)
+        self.http.assert_done()
+
+    def test_refresh_states_the_delta_mode_cost_before_queueing(self):
+        # When a refresh is requested for a model in delta mode
+        code, out, _ = self.refresh_in_mode("delta")
+        # Then the cost line names delta mode and precedes the queued confirmation
         self.assertEqual(code, 0)
         self.assertEqual(out, ("  paid LLM run (cents); delta mode applies"
                                " only facts newer than the last refresh\n"
                                "  refresh queued for %s (runs in the"
                                " background)\n") % MODEL_ID)
-        self.assertEqual(len(self.http.requests), 1)
+        self.assertEqual(len(self.http.requests), 2)
+        self.http.assert_done()
+
+    def refresh_and_wait(self, polls):
+        before, after = "2026-09-21T17:00:00", "2026-09-21T21:00:00"
+        model = {"id": MODEL_ID, "trigger": FULL_TRIGGER, "max_tokens": 800,
+                 "last_refreshed_at": before}
+        self.http = fakes.FakeHttp(
+            [("GET %s/%s?detail=full" % (MM_URL, MODEL_ID), json.dumps(model)),
+             ("POST %s/%s/refresh" % (MM_URL, MODEL_ID), "{}")] + polls(before, after))
+        self.sleep = mock.Mock()
+        for module, name, value in ((client, "http", self.http),
+                                    (time, "sleep", self.sleep)):
+            patcher = mock.patch.object(module, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        return fakes.invoke(["mental-models", "refresh", MODEL_ID, "--wait"])
+
+    def test_refresh_wait_reports_the_rendered_size_once_the_refresh_lands(self):
+        def polls(before, after):
+            return [
+                ("GET %s/%s?detail=metadata" % (MM_URL, MODEL_ID),
+                 json.dumps({"id": MODEL_ID, "last_refreshed_at": before})),
+                ("GET %s/%s?detail=metadata" % (MM_URL, MODEL_ID),
+                 json.dumps({"id": MODEL_ID, "last_refreshed_at": after})),
+                ("GET %s/%s?detail=content" % (MM_URL, MODEL_ID),
+                 json.dumps({"id": MODEL_ID, "trigger": FULL_TRIGGER,
+                             "max_tokens": 800, "content": "x" * 4000}))]
+        # When a refresh is requested with --wait and the second poll sees a new refresh stamp
+        code, out, _ = self.refresh_and_wait(polls)
+        # Then the rendered size line follows the queued confirmation
+        self.assertEqual(code, 0)
+        self.assertEqual(out, ("  paid LLM run (cents); delta mode applies"
+                               " only facts newer than the last refresh\n"
+                               "  refresh queued for %s (runs in the"
+                               " background)\n"
+                               "  mode delta  budget 800  size 4000 chars"
+                               " ~1000 tokens  ratio 1.25\n") % MODEL_ID)
+        self.http.assert_done()
+
+    def test_refresh_wait_dies_when_the_refresh_does_not_land(self):
+        def polls(before, after):
+            return [
+                ("GET %s/%s?detail=metadata" % (MM_URL, MODEL_ID),
+                 json.dumps({"id": MODEL_ID, "last_refreshed_at": before}))] * 2
+        # When a refresh is requested with --wait and every poll sees the old stamp
+        with mock.patch.object(mental_models, "WAIT_POLLS", 2):
+            code, out, err = self.refresh_and_wait(polls)
+        # Then the command dies after the last poll, naming where to look
+        self.assertEqual(code, 1)
+        self.assertEqual(out, ("  paid LLM run (cents); delta mode applies"
+                               " only facts newer than the last refresh\n"
+                               "  refresh queued for %s (runs in the"
+                               " background)\n") % MODEL_ID)
+        self.assertEqual(err, ("  ❌ refresh of %s did not land in time\n"
+                               "  atk run hindsight mental-models -- list\n")
+                         % MODEL_ID)
         self.http.assert_done()
 
 

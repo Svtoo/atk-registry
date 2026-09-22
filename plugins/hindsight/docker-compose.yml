@@ -4,7 +4,7 @@
 
 services:
   hindsight:
-    image: ghcr.io/vectorize-io/hindsight:0.9.2
+    image: ghcr.io/vectorize-io/hindsight:0.10.0
     container_name: hindsight
     restart: unless-stopped
     # Sized from the vendor's per-component table: API 2 GB recommended,
@@ -145,7 +145,8 @@ services:
       # The 0.97 default is high enough that merges effectively never fire.
       HINDSIGHT_API_CONSOLIDATION_DEDUP_THRESHOLD: "0.85"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8888/health || exit 1"]
+      # The runtime image ships no curl; the API's own interpreter probes it.
+      test: ["CMD-SHELL", "/app/api/.venv/bin/python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8888/health\", timeout=5)' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

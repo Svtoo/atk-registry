@@ -111,9 +111,11 @@ re-synthesise a standing answer over the whole bank; one refresh can cost more
 than a hundred retains.
 
 - `refresh_cron` on each model is the main dial. Twice a week is generous.
-- `delta` mode (the default) edits the stored document and skips a refresh
-  when nothing new is in scope. `full` regenerates from scratch and drifts
-  between runs even over an unchanged bank.
+- `full` mode (the default) regenerates the document from the whole bank on
+  every refresh, so its size tracks the budget; it re-samples between runs
+  even over an unchanged bank. `delta` edits the stored document with facts newer than
+  the last refresh and skips when nothing new is in scope; it never shrinks
+  the document, so a delta model grows past its budget until a rebuild.
 - A model's `max_tokens` is a target, not a cap.
   `HINDSIGHT_REFLECT_MAX_COMPLETION_TOKENS` is the only hard ceiling.
 
