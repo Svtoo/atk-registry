@@ -62,7 +62,7 @@ Where this plugin departs from upstream, or a wrong value fails silently:
 | `HINDSIGHT_LLM_EXTRA_BODY` | `null` | Request-body JSON outside the OpenAI schema. Valid JSON or `null`, never empty |
 | `HINDSIGHT_REFLECT_WALL_TIMEOUT` | `600` | Seconds for one `reflect`, which is what a mental-model refresh runs. Upstream's 300 fails real refreshes intermittently and silently |
 | `HINDSIGHT_REFLECT_MAX_COMPLETION_TOKENS` | unset | Hard output cap on `reflect`. On thinking models it is spent on reasoning and truncates a page mid-word |
-| `HINDSIGHT_RERANKER_LOCAL_BUCKET_BATCHING` | `true` | Off restores upstream behaviour; on is faster with identical scores |
+| `HINDSIGHT_RERANKER_LOCAL_BUCKET_BATCHING` | `true` | Off restores upstream behaviour; on is faster with identical scores. Only the default `local` reranker reads it; `HINDSIGHT_RERANKER_PROVIDER=flashrank` ignores it |
 | `HINDSIGHT_MCP_STATELESS` | `true` | `false` restores session MCP, and every restart then strands connected agents until they reconnect |
 | `HINDSIGHT_SEARCH_DIRECTIVE` | `on` | `off` removes the search-coverage directive from the bank |
 | `HINDSIGHT_VOLUME_NAME` | `hindsight_data` | Isolated instances side by side |
