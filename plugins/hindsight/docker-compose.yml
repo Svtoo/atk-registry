@@ -87,10 +87,11 @@ services:
       HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL: ${HINDSIGHT_EMBEDDING_MODEL:-mxbai-embed-large}
       HINDSIGHT_API_EMBEDDINGS_OPENAI_DIMENSIONS: ${HINDSIGHT_EMBEDDING_DIMENSIONS:-1024}
 
-      # Cross-encoder rerank on every recall, on CPU. flashrank is ONNX and
-      # lightest; 'local' takes any sentence-transformers model and ranks better.
+      # Cross-encoder rerank on every recall, on CPU. 'local' runs a
+      # sentence-transformers model with bucket batching; flashrank is ONNX and
+      # ignores bucket batching.
       HF_HOME: /home/hindsight/.cache/huggingface
-      HINDSIGHT_API_RERANKER_PROVIDER: ${HINDSIGHT_RERANKER_PROVIDER:-flashrank}
+      HINDSIGHT_API_RERANKER_PROVIDER: ${HINDSIGHT_RERANKER_PROVIDER:-local}
       # Only the active provider reads its own variable.
       HINDSIGHT_API_RERANKER_FLASHRANK_MODEL: ${HINDSIGHT_RERANKER_MODEL:-ms-marco-MiniLM-L-12-v2}
       HINDSIGHT_API_RERANKER_LOCAL_MODEL: ${HINDSIGHT_RERANKER_LOCAL_MODEL:-cross-encoder/ms-marco-MiniLM-L-6-v2}
