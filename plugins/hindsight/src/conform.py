@@ -2,8 +2,9 @@
 """Keep the configured bank's retain settings in line with ATK's configuration
 without stomping changes the user made in the Hindsight UI or API.
 
-ATK manages two keys: retain_extraction_mode and retain_custom_instructions.
-Everything else on the bank is never touched. What ATK last wrote is recorded
+ATK manages the retain keys (retain_extraction_mode and
+retain_custom_instructions), the MCP tool list, the observations mission and
+the search directive. Everything else on the bank is never touched. What ATK last wrote is recorded
 in custom/.conform-state/<bank>.json, and each run compares three things: what ATK
 wants (env + instructions file), what it last applied (the record), and what
 the server holds (the bank's explicit overrides, which is also the surface the
@@ -74,6 +75,8 @@ def instructions_text():
 
 DIRECTIVE_NAME = "search-coverage"
 DIRECTIVE_MODES = ("on", "off")
+MISSION_KEY = "observations_mission"
+MISSION_MODES = ("on", "off")
 
 
 def tools_list():
@@ -101,6 +104,20 @@ def directive_text():
                 return text
     die("search-directive.md is missing or empty",
         "HINDSIGHT_SEARCH_DIRECTIVE is 'on', which needs directive text.")
+
+
+def mission_text():
+    """custom/observations-mission.md wins over the shipped default, like the
+    retain instructions."""
+    for path in (os.path.join(PLUGIN_DIR, "custom", "observations-mission.md"),
+                 os.path.join(PLUGIN_DIR, "observations-mission.md")):
+        if os.path.exists(path):
+            with open(path) as fh:
+                text = fh.read().strip()
+            if text:
+                return text
+    die("observations-mission.md is missing or empty",
+        "HINDSIGHT_OBSERVATIONS_MISSION is 'on', which needs mission text.")
 
 
 def desired_state(mode):
@@ -180,6 +197,56 @@ def conform_tools(base, bank, force):
     print("     To hand them to ATK: ./conform.sh --force")
 
 
+def conform_mission(base, bank, force):
+    """Apply the shipped observations mission once and keep it current while
+    ATK owns it; a mission the user set or cleared is left alone."""
+    path = f"/v1/default/banks/{bank}/config"
+    text = mission_text()
+    on_server = (api(base, "GET", path)["overrides"] or {}).get(MISSION_KEY)
+    record = (read_state(bank) or {}).get("mission")
+    if on_server is None and record and not force:
+        print(f"  bank '{bank}': observations mission removed since ATK applied it; "
+              "treating that as your override and leaving it alone.")
+        print("     To hand it back to ATK: ./conform.sh --force")
+        return
+    if on_server is None or force or (on_server == record and on_server != text):
+        api(base, "PATCH", path, {"updates": {MISSION_KEY: text}})
+        write_state(bank, mission=text)
+        done = "reasserted" if force else "applied" if on_server is None else "updated"
+        print(f"  bank '{bank}': observations mission {done}")
+        return
+    if on_server == text:
+        # A bank already holding exactly the shipped text is ATK's from here on.
+        if record != text:
+            write_state(bank, mission=text)
+        print(f"  bank '{bank}': observations mission up to date")
+        return
+    if record:
+        print(f"  bank '{bank}': observations mission changed since ATK applied it; "
+              "treating that as your override and leaving it alone.")
+    else:
+        print(f"  bank '{bank}': observations mission was set outside ATK; leaving it alone.")
+    print("     To hand it to ATK: ./conform.sh --force")
+
+
+def retire_mission(base, bank):
+    """Management switched off: clear the mission only if ATK applied it and
+    the server still holds what ATK wrote."""
+    record = (read_state(bank) or {}).get("mission")
+    if not record:
+        print(f"  bank '{bank}': observations-mission management is off; not touching it")
+        return
+    path = f"/v1/default/banks/{bank}/config"
+    on_server = (api(base, "GET", path)["overrides"] or {}).get(MISSION_KEY)
+    if on_server == record:
+        api(base, "PATCH", path, {"updates": {MISSION_KEY: None}})
+        print(f"  bank '{bank}': observations mission cleared (management off)")
+    else:
+        print(f"  bank '{bank}': observations-mission management is off; the mission "
+              "on the server is not the one ATK wrote, leaving it alone")
+    write_state(bank, mission=None)
+
+
 def conform_directive(base, bank, force):
     """Install the shipped search directive once and keep it current while ATK
     owns it; a directive the user edited on the server is left alone."""
@@ -255,6 +322,13 @@ def main():
 
     conform_retain(base, bank, mode, force)
     conform_tools(base, bank, force)
+    mission_mode = os.environ.get("HINDSIGHT_OBSERVATIONS_MISSION", "on").strip().lower()
+    if mission_mode not in MISSION_MODES:
+        die(f"HINDSIGHT_OBSERVATIONS_MISSION {mission_mode!r} is not one of {', '.join(MISSION_MODES)}")
+    if mission_mode == "off":
+        retire_mission(base, bank)
+    else:
+        conform_mission(base, bank, force)
     directive_mode = os.environ.get("HINDSIGHT_SEARCH_DIRECTIVE", "on").strip().lower()
     if directive_mode not in DIRECTIVE_MODES:
         die(f"HINDSIGHT_SEARCH_DIRECTIVE {directive_mode!r} is not one of {', '.join(DIRECTIVE_MODES)}")

@@ -58,8 +58,12 @@ def uninstall_command(ctx: typer.Context):
 @app.command("banks")
 def banks_command(ctx: typer.Context,
                   verb: str = typer.Argument("list"),
-                  names: List[str] = typer.Argument(None)):
-    return banks.run(ctx.obj, verb, list(names or ()))
+                  names: List[str] = typer.Argument(None),
+                  yes: bool = typer.Option(
+                      False, "--yes",
+                      help="Skip the prompts; consent came from the"
+                           " conversation.")):
+    return banks.run(ctx.obj, verb, list(names or ()), yes=yes)
 
 
 @mm_app.callback(invoke_without_command=True)

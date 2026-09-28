@@ -91,6 +91,17 @@ class BanksDeleteTest(unittest.TestCase):
         self.assertEqual(self.http.call_count, 1)
         self.assertIn(first, self.http.call_args[0][1])
 
+    def test_yes_deletes_every_named_bank_without_asking(self):
+        first, second = "scratch", "other"
+        # When the delete carries --yes because consent came from the conversation
+        code, out, _ = fakes.invoke(["banks", "delete", first, second, "--yes"])
+        # Then nothing prompts and each named bank is deleted
+        self.assertEqual(code, 0)
+        self.confirm.assert_not_called()
+        self.assertEqual([c[0][1].rsplit("/", 1)[1] for c in self.http.call_args_list],
+                         [first, second])
+        self.assertIn("✓ deleted %s" % second, out)
+
     def test_failed_delete_stops_the_run(self):
         self.http.side_effect = OSError("boom")
         code, _, err = fakes.invoke(["banks", "delete", "scratch", "other"])
