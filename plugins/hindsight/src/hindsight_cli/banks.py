@@ -4,7 +4,7 @@ import json
 from . import client, shell
 
 
-def run(cfg, verb, names):
+def run(cfg, verb, names, yes=False):
     if verb == "list":
         try:
             body = client.http("GET", cfg.url + "/v1/default/banks", timeout=30)
@@ -28,7 +28,7 @@ def run(cfg, verb, names):
             shell.die("usage: banks delete <bank> [bank...]")
         print("  Deleting permanently: %s" % " ".join(names))
         for bank in names:
-            if not shell.confirm("Delete '%s' and everything in it?" % bank):
+            if not yes and not shell.confirm("Delete '%s' and everything in it?" % bank):
                 shell.die("Aborted — nothing deleted.")
             try:
                 client.http("DELETE", "%s/v1/default/banks/%s" % (cfg.url, bank),

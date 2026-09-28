@@ -65,6 +65,7 @@ Where this plugin departs from upstream, or a wrong value fails silently:
 | `HINDSIGHT_RERANKER_LOCAL_BUCKET_BATCHING` | `true` | Off restores upstream behaviour; on is faster with identical scores. Only the default `local` reranker reads it; `HINDSIGHT_RERANKER_PROVIDER=flashrank` ignores it |
 | `HINDSIGHT_MCP_STATELESS` | `true` | `false` restores session MCP, and every restart then strands connected agents until they reconnect |
 | `HINDSIGHT_SEARCH_DIRECTIVE` | `on` | `off` removes the search-coverage directive from the bank |
+| `HINDSIGHT_OBSERVATIONS_MISSION` | `on` | `off` clears the observations mission ATK applied |
 | `HINDSIGHT_VOLUME_NAME` | `hindsight_data` | Isolated instances side by side |
 
 Every other variable the container accepts is in the upstream configuration page.
@@ -99,6 +100,13 @@ in `custom/.conform-state/`, leaves a setting you changed in the UI alone, and
   `reflect`, mental-model refreshes included, search each aspect the question
   names before it writes. Ships in `search-directive.md`; replace it via
   `custom/search-directive.md`; `HINDSIGHT_SEARCH_DIRECTIVE=off` removes it.
+- **Observations mission.** Tells consolidation which facts become
+  observations: rules, decisions, conventions and the current state of
+  long-lived things. One-off events, session progress and dated snapshots stay
+  raw facts, still found by `recall`. It shapes observations consolidated from
+  then on; existing ones are not rebuilt. Ships in `observations-mission.md`;
+  replace it via `custom/observations-mission.md`;
+  `HINDSIGHT_OBSERVATIONS_MISSION=off` clears it.
 - **MCP tool list.** The bank exposes only the tools `SKILL.md` teaches the
   agent to call; this is what narrows an instance someone else hosts. Change it
   in the UI and ATK leaves it alone; to set it permanently, list one tool per
@@ -141,7 +149,8 @@ atk run hindsight schedule [off|status]      # local only: daily backup via laun
 atk run hindsight restore [file]             # local only, DESTRUCTIVE: replace the database from a dump
 ```
 
-For an agent: `rebuild` and `delete` take `--yes`, `dry-run` takes `--json`.
+For an agent: `banks delete` and the mental-models `rebuild` and `delete` take
+`--yes`, `dry-run` takes `--json`.
 
 ## Backups (local only)
 

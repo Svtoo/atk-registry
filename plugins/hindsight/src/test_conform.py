@@ -259,6 +259,129 @@ class McpToolsTest(unittest.TestCase):
         self.assertEqual(shipped, conform.MCP_TOOLS)
 
 
+MISSION = "Observations are durable knowledge that stays true until something changes it."
+
+
+class MissionTest(unittest.TestCase):
+    """The shipped observations mission is applied once, kept current while ATK
+    owns it, and never stomps a mission the user set or cleared."""
+
+    def setUp(self):
+        self.plugin_dir = tempfile.mkdtemp()
+        with open(os.path.join(self.plugin_dir, "observations-mission.md"), "w") as fh:
+            fh.write(MISSION + "\n")
+        patcher = mock.patch.object(conform, "PLUGIN_DIR", self.plugin_dir)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def run_conform(self, overrides, force=False, *writes):
+        api = FakeApi([(("GET", CFG_PATH), {"overrides": overrides})]
+                      + [(("PATCH", CFG_PATH), {}) for _ in writes])
+        out = io.StringIO()
+        with mock.patch.object(conform, "api", api), contextlib.redirect_stdout(out):
+            conform.conform_mission(BASE, BANK, force=force)
+        return api, out.getvalue()
+
+    def test_a_bank_with_no_mission_gets_the_shipped_one(self):
+        # When conform runs against a bank with no mission of its own
+        api, _ = self.run_conform({}, False, "patch")
+        # Then the shipped text is applied and recorded
+        self.assertEqual(api.calls[1], ("PATCH", CFG_PATH,
+                                        {"updates": {"observations_mission": MISSION}}))
+        self.assertEqual(conform.read_state(BANK)["mission"], MISSION)
+
+    def test_an_owned_mission_follows_the_file(self):
+        conform.write_state(BANK, mission="old text")
+        # When the shipped file changed and the server still holds what ATK wrote
+        api, _ = self.run_conform({"observations_mission": "old text"}, False, "patch")
+        # Then the mission is updated to the file and re-recorded
+        self.assertEqual(api.calls[1][2], {"updates": {"observations_mission": MISSION}})
+        self.assertEqual(conform.read_state(BANK)["mission"], MISSION)
+
+    def test_a_mission_the_user_edited_is_left_alone(self):
+        conform.write_state(BANK, mission="old text")
+        # When the server no longer holds what ATK wrote
+        api, out = self.run_conform({"observations_mission": "the user's own wording"})
+        # Then nothing is written and the user is told how to hand it back
+        self.assertEqual(len(api.calls), 1)
+        self.assertEqual(conform.read_state(BANK)["mission"], "old text")
+        self.assertIn("observations mission changed since ATK applied it", out)
+        self.assertIn("./conform.sh --force", out)
+
+    def test_a_mission_the_user_cleared_stays_cleared(self):
+        conform.write_state(BANK, mission=MISSION)
+        # When the user removed the mission ATK applied
+        api, out = self.run_conform({})
+        # Then it is not applied again
+        self.assertEqual(len(api.calls), 1)
+        self.assertIn("observations mission removed since ATK applied it", out)
+        self.assertIn("./conform.sh --force", out)
+
+    def test_a_mission_already_holding_the_shipped_text_is_adopted(self):
+        # When a bank with no record already carries exactly the shipped text
+        api, out = self.run_conform({"observations_mission": MISSION})
+        # Then nothing is written but ATK records it, so later updates reach it
+        self.assertEqual(len(api.calls), 1)
+        self.assertEqual(conform.read_state(BANK)["mission"], MISSION)
+        self.assertIn("observations mission up to date", out)
+
+    def test_a_mission_set_outside_atk_is_left_alone(self):
+        # When a bank with no record carries a mission of its own
+        api, out = self.run_conform({"observations_mission": "track everything"})
+        # Then it stays and nothing is recorded
+        self.assertEqual(len(api.calls), 1)
+        self.assertIsNone((conform.read_state(BANK) or {}).get("mission"))
+        self.assertIn("observations mission was set outside ATK", out)
+
+    def test_force_takes_the_mission_back(self):
+        conform.write_state(BANK, mission="old text")
+        # When ATK is told to take the mission back from the user's edit
+        api, _ = self.run_conform({"observations_mission": "the user's own wording"},
+                                  True, "patch")
+        # Then the shipped text is applied and recorded
+        self.assertEqual(api.calls[1][2], {"updates": {"observations_mission": MISSION}})
+        self.assertEqual(conform.read_state(BANK)["mission"], MISSION)
+
+    def test_a_mission_in_custom_wins_over_the_shipped_one(self):
+        os.makedirs(os.path.join(self.plugin_dir, "custom"))
+        with open(os.path.join(self.plugin_dir, "custom", "observations-mission.md"), "w") as fh:
+            fh.write("Keep only decisions.\n")
+        # When a bank with no mission is conformed
+        api, _ = self.run_conform({}, False, "patch")
+        # Then the custom text, not the shipped one, is applied
+        self.assertEqual(api.calls[1][2], {"updates": {"observations_mission": "Keep only decisions."}})
+
+    def test_off_retires_the_mission_atk_applied(self):
+        conform.write_state(BANK, mission=MISSION)
+        api = FakeApi([
+            (("GET", CFG_PATH), {"overrides": {"observations_mission": MISSION}}),
+            (("PATCH", CFG_PATH), {}),
+        ])
+        with mock.patch.object(conform, "api", api):
+            # When management is switched off while ATK still owns the mission
+            conform.retire_mission(BASE, BANK)
+        # Then the mission is cleared and the record dropped
+        self.assertEqual(api.calls[1][2], {"updates": {"observations_mission": None}})
+        self.assertNotIn("mission", conform.read_state(BANK) or {})
+
+    def test_off_leaves_a_mission_the_user_edited(self):
+        conform.write_state(BANK, mission=MISSION)
+        api = FakeApi([
+            (("GET", CFG_PATH), {"overrides": {"observations_mission": "the user's own wording"}}),
+        ])
+        with mock.patch.object(conform, "api", api):
+            # When management is switched off but the user changed the mission
+            conform.retire_mission(BASE, BANK)
+        # Then it stays
+        self.assertEqual(len(api.calls), 1)
+
+    def test_the_shipped_mission_exists_and_is_not_empty(self):
+        shipped = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
+                               "observations-mission.md")
+        with open(shipped) as fh:
+            self.assertTrue(fh.read().strip())
+
+
 class FreshBankTest(unittest.TestCase):
     """A bank that had to be created cannot be carrying the user's overrides,
     whatever ATK once applied to a bank of that name."""
@@ -267,6 +390,8 @@ class FreshBankTest(unittest.TestCase):
         self.plugin_dir = tempfile.mkdtemp()
         with open(os.path.join(self.plugin_dir, "search-directive.md"), "w") as fh:
             fh.write(TEXT + "\n")
+        with open(os.path.join(self.plugin_dir, "observations-mission.md"), "w") as fh:
+            fh.write(MISSION + "\n")
         with open(os.path.join(self.plugin_dir, "retain-instructions.md"), "w") as fh:
             fh.write("keep the code\n")
         patcher = mock.patch.object(conform, "PLUGIN_DIR", self.plugin_dir)
@@ -285,10 +410,12 @@ class FreshBankTest(unittest.TestCase):
         # destroyed since by an uninstall or a bank delete
         conform.write_state(BANK, applied={"retain_extraction_mode": "custom"},
                             directive={"id": "dir-1", "content": TEXT},
-                            tools=list(conform.MCP_TOOLS))
+                            tools=list(conform.MCP_TOOLS), mission=MISSION)
         api = FakeApi([
             (("GET", "/v1/default/banks"), {"banks": []}),
             (("PUT", "/v1/default/banks/%s" % BANK), {}),
+            (("GET", CFG_PATH), {"overrides": {}}),
+            (("PATCH", CFG_PATH), {}),
             (("GET", CFG_PATH), {"overrides": {}}),
             (("PATCH", CFG_PATH), {}),
             (("GET", CFG_PATH), {"overrides": {}}),
