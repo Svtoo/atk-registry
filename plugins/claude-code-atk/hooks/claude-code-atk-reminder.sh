@@ -39,7 +39,7 @@ $REF_LIST
 These rules are CRITICAL to the user. Follow this procedure on EVERY turn, in order:
 
 1. Re-read EACH SKILL.md file listed above.
-2. Tool bootstrap. Some MCP tools named in SKILL.md files (for example mcp__Parley__say, mcp__OpenMemory__openmemory_query) are deferred — listed by name in your system-reminder but not directly callable. If a SKILL.md instructs you to use such a tool and it is not in your active tool list, load its schema first via ToolSearch with {query: "select:<tool_name>"} — optionally comma-separating several names. Then proceed.
+2. Tool bootstrap. Some MCP tools named in SKILL.md files (for example mcp__Parley__say, mcp__Hindsight__recall) are deferred — listed by name in your system-reminder but not directly callable. If a SKILL.md instructs you to use such a tool and it is not in your active tool list, load its schema first via ToolSearch with {query: "select:<tool_name>"} — optionally comma-separating several names. Then proceed.
 3. Execute every per-turn action those files mandate (for example: memory queries, protocol checks, preambles) BEFORE any task-specific tool call.
 4. Only then, answer the actual request.
 
