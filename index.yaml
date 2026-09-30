@@ -62,10 +62,6 @@ plugins:
   path: plugins/obsidian-local-rest-api
   description: Obsidian "Local REST API with MCP" vault server (read, search, and
     edit notes) bridged to stdio
-- name: openmemory
-  path: plugins/openmemory
-  description: Persistent memory layer for AI agents with semantic search and MCP
-    integration
 - name: piper
   path: plugins/piper
   description: Local text-to-speech using Piper neural voices with MCP integration.

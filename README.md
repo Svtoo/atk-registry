@@ -7,7 +7,7 @@ Curated plugin registry for [ATK](https://github.com/Svtoo/atk) (AI Toolkit).
 Install plugins by name:
 
 ```bash
-atk add openmemory
+atk add hindsight
 atk add langfuse
 ```
 
@@ -16,7 +16,7 @@ atk add langfuse
 ```
 atk-registry/
 ├── plugins/           # Plugin directories
-│   ├── openmemory/
+│   ├── hindsight/
 │   ├── langfuse/
 │   └── ...
 └── index.yaml         # Auto-generated plugin index
