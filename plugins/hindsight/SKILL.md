@@ -36,6 +36,9 @@ Situate before you act. Alongside your first recall, once per session:
    its output in any way). Anything flagged goes in one 🧠 line (shape under
    Mental Models) at the tail of your first reply, after the user's request
    is served. Never open a session with plumbing.
+5. `atk run hindsight health` (free, local reads). When it exits 1, its
+   alarm lines open your first reply, before the user's request: what you
+   retain may be failing silently. The one exception to opening with plumbing.
 
 When the user opens with nothing more than "continue", situating IS the
 task. List more records, `recall` the work they mention, `reflect` where

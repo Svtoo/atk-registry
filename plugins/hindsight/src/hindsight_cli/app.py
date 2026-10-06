@@ -9,8 +9,8 @@ from typing import List, Optional
 import click
 import typer
 
-from . import (backup, banks, config, lifecycle, mental_models, restore,
-               schedule)
+from . import (backup, banks, config, health, lifecycle, mental_models,
+               restore, schedule)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 mm_app = typer.Typer(add_completion=False)
@@ -43,6 +43,12 @@ def schedule_command(ctx: typer.Context, verb: str = typer.Argument("")):
 @app.command("service")
 def service_command(ctx: typer.Context, verb: str = typer.Argument("")):
     return lifecycle.service(ctx.obj, verb)
+
+
+@app.command("health")
+def health_command(ctx: typer.Context):
+    """One line when healthy; an alarm, exit 1, when work fails or stalls."""
+    return health.run(ctx.obj)
 
 
 @app.command("install")
