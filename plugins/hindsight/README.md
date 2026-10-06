@@ -141,6 +141,7 @@ atk run hindsight mental-models create writing-code \
 atk status|restart|logs|help hindsight       # logs: local only
 atk upgrade hindsight                        # keeps custom/
 atk remove hindsight                         # asks before deleting the memories volume
+atk run hindsight health                     # one line when healthy; alarm and exit 1 on 3+ failures in 24h or work pending over 1h
 atk run hindsight banks [delete <bank>...]   # list banks, or delete with confirmation
 atk run hindsight conform [--force]          # apply the bank settings above
 atk run hindsight mental-models -- --help    # models, schedules and modes the MCP surface cannot set

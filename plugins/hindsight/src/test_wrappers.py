@@ -47,6 +47,11 @@ class WrapperDispatchTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("unknown argument '--frobnicate'", result.stderr)
 
+    def test_health_wrapper_reaches_the_cli_argument_check(self):
+        result = run_wrapper("health.sh", "--frobnicate")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("No such option '--frobnicate'", result.stderr)
+
     def test_banks_wrapper_reaches_the_cli_verb_check(self):
         result = run_wrapper("banks.sh", "bogus")
         self.assertEqual(result.returncode, 1)
