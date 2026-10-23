@@ -29,12 +29,12 @@ class CreateTest(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def test_create_defaults_the_mode_to_full_and_the_budget_to_800_tokens(self):
+    def test_create_defaults_the_mode_to_full_the_trace_on_and_the_budget_to_800_tokens(self):
         # When a model is created without --max-tokens
         code, out, _ = fakes.invoke(
             ["mental-models", "create", MODEL_ID,
              "--query", QUERY, "--cron", CRON])
-        # Then the create request carries full mode and the 800 token default
+        # Then the create request carries full mode, a kept trace and the 800 token default
         self.assertEqual(code, 0)
         self.assertEqual(out, "  created %s\n" % MODEL_ID)
         self.assertEqual(len(self.http.requests), 2)
@@ -44,7 +44,8 @@ class CreateTest(unittest.TestCase):
         self.assertEqual(body, {
             "id": MODEL_ID, "name": MODEL_ID, "source_query": QUERY,
             "trigger": {"mode": "full", "fact_types": ["observation"],
-                        "exclude_mental_models": True, "refresh_cron": CRON},
+                        "exclude_mental_models": True, "keep_trace": True,
+                        "refresh_cron": CRON},
             "max_tokens": 800})
         self.http.assert_done()
 
