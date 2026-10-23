@@ -126,6 +126,8 @@ than a hundred retains.
   the document, so a delta model grows past its budget until a rebuild.
 - A model's `max_tokens` is a target, not a cap.
   `HINDSIGHT_REFLECT_MAX_COMPLETION_TOKENS` is the only hard ceiling.
+- `create` turns on `keep_trace`: each refresh stores its trace, the only
+  record of which steps it ran. `set --no-keep-trace` turns it off.
 
 The MCP surface cannot set a schedule or mode, so create from the CLI:
 

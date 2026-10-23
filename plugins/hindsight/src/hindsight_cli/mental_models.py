@@ -101,8 +101,10 @@ def create(cfg, model_id, query, name, cron, max_tokens):
     # reflect agent otherwise ranks as its highest-quality source.
     # Full regenerates the document every refresh, so its size tracks the
     # budget; delta edits the stored document and never shrinks it.
+    # keep_trace stores the refresh trace, the only record of which steps a
+    # refresh ran, such as the rewrite meant to hold the budget.
     trigger = {"mode": "full", "fact_types": ["observation"],
-               "exclude_mental_models": True}
+               "exclude_mental_models": True, "keep_trace": True}
     if cron:
         trigger["refresh_cron"] = cron
     body = {"id": model_id, "name": name if name is not None else model_id,
