@@ -1,0 +1,14 @@
+{
+  "name": "atk-debrief",
+  "description": "The ATK Debrief mod, read straight from the atk-debrief ATK plugin folder",
+  "owner": {
+    "name": "Oleksandr (Sasha) Antoshchenko",
+    "url": "https://github.com/oantoshchenko"
+  },
+  "plugins": [
+    {
+      "name": "atk-debrief",
+      "source": "./"
+    }
+  ]
+}

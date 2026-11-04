@@ -1,0 +1,11 @@
+{
+  "name": "atk-debrief",
+  "version": "0.1.0",
+  "description": "A live dashboard for every chat, above the prompt: what the agent needs from you, how far the work is, and what you would otherwise miss",
+  "author": { "name": "Oleksandr (Sasha) Antoshchenko", "url": "https://github.com/oantoshchenko" },
+  "homepage": "https://github.com/Svtoo/atk-registry/tree/main/plugins/atk-debrief",
+  "icon": "./icon.png",
+  "repository": "https://github.com/Svtoo/atk-registry",
+  "license": "Apache-2.0",
+  "types": "./types/index.d.ts"
+}
