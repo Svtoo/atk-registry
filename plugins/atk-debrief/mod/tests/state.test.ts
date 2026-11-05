@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { bandOf } from '../hooks/band-model'
+import { boardOf } from '../hooks/board'
 import { type Io, rebuildChat, readState, recordTurns, saveSettings, setVerdict, settingsOf } from '../hooks/rebuild'
 import { forkPointOf, turnsOf } from '../hooks/turns'
 
@@ -195,6 +196,41 @@ test('a busy model asked again, then a rejected answer, still sends the answer b
   expect(f.requests).toHaveLength(3)
   expect(result).toEqual({ outcome: 'failed', code: 'rebuild.bad_output' })
   expect((await readState(f.io, CHAT)).regenErrors?.[0]?.message).toBe('the corrected answer was rejected too: no complete <update>…</update> block in the reply')
+})
+
+test('a rebuild leaves locked items as they are, an ack made while it runs included, and counts what it ignored', async () => {
+  const f = fakeIo()
+  const headsup = [{ id: 'h1', sev: 'flag', what: 'Seen row', why: 'y', where: '', created_turn: 1, changed_turn: 1 }]
+  const todo = [{ id: 't9', text: 'Done step', status: 'done', created_turn: 1, changed_turn: 1, done_turn: 1 }]
+  seed(f, { model: { ...BOARD, headsup, todo } })
+  const running = rebuildChat(f.io, CHAT, { model: 'haiku', timeoutSeconds: 60 })
+  await nextCall(f)
+  // When
+  const path = `${CHAT.dir}/state.json`
+  f.files[path] = JSON.stringify({ ...JSON.parse(f.files[path] as string), acks: { h1: { ackedAt: 1, turn: 5 } } })
+  f.completes.shift()?.(answered('<update>{"ops":[{"op":"headsup.upsert","id":"h1","what":"Rewritten","reason":"r"},{"op":"todo.upsert","id":"t9","text":"Rewritten","reason":"r"}]}</update>'))
+  await running
+  // Then
+  const state = await readState(f.io, CHAT)
+  const board = boardOf(state.model)
+  expect([board.headsup[0]?.what, board.todo[0]?.text]).toEqual(['Seen row', 'Done step'])
+  expect(state.stats?.ignoredOps).toBe(2)
+  expect(state.stats?.repairOps).toBeUndefined()
+})
+
+test('a rebuild counts its repairs, for a look at how often a chat rewrites its items', async () => {
+  const f = fakeIo()
+  seed(f)
+  const running = rebuildChat(f.io, CHAT, { model: 'haiku', timeoutSeconds: 60 })
+  await nextCall(f)
+  // When
+  f.completes.shift()?.(answered('<update>{"ops":[{"op":"todo.upsert","id":"t1","text":"A real plan step","reason":"it read like a log line"}]}</update>'))
+  await running
+  // Then
+  const state = await readState(f.io, CHAT)
+  expect(boardOf(state.model).todo[0]?.text).toBe('A real plan step')
+  expect(state.stats?.repairOps).toBe(1)
+  expect(state.stats?.ignoredOps).toBeUndefined()
 })
 
 test('a call the engine refuses to send (a blocked model, an output limit) shows as a refused request', async () => {

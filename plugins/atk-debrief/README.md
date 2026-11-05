@@ -8,7 +8,7 @@ A live dashboard for every Claude Code chat, in a band above the prompt: what th
 along the work is, and what you would otherwise miss, in structured form and a click away. You do nothing to make it
 happen. After each turn, a small model call (Haiku by default, on your own account) rebuilds it from the chat.
 
-**Beta (0.1.1).** Expect rough edges, and please [report a problem](#report-a-problem) when you find one.
+**Beta (0.1.2).** Expect rough edges, and please [report a problem](#report-a-problem) when you find one.
 
 ![The band above the prompt: the phase and turn, a chip per section, the status dot and age, settings and rebuild, the last turn in bullets, then each open ask, numbered, with reply and dismiss](assets/band.png)
 
@@ -122,6 +122,8 @@ atk add atk-debrief
   opens none; what it adds goes into the turn it lands in.
 - When a turn ends, the mod records it and rebuilds the dashboard in the background. The model's prompt is
   [`mod/SYSTEM.md`](mod/SYSTEM.md); it answers with schema-checked edits that the mod folds into the dashboard.
+- Items stay put. A done to-do and an acknowledged heads-up are locked: the model cannot change them. Open items are
+  left alone unless they are clearly wrong or useless, or you ask for a change. Your own ✓ and 🗑 always work.
 - A turn you stop is recorded but not rebuilt: the status shows 🟡 behind until your next turn, or ↻.
 - A rebuild that fails leaves the dashboard as it was and shows as a problem in the status view until a rebuild
   succeeds.

@@ -128,12 +128,10 @@ export function drawBand(ui: ElementTable, surface: RenderSurface, b: DebriefBan
     return k.row(`${isDone ? 'done' : 'todo'}-${todo.id}`, <Markdown dimColor={isDone} text={todo.text} />, {
       mark: k.cell(todo.status),
       age: todoAgeOf(todo, b.turn),
-      actions: isDone
-        ? []
-        : [
-            isCheckable && k.action(`check-${todo.id}`, GLYPHS.done, 'Mark the step done', () => acts.setStep(todo.id, 'done')),
-            k.action(`drop-${todo.id}`, GLYPHS.dismiss, 'Drop the step', () => acts.setStep(todo.id, 'dropped')),
-          ],
+      actions: [
+        !isDone && isCheckable && k.action(`check-${todo.id}`, GLYPHS.done, 'Mark the step done', () => acts.setStep(todo.id, 'done')),
+        k.action(`drop-${todo.id}`, GLYPHS.dismiss, 'Drop the step', () => acts.setStep(todo.id, 'dropped')),
+      ],
     })
   }
   const todosView = () => {

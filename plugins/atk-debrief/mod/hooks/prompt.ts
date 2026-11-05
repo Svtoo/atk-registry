@@ -1,7 +1,7 @@
 // The rebuild prompt: the board as the model reads it, the last turns of the chat, and the task. Pure, as board.ts.
 
 import { OUTPUT_FORMAT } from './answer-format'
-import { type Ack, type Board, isOldFormat, splitVerdictKey, type VerdictRecord } from './board'
+import { type Ack, type Board, isAckedRow, isOldFormat, splitVerdictKey, type VerdictRecord } from './board'
 
 /** One message of a turn as the mod keeps it: what `$.session.messages()` gives, less the tools' stored records. */
 export type TurnRow = {
@@ -131,14 +131,13 @@ export function digestOf(m: Board, now: number, verdicts: Record<string, Verdict
     if (!link.url) lines.push('  ⚠ no url, so the chip is hidden from the user: fill the real url via link.upsert, or link.remove it if none exists')
   }
 
-  lines.push('', `## To-do (${m.todo.length}) — full history; done steps never leave`)
+  lines.push('', `## To-do (${m.todo.length}) — full history; done steps are locked and never leave`)
   for (const t of m.todo) lines.push(`- ${t.id} ${t.status} [${stampsOf(now, t.created_turn, t.changed_turn, t.done_turn)}: ${t.reason}] ${t.text}`)
 
-  lines.push('', `## Heads-up (${m.headsup.length}) — FULL list; update rows by id as facts change; never add a duplicate row`)
+  lines.push('', `## Heads-up (${m.headsup.length}) — FULL list; acked rows are locked; update an open row by id only when its facts clearly changed; never add a duplicate row`)
   for (const h of m.headsup) {
     const ack = acks[h.id]
-    const isAcked = ack !== undefined && Object.keys(ack).length > 0
-    const acked = isAcked && ack.turn ? ` (acked turn ${ack.turn})` : isAcked ? ' (acked)' : ''
+    const acked = !isAckedRow(ack) ? '' : ack?.turn ? ` (acked turn ${ack.turn}, locked)` : ' (acked, locked)'
     lines.push(`- ${h.id} ${h.sev} [${stampsOf(now, h.created_turn, h.changed_turn)}: ${h.reason}] what=${h.what} | why=${h.why} | where=${h.where}${acked}`)
   }
 
@@ -171,10 +170,9 @@ export function digestOf(m: Board, now: number, verdicts: Record<string, Verdict
 // ─── The prompt ──────────────────────────────────────────────────────
 
 const taskOf = (turn: number) =>
-  `This is conversation turn ${turn}. Emit the delta for everything that changed since the state above, plus repairs: ` +
-  "listed items that violate their section's definition, or that newer facts contradict, get consolidated, rewritten, " +
-  'or removed. Repair incrementally — a handful of repair ops per turn, worst violation first; the dashboard converges ' +
-  'over turns. Omit healthy unchanged items; an empty ops list is valid only when nothing changed and nothing is broken. ' +
+  `This is conversation turn ${turn}. Emit the delta for what changed since the state above. Items are stable by default: ` +
+  'leave a listed item as it is unless it is clearly wrong or useless and you are sure of it, or the user asks for the change; ' +
+  'when in doubt, leave it. Never touch a locked item. An empty ops list is the normal answer when nothing changed. ' +
   'Never create a duplicate of an item already listed — update it by id.'
 
 /** What follows the same prompt when its answer could not be used: that answer, then why, so the model sends it again, fixed. */

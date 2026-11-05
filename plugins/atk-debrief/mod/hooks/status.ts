@@ -192,6 +192,9 @@ export type RebuildStats = {
   outputTokens: number
   wallMs: number
   models: string[]
+  // Kept to see how a chat behaves, never shown: the model's ops on locked items, and its rewrites and removals of listed ones.
+  ignoredOps?: number
+  repairOps?: number
 }
 
 type StatusFacts = {

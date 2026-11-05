@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { AnswerError, parseAnswer, xmlProblem } from '../hooks/answer'
 import { OUTPUT_FORMAT } from '../hooks/answer-format'
-import { applyOps, applyVerdicts, boardOf, keptBeside, updateOf, UpdateError } from '../hooks/board'
+import { applyOps, applyVerdicts, boardOf, guardOps, keptBeside, type Update, updateOf, UpdateError } from '../hooks/board'
 import { assemblePrompt, capToolBody, digestOf, estimateWords, type TurnRecord } from '../hooks/prompt'
 import { modelChoicesOf } from '../hooks/rebuild'
 import { codeOfApiError, type RebuildError, statsOf, statusOf, withError } from '../hooks/status'
@@ -57,13 +57,13 @@ const SERVER_DIGEST = [
   '- l2 kind=- label=main url=-',
   '  ⚠ no url, so the chip is hidden from the user: fill the real url via link.upsert, or link.remove it if none exists',
   '',
-  '## To-do (3) — full history; done steps never leave',
+  '## To-do (3) — full history; done steps are locked and never leave',
   '- t1 done [created 11t ago, done 4t ago: parity holds] Port the digest',
   '- t2 done [created 8t ago, done 2t ago: ] Wire the band',
   '- t5 open [created 1t ago: ] Delete the server',
   '',
-  '## Heads-up (2) — FULL list; update rows by id as facts change; never add a duplicate row',
-  '- h1 risk [created 9t ago, changed 5t ago: found] what=Writes are not atomic | why=no rename | where=rebuild.ts (acked turn 9)',
+  '## Heads-up (2) — FULL list; acked rows are locked; update an open row by id only when its facts clearly changed; never add a duplicate row',
+  '- h1 risk [created 9t ago, changed 5t ago: found] what=Writes are not atomic | why=no rename | where=rebuild.ts (acked turn 9, locked)',
   '- h2 flag [13t ago: ] what=Old row | why=history | where=',
   '',
   '## Freeform (2) — sticky reference cards, shown in full; re-upsert a card by id ONLY when the design it shows actually changed, and then change the minimum',
@@ -182,6 +182,98 @@ test('an answer with no closed update block, bad JSON or a diagram that cannot b
   for (const raw of ['no blocks', '<update>{"ops":[]}', '<update>{ops: []}</update>', card('<svg><g></svg>'), card('<svg onload="x()"></svg>'), card('<svg><rect/>')]) {
     expect(() => parseAnswer(raw)).toThrow(AnswerError)
   }
+})
+
+const LOCK_BOARD = boardOf({
+  turn: 20,
+  seq: 30,
+  todo: [
+    { id: 't1', text: 'Done step', status: 'done', created_turn: 1, changed_turn: 5, done_turn: 5 },
+    { id: 't2', text: 'Open step', status: 'open', created_turn: 2, changed_turn: 2 },
+    { id: 't3', text: 'Another open step', status: 'open', created_turn: 2, changed_turn: 2 },
+  ],
+  cta: [{ id: 'c1', text: 'Go on?', created_turn: 3, changed_turn: 3 }],
+  headsup: [
+    { id: 'h1', sev: 'risk', what: 'Acked row', why: 'seen', where: '', created_turn: 4, changed_turn: 4 },
+    { id: 'h2', sev: 'flag', what: 'Open row', why: 'unseen', where: '', created_turn: 4, changed_turn: 4 },
+  ],
+  freeform: [{ id: 'f1', body: '## Gone', hash: 'a', changed_turn: 1, dismissed_turn: 6 }],
+})
+const guarded = (ops: unknown[], verdicts: Record<string, { verdict: string; text?: string }> = {}) =>
+  guardOps(LOCK_BOARD, { ops } as Update, { h1: { ackedAt: 100, turn: 9 } }, verdicts)
+
+test('the model cannot change what is locked: a done to-do, an acknowledged heads-up, a dismissed card', () => {
+  const result = guarded([
+    { op: 'todo.upsert', id: 't1', text: 'Rewritten', reason: 'r' },
+    { op: 'todo.upsert', id: 't1', status: 'open', reason: 'r' },
+    { op: 'todo.remove', id: 't1', reason: 'r' },
+    { op: 'headsup.upsert', id: 'h1', what: 'Rewritten', reason: 'r' },
+    { op: 'headsup.remove', id: 'h1', reason: 'r' },
+    { op: 'freeform.upsert', id: 'f1', bodyRef: 'x', reason: 'r' },
+  ])
+  expect([result.update.ops, result.ignored, result.repairs]).toEqual([[], 6, 0])
+})
+
+test('a to-do the user checked is locked before a rebuild takes the check in', () => {
+  const result = guarded([{ op: 'todo.upsert', id: 't2', text: 'Rewritten', reason: 'r' }], { 'todo:t2': { verdict: 'done' } })
+  expect([result.update.ops, result.ignored]).toEqual([[], 1])
+})
+
+test('open items carry no limit: every rewrite and removal passes, so a turn can act on whatever the user just said', () => {
+  const ops = [
+    { op: 'todo.upsert', id: 't2', text: 'Rewritten', reason: 'r' },
+    { op: 'todo.remove', id: 't3', reason: 'r' },
+    { op: 'headsup.upsert', id: 'h2', what: 'Rewritten', reason: 'r' },
+    { op: 'headsup.remove', id: 'h2', reason: 'r' },
+    { op: 'cta.upsert', id: 'c1', text: 'Reworded?', reason: 'r' },
+  ]
+  const result = guarded(ops)
+  expect([result.update.ops, result.ignored, result.repairs]).toEqual([ops, 0, 5])
+})
+
+test('progress is no repair: a status change, a resolved ask and a new item are not counted as one', () => {
+  const ops = [
+    { op: 'todo.upsert', id: 't2', status: 'done', reason: 'r' },
+    { op: 'cta.remove', id: 'c1', reason: 'r' },
+    { op: 'todo.upsert', text: 'A new step', reason: 'r' },
+    { op: 'headsup.upsert', sev: 'flag', what: 'A new row', why: 'y', reason: 'r' },
+  ]
+  const result = guarded(ops)
+  expect([result.update.ops, result.ignored, result.repairs]).toEqual([ops, 0, 0])
+})
+
+test('an upsert that changes nothing is dropped, so a stable item keeps its stamps', () => {
+  const result = guarded([
+    { op: 'todo.upsert', id: 't2', text: 'open  STEP', reason: 'r' },
+    { op: 'cta.upsert', id: 'c1', text: 'Go on?', reason: 'r' },
+    { op: 'headsup.upsert', id: 'h2', what: 'Open row', reason: 'r' },
+  ])
+  expect([result.update.ops, result.ignored, result.repairs]).toEqual([[], 0, 0])
+})
+
+test('a dropped step or a dismissed ask can come back: the user may ask for it in the chat', () => {
+  const verdicts = { 'todo:t9': { verdict: 'dropped', text: 'Old step' }, 'cta:c9': { verdict: 'dismissed', text: 'Old ask?' } }
+  const ops = [{ op: 'todo.upsert', text: 'Old step', reason: 'r' }, { op: 'cta.upsert', text: 'Old ask?', reason: 'r' }]
+  const result = guarded(ops, verdicts)
+  expect([result.update.ops, result.ignored]).toEqual([ops, 0])
+})
+
+test('an open to-do and an open heads-up can be removed, with a reason', () => {
+  const update = updateOf({ ops: [{ op: 'todo.remove', id: 't2', reason: 'never a plan step' }, { op: 'headsup.remove', id: 'h2', reason: 'proved wrong' }] })
+  // When
+  const board = applyOps(LOCK_BOARD, update, {}, 21, () => '')
+  // Then
+  expect(board.todo.map(it => it.id)).toEqual(['t1', 't3'])
+  expect(board.headsup.map(it => it.id)).toEqual(['h1'])
+  expect(() => updateOf({ ops: [{ op: 'todo.remove', id: 't2' }] })).toThrow(UpdateError)
+})
+
+test('the task keeps items stable by default', () => {
+  const { user } = assemblePrompt({ board: boardOf({}), turns: [], turn: 1, systemTemplate: '', verdicts: {}, acks: {} })
+  expect(user).toContain('Items are stable by default')
+  expect(user).toContain('or the user asks for the change')
+  expect(user).not.toContain('repairs are open')
+  expect(user).not.toContain('get consolidated, rewritten, or removed')
 })
 
 test('reasoning before the blocks that names the update or a card block changes nothing that is read', () => {
