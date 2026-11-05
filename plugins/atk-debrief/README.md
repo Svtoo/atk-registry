@@ -4,9 +4,9 @@
 
 **Read the dashboard, not the transcript.**
 
-A live dashboard for every Claude Code chat, in a band above the prompt. After each turn, a small model call (Haiku
-by default, on your own account) rebuilds it from the chat: what the agent needs from you, how far along the work
-is, and what you would otherwise miss.
+A live dashboard for every Claude Code chat, in a band above the prompt: what the agent needs from you, how far
+along the work is, and what you would otherwise miss, in structured form and a click away. You do nothing to make it
+happen. After each turn, a small model call (Haiku by default, on your own account) rebuilds it from the chat.
 
 **Beta (0.1.0).** Expect rough edges, and please [report a problem](#report-a-problem) when you find one.
 
@@ -15,8 +15,10 @@ is, and what you would otherwise miss.
 ## Why
 
 - A coding agent's transcript is long, linear and full of tool output. The question it asked you scrolls away.
-- The plan, the risks it took on quietly and the links it named are spread over hundreds of messages.
-- ATK Debrief keeps them as one dashboard per chat, rebuilt when each turn ends.
+- The plan, the risks it took on quietly, and the PRs, issues and docs it named are scattered over hundreds of
+  messages.
+- ATK Debrief pulls them into one structured dashboard per chat, each a click away. It builds itself when each turn
+  ends: nothing to run, tag or update.
 
 ## What you get
 
@@ -46,9 +48,9 @@ acknowledged heads-up keeps its ↶.
 
 ![The heads-up view: a heads-up with its why and where lines, its age, and reply and acknowledge buttons](assets/headsup.png)
 
-**Links**: the PRs, issues and docs the chat keeps going back to, one click away.
+**Links**: the PRs, issues and docs the chat names, collected as it goes, one click away.
 
-![The links view: a design review doc, a pull request and the rebuild prompt, each marked with its kind](assets/links.png)
+![The links view: two docs, the release pull request and two issues, each marked with its kind](assets/links.png)
 
 **Status**: whether the dashboard is current, the chat's rebuild totals, and any problem with its fix.
 

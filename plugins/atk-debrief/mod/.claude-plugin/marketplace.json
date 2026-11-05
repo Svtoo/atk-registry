@@ -1,6 +1,6 @@
 {
   "name": "atk-debrief",
-  "description": "The ATK Debrief mod, read straight from the atk-debrief ATK plugin folder",
+  "description": "ATK Debrief, installed by ATK: a live dashboard above the prompt for every Claude Code chat, built from the chat after each turn.",
   "owner": {
     "name": "Oleksandr (Sasha) Antoshchenko",
     "url": "https://github.com/oantoshchenko"
@@ -8,6 +8,7 @@
   "plugins": [
     {
       "name": "atk-debrief",
+      "displayName": "ATK Debrief",
       "source": "./"
     }
   ]
