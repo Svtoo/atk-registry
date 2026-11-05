@@ -5,7 +5,7 @@ import { OUTPUT_FORMAT } from '../hooks/answer-format'
 import { applyOps, applyVerdicts, boardOf, keptBeside, updateOf, UpdateError } from '../hooks/board'
 import { assemblePrompt, capToolBody, digestOf, estimateWords, type TurnRecord } from '../hooks/prompt'
 import { modelChoicesOf } from '../hooks/rebuild'
-import { type RebuildError, statsOf, statusOf, withError } from '../hooks/status'
+import { codeOfApiError, type RebuildError, statsOf, statusOf, withError } from '../hooks/status'
 import { earlierPromptsOf, forkPointOf, isUsersOwn, latestTurnOf, tailOf, tailRecordOf, turnsOf } from '../hooks/turns'
 
 // A board covering every part of the digest, and the digest the model reads for it at turn 13. Its essence is kept
@@ -64,7 +64,7 @@ const SERVER_DIGEST = [
   '',
   '## Heads-up (2) — FULL list; update rows by id as facts change; never add a duplicate row',
   '- h1 risk [created 9t ago, changed 5t ago: found] what=Writes are not atomic | why=no rename | where=rebuild.ts (acked turn 9)',
-  '- h2 note [13t ago: ] what=Old row | why=history | where=',
+  '- h2 flag [13t ago: ] what=Old row | why=history | where=',
   '',
   '## Freeform (2) — sticky reference cards, shown in full; re-upsert a card by id ONLY when the design it shows actually changed, and then change the minimum',
   '- f1 [7t ago: drew it]',
@@ -141,7 +141,10 @@ test('an op set that breaks its schema is refused, naming the problem', () => {
     { ops: [{ op: 'todo.upsert', reason: 'no text' }] },
     { ops: [{ op: 'headsup.upsert', sev: 'note', what: 'w', why: 'y' }] },
     { ops: [{ op: 'last_turn.set', bullets: [] }] },
-    { ops: [{ op: 'link.upsert', label: 'L', kind: 'k'.repeat(41) }] },
+    { ops: [{ op: 'link.upsert', label: 'L', url: 'https://x.test', kind: 'k'.repeat(41) }] },
+    { ops: [{ op: 'link.upsert', label: 'A link with no address' }] },
+    { ops: [{ op: 'link.upsert', label: 'A link with an empty address', url: '' }] },
+    { ops: [{ op: 'link.upsert', id: 'l1', url: '  ' }] },
     { ops: [{ op: 'freeform.upsert', htmlRef: 'x' }] },
     { tldr: { essence: 'x' } },
     { title: 'x' },
@@ -338,6 +341,17 @@ test('a tail file stays under the 4 MiB the engine writes, counted in bytes, how
   expect(record.rows.at(-1)?.text).toBe('Read them all.')
 })
 
+test('a rate limit that outlasts its retry says what is known: a limit, short or the usage limit, and nothing lost', () => {
+  const errors: RebuildError[] = [{ id: 'err-1', at: 1, lastAt: 1, count: 1, code: codeOfApiError('rate_limit'), kind: 'rate_limit', message: 'the model call failed: rate_limit (HTTP 429)', ackedAt: null, resolvedAt: null }]
+  // When
+  const status = statusOf({ errors, rebuiltAt: 1, runningSince: null, unbuiltTurns: 0, stats: null } as never, 100)
+  // Then
+  const notice = status.notices[0]
+  expect([notice?.severity, notice?.title]).toEqual(['degraded', 'Claude is limiting requests, so this rebuild did not run.'])
+  expect(notice?.what).toContain('a short rate limit or your usage limit')
+  expect(status.label).toBe('rate limited')
+})
+
 test('a repeat of an open problem counts up; the chip names the newest and how many are open', () => {
   let errors: RebuildError[] = []
   const add = (code: string, at: number) => (errors = withError(errors, { code, kind: 'k', message: 'm' }, at, () => `err-${at}-00000000`))
@@ -361,6 +375,7 @@ test('a fork\'s earlier messages are the user\'s own before its first new prompt
     message('user', 'A'),
     message('assistant', 'a'),
     message('user', '', { toolResults: [{ tool_use_id: 'u', text: 'out', isError: false }] }),
+    message('user', '<task-notification>tests passed</task-notification>'),
     message('user', 'B'),
     message('user', 'New'),
   ]
@@ -368,7 +383,7 @@ test('a fork\'s earlier messages are the user\'s own before its first new prompt
   expect(earlierPromptsOf(messages, [])).toEqual(['A', 'B', 'New'])
   expect(forkPointOf(['ha', 'hb'], ['3:ha', '4:hb', '5:hc'])).toEqual({ turn: 4, shared: 2 })
   expect(forkPointOf(['ha', 'hx'], ['3:ha'])).toBeNull()
-  expect(forkPointOf(['ha'], ['3:ha'])).toEqual({ turn: 3, shared: 1 })
+  expect(forkPointOf(['ha'], ['3:ha'])).toBeNull()
   expect(forkPointOf([], ['3:ha'])).toBeNull()
 })
 
@@ -392,7 +407,7 @@ test('the stats line shows total tokens, and the cached part only when every reb
 
 // ─── The op-set schema the model is shown, against the board's own checks ──
 
-type FieldSchema = { type?: string; maxLength?: number; enum?: string[]; items?: FieldSchema; maxItems?: number; minItems?: number; anyOf?: FieldSchema[]; $ref?: string; const?: string }
+type FieldSchema = { type?: string; minLength?: number; maxLength?: number; enum?: string[]; items?: FieldSchema; maxItems?: number; minItems?: number; anyOf?: FieldSchema[]; $ref?: string; const?: string }
 type OpSchema = { properties: Record<string, FieldSchema>; required?: string[] }
 
 const SCHEMA = JSON.parse(OUTPUT_FORMAT.slice(OUTPUT_FORMAT.indexOf('{\n "$defs"'), OUTPUT_FORMAT.indexOf('\nOnly the content'))) as {
@@ -427,7 +442,13 @@ function casesOf(shape: FieldSchema): [string, unknown, boolean][] {
       ['an item past its limit', [`${item}x`], false],
     ]
   }
-  if (shape.maxLength !== undefined) return [[`${shape.maxLength} characters`, 'x'.repeat(shape.maxLength), true], [`${shape.maxLength + 1} characters`, 'x'.repeat(shape.maxLength + 1), false]]
+  if (shape.maxLength !== undefined) {
+    return [
+      [`${shape.maxLength} characters`, 'x'.repeat(shape.maxLength), true],
+      [`${shape.maxLength + 1} characters`, 'x'.repeat(shape.maxLength + 1), false],
+      ...(shape.minLength ? [['empty', '', false] as [string, unknown, boolean]] : []),
+    ]
+  }
   return [['text', 'text-1', true]]
 }
 

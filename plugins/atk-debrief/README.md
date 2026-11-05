@@ -31,7 +31,7 @@ happen. After each turn, a small model call (Haiku by default, on your own accou
   acknowledges one and it folds away.
 - **🔗 Links**: the issue, the PR, the branch or the design doc you keep going back to.
 - **🧩 Freeform cards**: designs, diagrams and key terms in a pane beside the chat, as Markdown and SVG drawn in your
-  theme's colours. The pane opens by itself when a card is new or changes.
+  theme's colours. The pane opens by itself when a chat has live cards, and again when one is new or changes.
 - **Status**: a dot and the dashboard's age: 🟢 current, 🔵 updating, 🟡 behind or 🔴 a problem. Its view holds the
   chat's rebuild totals and the steps that fix a problem.
 

@@ -284,6 +284,7 @@ The op-set JSON matches this schema:
      "anyOf": [
       {
        "maxLength": 400,
+       "minLength": 1,
        "type": "string"
       },
       {
@@ -291,7 +292,7 @@ The op-set JSON matches this schema:
       }
      ],
      "default": null,
-     "description": "destination; empty string for a plain reference such as a branch name"
+     "description": "destination, a real URL; a new link needs one"
     },
     "kind": {
      "anyOf": [

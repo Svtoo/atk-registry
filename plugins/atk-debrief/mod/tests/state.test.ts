@@ -82,6 +82,11 @@ test('a fork is found only where the new chat\'s earlier prompts line up with th
   expect(forkPointOf(['hyes', 'hyes'], ['4:hyes'])).toBeNull()
   expect(forkPointOf(['ha', 'hb'], ['3:hb', '7:ha'])).toBeNull()
   expect(forkPointOf(['ha', 'hb'], ['2:hc', '3:hb', '7:ha'])).toBeNull()
+  // One shared prompt is no fork, even in a chat of one message.
+  expect(forkPointOf(['h1'], ['1:h1', '2:h2'])).toBeNull()
+  // Nor are two shared prompts in a chat of many others, while half of them is.
+  expect(forkPointOf(['h1', 'h2', 'x1', 'x2', 'x3'], ['1:h1', '2:h2', '3:h3'])).toBeNull()
+  expect(forkPointOf(['h1', 'h2', 'x1', 'x2'], ['1:h1', '2:h2', '3:h3'])).toEqual({ turn: 2, shared: 2 })
   // A real fork's prompts are the other chat's, in its order, up to the turn it left.
   expect(forkPointOf(['h1', 'h2', 'h3'], ['1:h1', '2:h2', '3:h3', '4:h4'])).toEqual({ turn: 3, shared: 3 })
   // A message that opened no turn there, such as a notice, is passed over, the last one too.
@@ -227,6 +232,29 @@ test('a prompt typed over the running turn and not in its messages yet waits for
   // Then
   expect(recorded).toBe(1)
   expect((await readState(f.io, CHAT)).turns?.count).toBe(6)
+})
+
+test('a prompt typed over the running turn is not taken for an older copy of it in the chat', async () => {
+  const f = fakeIo()
+  seed(f)
+  const messages = [userSays('Plan it.'), assistantSays('Shall I go?'), userSays('yes'), assistantSays('Went.'), userSays('Ship it.'), assistantSays('Shipped.')]
+  // When
+  const recorded = await recordTurns(f.io, CHAT, [{ text: 'Ship it.', isMidTurn: false }, { text: 'yes', isMidTurn: true }], messages, 'yes')
+  // Then
+  expect(recorded).toBe(1)
+  expect((await readState(f.io, CHAT)).turns?.count).toBe(6)
+  expect(JSON.parse(f.files[`${CHAT.dir}/tail-0.json`] as string).rows.map((row: { text: string }) => row.text)).toEqual(['Ship it.', 'Shipped.'])
+})
+
+test('a prompt typed over the running turn that the turn already holds is recorded, after the prompt before it', async () => {
+  const f = fakeIo()
+  seed(f)
+  const messages = [userSays('yes'), assistantSays('Went.'), userSays('Ship it.'), assistantSays('On it.'), userSays('yes'), assistantSays('Shipped.')]
+  // When
+  const recorded = await recordTurns(f.io, CHAT, [{ text: 'Ship it.', isMidTurn: false }, { text: 'yes', isMidTurn: true }], messages, 'yes')
+  // Then
+  expect(recorded).toBe(2)
+  expect((await readState(f.io, CHAT)).turns?.count).toBe(7)
 })
 
 test('a code block too long for one Markdown piece is closed and opened again at each cut', () => {

@@ -49,9 +49,10 @@ blocked (waiting on the user), review (done, awaiting verdict), shipped
 **Links** — the chip strip under the header: the handful of destinations the
 user keeps returning to in this chat — the issue, the PR, the branch, a design
 doc. `link.upsert` adds or corrects one; `link.remove` drops one that stopped
-mattering (a closed PR, a deleted branch). Every link needs a real `url`: one
-without a url is never displayed, and the state view flags it until you fill
-the url or remove the link. Navigation, not a bibliography: a handful of
+mattering (a closed PR, a deleted branch). Every link needs a real `url`: what
+has no address to open is no link. An older link without one is hidden from the
+user and flagged in the state: fill its url or remove it. Navigation, not a
+bibliography: a handful of
 chips, no duplicates, nothing volatile or one-off.
 
 **Call to action** — what the user must do or decide RIGHT NOW: pending

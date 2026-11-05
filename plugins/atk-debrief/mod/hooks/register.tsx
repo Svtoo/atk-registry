@@ -253,7 +253,7 @@ async function runRebuild($: EngineInterface, chat: Chat): Promise<void> {
 // card that only goes away opens nothing, so a pane the person closed stays closed until there is something new.
 async function openFreeformOnNewCards($: EngineInterface, b: DebriefBand | null): Promise<void> {
   const live = (b?.freeform ?? []).filter(isLiveCard)
-  const cards = live.map(card => `${card.id}@${card.changedTurn}`)
+  const cards = live.map(card => `${card.id}@${card.changedTurn}@${card.hash}`)
   const seen = await read($, freeformSeenAtom)
   const firstNew = live.find((_, index) => !seen.includes(cards[index] ?? ''))
   await update($, freeformSeenAtom, () => cards)

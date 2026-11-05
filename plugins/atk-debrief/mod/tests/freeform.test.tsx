@@ -177,6 +177,22 @@ test('a pane the person closed stays closed until a card is new or changes', { t
   await ui.unmount()
 })
 
+test('a card changed again in the same turn, by a ↻ rebuild, opens a closed pane too', { timeoutMs: 20_000 }, async ($, on) => {
+  const card = { ...DESIGN_CARD, hash: 'hash-1' }
+  const w = world(on, { ...CARDS_MODEL, freeform: [card] })
+  const ui = await mountBand($, w)
+  await ui.press({ key: 'freeform' })
+  await w.clock.advance(2_000)
+  expect(w.opened.length).toBe(1)
+  // When
+  w.state.model = { ...CARDS_MODEL, freeform: [{ ...card, body: `${card.body}\n\nOne more line.`, hash: 'hash-2' }] }
+  w.state.mtimeMs += 1
+  await w.clock.advance(2_000)
+  // Then
+  expect(w.opened).toEqual([`${FREEFORM_PANE}: ATK Debrief`, `${FREEFORM_PANE}: ATK Debrief`])
+  await ui.unmount()
+})
+
 test('a card that only goes away opens nothing', { timeoutMs: 20_000 }, async ($, on) => {
   const w = world(on, CARDS_MODEL)
   const ui = await mountBand($, w)

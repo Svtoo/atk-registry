@@ -26,7 +26,7 @@ const PHASE_LOOKS: Record<DebriefPhase, { label: string; color: string }> = {
 
 const PROBLEM_COLORS: Record<DebriefNotice['severity'], string> = { blocked: COLORS.red, degraded: COLORS.amber, bug: COLORS.indigo, info: COLORS.grey }
 
-const HEADSUP_COLORS: Record<DebriefHeadsup['sev'], string> = { risk: COLORS.red, flag: COLORS.amber, note: COLORS.grey }
+const HEADSUP_COLORS: Record<DebriefHeadsup['sev'], string> = { risk: COLORS.red, flag: COLORS.amber }
 
 const SETTINGS_LABEL = '⚙ settings'
 

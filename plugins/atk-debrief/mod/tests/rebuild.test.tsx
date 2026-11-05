@@ -427,6 +427,19 @@ test('a new chat that shares only one common prompt with another chat is no fork
   await ui.unmount()
 })
 
+test('a new chat whose one message is a prompt another chat recorded is no fork of it', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = world(on, null)
+  w.state.turns = null
+  w.files[`${PARENT_DIR}/state.json`] = JSON.stringify({ model: MODEL, turns: { count: 9, endedAt: 1, prompts: [`4:${await fingerprintOf('continue')}`] } })
+  w.messages = [userSays('continue')]
+  // When
+  const ui = await mountBand($, w)
+  // Then
+  expect(w.state.model ?? null).toBeNull()
+  expect(await ui.find({ key: `reply-${MODEL.cta[0]!.id}` })).toBeUndefined()
+  await ui.unmount()
+})
+
 test('a save that fails says so: no turn or rebuild passes for saved when state.json cannot be written', { timeoutMs: 20_000 }, async ($, on) => {
   const w = world(on)
   w.files[`${CHAT_DIR}/tail-${MODEL.turn % 3}.json`] = JSON.stringify({ turn: MODEL.turn, rows: [{ role: 'user', text: 'Check.' }] })

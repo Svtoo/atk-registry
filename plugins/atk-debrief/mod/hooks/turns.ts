@@ -154,13 +154,18 @@ export type PendingPrompt = { text: string; isMidTurn: boolean }
 
 /**
  * How many of the pending prompts a turn's end can record: all but the newest typed over the running turn that the
- * messages do not hold yet, since that one still waits for its own turn.
+ * messages do not hold yet, since that one still waits for its own turn. Only a copy after the prompt before it counts:
+ * "yes" or "continue" may well stand earlier in the chat.
  */
-export function recordableOf(messages: SessionMessage[], pending: PendingPrompt[]): number {
+export function recordableOf(messages: SessionMessage[], pending: PendingPrompt[], lastPrompt: string | null = null): number {
   let count = pending.length
   while (count > 0) {
     const newest = pending[count - 1] as PendingPrompt
-    if (!newest.isMidTurn || promptIndexesOf(messages, [newest.text])[0] !== -1) break
+    if (!newest.isMidTurn) break
+    const previous = count > 1 ? (pending[count - 2] as PendingPrompt).text : lastPrompt
+    const isSameText = previous !== null && squeezed(previous) === squeezed(newest.text)
+    const after = previous === null ? -1 : isSameText ? (promptIndexesOf(messages, [previous, newest.text])[0] ?? -1) : startOf(messages, previous)
+    if (startOf(messages, newest.text) > after) break
     count -= 1
   }
   return count
@@ -175,11 +180,14 @@ export function latestTurnOf(messages: SessionMessage[], prompt: string): Sessio
   return start === -1 ? null : messages.slice(start)
 }
 
-/** The user's messages before the first of `prompts`: what a fork brought from the chat it left. */
+/** What the user typed before the first of `prompts`, less task notices and commands: what a fork brought from the chat it left. */
 export function earlierPromptsOf(messages: SessionMessage[], prompts: string[]): string[] {
   const [first = -1] = prompts.length > 0 ? promptIndexesOf(messages, prompts) : [messages.length]
   const end = first === -1 ? messages.length : first
-  return messages.slice(0, end).filter(m => m.role === 'user' && !m.toolResults?.length && m.text.trim() !== '').map(m => m.text)
+  return messages
+    .slice(0, end)
+    .filter(m => m.role === 'user' && !m.toolResults?.length && m.text.trim() !== '' && !m.text.trimStart().startsWith('<'))
+    .map(m => m.text)
 }
 
 /**
@@ -209,6 +217,7 @@ export function forkPointOf(earlier: string[], prompts: string[]): { turn: numbe
     bound = turn
     shared += 1
   }
-  if (forkTurn === null || shared < Math.min(2, earlier.length)) return null
+  // Common prompts ("continue", "yes") repeat across chats, so a fork shares at least two and half of what it holds.
+  if (forkTurn === null || shared < 2 || shared * 2 < earlier.length) return null
   return { turn: forkTurn, shared }
 }

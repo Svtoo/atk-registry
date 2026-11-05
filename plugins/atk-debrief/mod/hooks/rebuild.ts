@@ -296,7 +296,7 @@ export function adoptFork(io: Io, chat: Chat, messages: SessionMessage[]): Promi
  */
 export function recordTurns(io: Io, chat: Chat, pending: PendingPrompt[], messages: SessionMessage[], lastPrompt: string | null): Promise<number> {
   return exclusive(chat, async () => {
-    const recordable = recordableOf(messages, pending)
+    const recordable = recordableOf(messages, pending, lastPrompt)
     const prompts = pending.slice(0, recordable).map(prompt => prompt.text)
     let state = await stateOrFresh(io, chat)
     if (!state.turns && !state.model && !state.parentChecked) {

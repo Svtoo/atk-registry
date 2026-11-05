@@ -8,7 +8,7 @@ const TODO_STATUSES = ['open', 'active', 'done', 'blocked'] as const
 type TodoStatus = (typeof TODO_STATUSES)[number]
 
 // A note is a historic row only: the change set cannot raise one.
-type Sev = 'risk' | 'flag' | 'note'
+type Sev = 'risk' | 'flag'
 
 type TodoItem = { id: string; text: string; status: TodoStatus; order: number; created_turn: number; changed_turn: number; done_turn: number; reason: string }
 type LinkItem = { id: string; label: string; url: string; kind: string; order: number; changed_turn: number; reason: string }
@@ -96,7 +96,7 @@ export function boardOf(stored: unknown): Board {
       created_turn: int(it.created_turn), changed_turn: int(it.changed_turn), done_turn: int(it.done_turn), reason: str(it.reason),
     })),
     headsup: listOf(stored.headsup).map(it => ({
-      id: str(it.id), sev: oneOf<Sev>(['risk', 'flag', 'note'], it.sev, 'note'), what: str(it.what), why: str(it.why), where: str(it.where),
+      id: str(it.id), sev: oneOf<Sev>(['risk', 'flag'], it.sev, 'flag'), what: str(it.what), why: str(it.why), where: str(it.where),
       order: int(it.order), created_turn: int(it.created_turn), changed_turn: int(it.changed_turn), reason: str(it.reason),
     })),
     freeform: listOf(stored.freeform).map(it => ({
@@ -149,7 +149,7 @@ export type Update = { phase?: Phase; essence?: string; ops: Op[] }
 
 export class UpdateError extends Error {}
 
-type FieldRule = { kind: 'text'; max?: number } | { kind: 'choice'; choices: readonly string[] } | { kind: 'bullets' }
+type FieldRule = { kind: 'text'; max?: number; isFilled?: boolean } | { kind: 'choice'; choices: readonly string[] } | { kind: 'bullets' }
 
 // Each op's fields; a field absent here is refused, so a misspelt one fails loudly instead of passing as an empty change.
 const OP_FIELDS: Record<Op['op'], Record<string, FieldRule>> = {
@@ -157,7 +157,7 @@ const OP_FIELDS: Record<Op['op'], Record<string, FieldRule>> = {
   'cta.upsert': { id: { kind: 'text' }, text: { kind: 'text', max: SHORT }, reason: { kind: 'text', max: SHORT } },
   'cta.remove': { id: { kind: 'text' }, reason: { kind: 'text', max: SHORT } },
   'link.upsert': {
-    id: { kind: 'text' }, label: { kind: 'text', max: SHORT }, url: { kind: 'text', max: SHORT }, kind: { kind: 'text', max: 40 }, reason: { kind: 'text', max: SHORT },
+    id: { kind: 'text' }, label: { kind: 'text', max: SHORT }, url: { kind: 'text', max: SHORT, isFilled: true }, kind: { kind: 'text', max: 40 }, reason: { kind: 'text', max: SHORT },
   },
   'link.remove': { id: { kind: 'text' }, reason: { kind: 'text', max: SHORT } },
   'last_turn.set': { bullets: { kind: 'bullets' } },
@@ -179,7 +179,7 @@ const REQUIRED: Partial<Record<Op['op'], string[]>> = {
 const CREATE_NEEDS: Partial<Record<Op['op'], string[]>> = {
   'todo.upsert': ['text'],
   'cta.upsert': ['text'],
-  'link.upsert': ['label'],
+  'link.upsert': ['label', 'url'],
   'headsup.upsert': ['sev', 'what', 'why'],
 }
 
@@ -195,6 +195,7 @@ function checkField(where: string, name: string, rule: FieldRule, value: unknown
   if (typeof value !== 'string') throw new UpdateError(`${where}.${name}: must be a string`)
   if (rule.kind === 'choice' && !rule.choices.includes(value)) throw new UpdateError(`${where}.${name}: must be one of ${rule.choices.join(', ')}`)
   if (rule.kind === 'text' && rule.max !== undefined && value.length > rule.max) throw new UpdateError(`${where}.${name}: at most ${rule.max} characters`)
+  if (rule.kind === 'text' && rule.isFilled && value.trim() === '') throw new UpdateError(`${where}.${name}: must not be empty`)
   return value
 }
 
