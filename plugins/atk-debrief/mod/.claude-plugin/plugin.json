@@ -1,6 +1,6 @@
 {
   "name": "atk-debrief",
-  "version": "0.1.2",
+  "version": "0.1.1",
   "description": "A live dashboard above the prompt for every chat: what the agent needs from you, how far the work is, and what you would otherwise miss. It builds itself after each turn; you do nothing.",
   "author": { "name": "Oleksandr (Sasha) Antoshchenko", "url": "https://github.com/oantoshchenko" },
   "homepage": "https://github.com/Svtoo/atk-registry/tree/main/plugins/atk-debrief",

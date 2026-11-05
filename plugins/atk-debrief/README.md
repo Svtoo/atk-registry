@@ -8,7 +8,7 @@ A live dashboard for every Claude Code chat, in a band above the prompt: what th
 along the work is, and what you would otherwise miss, in structured form and a click away. You do nothing to make it
 happen. After each turn, a small model call (Haiku by default, on your own account) rebuilds it from the chat.
 
-**Beta (0.1.2).** Expect rough edges, and please [report a problem](#report-a-problem) when you find one.
+**Beta (0.1.1).** Expect rough edges, and please [report a problem](#report-a-problem) when you find one.
 
 ![The band above the prompt: the phase and turn, a chip per section, the status dot and age, settings and rebuild, the last turn in bullets, then each open ask, numbered, with reply and dismiss](assets/band.png)
 
