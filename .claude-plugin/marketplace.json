@@ -1,0 +1,8 @@
+{
+  "name": "atk-registry",
+  "description": "Claude Code plugins from the ATK registry.",
+  "owner": { "name": "Oleksandr (Sasha) Antoshchenko", "url": "https://github.com/oantoshchenko" },
+  "plugins": [
+    { "name": "atk-debrief", "displayName": "ATK Debrief", "source": "./plugins/atk-debrief/mod" }
+  ]
+}
