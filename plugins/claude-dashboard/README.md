@@ -1,5 +1,7 @@
 # claude-dashboard
 
+> Replaced by [ATK Debrief](../atk-debrief/README.md). To move, run `atk remove claude-dashboard`, then `atk add atk-debrief`; each chat keeps its dashboard.
+
 A live, visual dashboard for every Claude Code chat. Read the dashboard, not the transcript.
 
 ## What it is

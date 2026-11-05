@@ -1,5 +1,10 @@
 schema_version: '2026-01-23'
 plugins:
+- name: atk-debrief
+  path: plugins/atk-debrief
+  description: A live dashboard above the prompt for every Claude Code chat. It shows
+    what the agent needs from you, how far the work is, and what you would otherwise
+    miss, and builds itself after each turn; you do nothing.
 - name: claude-code-atk
   path: plugins/claude-code-atk
   description: 'Makes Claude Code follow ATK rules: UserPromptSubmit hook that reminds

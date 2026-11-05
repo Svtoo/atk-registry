@@ -1,0 +1,16 @@
+schema_version: "2026-01-23"
+name: atk-debrief
+description: A live dashboard above the prompt for every Claude Code chat. It shows what the agent needs from you, how far the work is, and what you would otherwise miss, and builds itself after each turn; you do nothing.
+maturity: verified
+
+vendor:
+  name: Oleksandr (Sasha) Antoshchenko
+  url: https://github.com/oantoshchenko
+
+service:
+  type: script
+
+lifecycle:
+  install: ./install.sh
+  uninstall: ./uninstall.sh
+  status: ./status.sh

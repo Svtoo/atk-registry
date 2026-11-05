@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ATK Debrief">
+  <defs>
+    <clipPath id="lens"><circle cx="294" cy="226" r="86"/></clipPath>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#4f46e5"/>
+  <path d="M136 96h240a40 40 0 0 1 40 40v188a40 40 0 0 1-40 40H252l-84 62v-62h-32a40 40 0 0 1-40-40V136a40 40 0 0 1 40-40z" fill="#ffffff"/>
+  <g fill="#b8b9cc">
+    <rect x="132" y="130" width="248" height="14" rx="7"/>
+    <rect x="132" y="162" width="230" height="14" rx="7"/>
+    <rect x="132" y="194" width="248" height="14" rx="7"/>
+    <rect x="132" y="226" width="200" height="14" rx="7"/>
+    <rect x="132" y="258" width="240" height="14" rx="7"/>
+    <rect x="132" y="290" width="180" height="14" rx="7"/>
+  </g>
+  <g clip-path="url(#lens)">
+    <rect x="200" y="130" width="200" height="200" fill="#ffffff"/>
+    <rect x="236" y="168" width="70" height="24" rx="12" fill="#ef4444"/>
+    <rect x="236" y="210" width="24" height="24" rx="5" fill="#10b981"/>
+    <rect x="266" y="210" width="24" height="24" rx="5" fill="#10b981"/>
+    <rect x="296" y="210" width="24" height="24" rx="5" fill="#10b981"/>
+    <rect x="326" y="210" width="24" height="24" rx="5" fill="#f59e0b"/>
+    <rect x="236" y="252" width="110" height="14" rx="7" fill="#1e1b4b"/>
+  </g>
+  <circle cx="294" cy="226" r="86" fill="none" stroke="#1e1b4b" stroke-width="22"/>
+  <path d="M358 290l64 64" stroke="#1e1b4b" stroke-width="34" stroke-linecap="round"/>
+</svg>
