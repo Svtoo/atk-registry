@@ -181,6 +181,26 @@ test('an answer with no closed update block, bad JSON or a diagram that cannot b
   }
 })
 
+test('reasoning before the blocks that names the update or a card block changes nothing that is read', () => {
+  const raw = [
+    'I will re-upsert the card with a <freeform ref="install"> block, after an <update> that closes with </update>.',
+    '<update>',
+    '{"ops":[{"op":"freeform.upsert","bodyRef":"install"}]}',
+    '</update>',
+    '<freeform ref="install">',
+    '## Install path',
+    '',
+    'Run install.',
+    '</freeform>',
+  ].join('\n')
+  // When
+  const answer = parseAnswer(raw)
+  // Then
+  expect(answer.update.ops.map(op => op.op)).toEqual(['freeform.upsert'])
+  expect(answer.bodies).toEqual({ install: '## Install path\n\nRun install.' })
+  expect(answer.notes).toEqual([])
+})
+
 test('a diagram is well-formed XML: tags close in order, values are quoted, entities are XML\'s own', () => {
   expect(xmlProblem('<svg><!-- c --><style><![CDATA[ a > b ]]></style><text x="1">a &lt; b &#169;</text></svg>')).toBeNull()
   expect(xmlProblem('<svg><text>a > b</text></svg>')).toBeNull()
@@ -241,6 +261,21 @@ test('a newest turn too long for the prompt has its tool output cut, never the t
   expect(estimateWords('one two, three')).toBe(4)
 })
 
+test('a newest turn whose tool inputs and prose are too long still fits the transcript budget', () => {
+  const words = (count: number) => Array.from({ length: count }, (_, i) => `w${i % 10}`).join(' ')
+  const writes = Array.from({ length: 30 }, (_, i) => ({ id: `u${i}`, name: 'Write', input: { file_path: `f${i}.ts`, content: words(7_000) } }))
+  const turns: TurnRecord[] = [
+    { turn: 1, rows: [rowOfText('user', 'Write the files.'), { role: 'assistant', text: words(50_000), toolUses: writes }] },
+  ]
+  // When
+  const prompt = assemblePrompt({ board: boardOf({}), turns, turn: 1, systemTemplate: '', verdicts: {}, acks: {} })
+  // Then
+  expect(prompt.isTruncated).toBe(true)
+  expect(prompt.transcriptWords).toBeLessThan(100_100)
+  expect(estimateWords(prompt.user)).toBeLessThan(110_000)
+  expect(prompt.user).toContain('Write the files.')
+})
+
 const message = (role: 'user' | 'assistant', text: string, extra: object = {}) => ({ role, text, toolUses: [], ...extra })
 
 test('a message the user sends opens a turn; a notice, a peer or another plugin does not', () => {
@@ -282,6 +317,25 @@ test('a tail file holds its turn; a file holding another turn, or damaged, is no
   expect(tailRecordOf(JSON.stringify(record), 5)).toEqual(record)
   expect(tailRecordOf(JSON.stringify(record), 8)).toBeNull()
   expect(tailRecordOf('{"turn": 5, "rows": [', 5)).toBeNull()
+})
+
+// UTF-8 bytes of a text, as the engine counts a file it writes.
+const bytesOf = (text: string) => [...text].reduce((sum, char) => sum + ((char.codePointAt(0) ?? 0) < 0x80 ? 1 : (char.codePointAt(0) ?? 0) < 0x800 ? 2 : (char.codePointAt(0) ?? 0) < 0x10000 ? 3 : 4), 0)
+
+test('a tail file stays under the 4 MiB the engine writes, counted in bytes, however large its turn', () => {
+  const output = 'ж'.repeat(25_000)
+  const rows = [
+    message('user', 'Read every log.'),
+    ...Array.from({ length: 220 }, (_, i) => message('user', '', { toolResults: [{ tool_use_id: `u${i}`, text: output }] })),
+    message('assistant', 'Read them all.'),
+  ]
+  // When
+  const record = tailOf(7, rows)
+  // Then
+  expect(bytesOf(JSON.stringify(record))).toBeLessThan(4 * 1024 * 1024)
+  expect(record.turn).toBe(7)
+  expect(record.rows[0]?.text).toBe('Read every log.')
+  expect(record.rows.at(-1)?.text).toBe('Read them all.')
 })
 
 test('a repeat of an open problem counts up; the chip names the newest and how many are open', () => {

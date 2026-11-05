@@ -18,9 +18,13 @@ export type TurnRecord = { turn: number; rows: TurnRow[] }
 const FULL_TURNS = 1
 const LIGHT_TURNS = 2
 
-// What the transcript may weigh, in estimated words, to fit the model's context with room to spare; an oversized
-// turn has its tool output cut, never the turn itself.
+// What the transcript may weigh, in estimated words, to fit the model's context with room to spare. An oversized turn
+// has its tool calls and their output cut first; a turn still too long is cut as a whole, its head and tail kept.
 const MAX_TRANSCRIPT_WORDS = 100_000
+// What each earlier turn's prose may weigh when the transcript is over its budget.
+const MAX_LIGHT_TURN_WORDS = 10_000
+const TOOL_CUT_NOTE = 'see the tool call in the chat for the full output'
+const TURN_CUT_NOTE = 'the middle of this turn is left out'
 
 // A word is a run of letters and digits or one punctuation mark, so dense tool output is not undercounted.
 const WORD = /[\p{L}\p{N}_]+|[^\p{L}\p{N}_\s]/gu
@@ -35,8 +39,8 @@ export function estimateWords(text: string): number {
   return words
 }
 
-/** A tool's output cut to `maxWords`: its head and tail kept, the middle replaced by a note; 0 keeps it whole. */
-export function capToolBody(body: string, maxWords: number): string {
+/** A text cut to `maxWords`: its head and tail kept, the middle replaced by a note; 0 keeps it whole. */
+export function capToolBody(body: string, maxWords: number, note = TOOL_CUT_NOTE): string {
   if (maxWords <= 0) return body
   const matches = [...body.matchAll(WORD)]
   const weights = matches.map(match => weightOf(match[0]))
@@ -68,10 +72,10 @@ export function capToolBody(body: string, maxWords: number): string {
   const headText = lastHead ? body.slice(0, (lastHead.index ?? 0) + lastHead[0].length) : ''
   const tailText = firstTail ? body.slice(firstTail.index ?? 0) : ''
   const elided = total - keptHead - keptTail
-  return `${headText}\n[… ${elided} words truncated — see the tool call in the chat for the full output …]\n${tailText}`
+  return `${headText}\n[… ${elided} words truncated — ${note} …]\n${tailText}`
 }
 
-const countToolResults = (rows: TurnRow[]) => rows.reduce((sum, row) => sum + (row.toolResults?.length ?? 0), 0)
+const countToolParts = (rows: TurnRow[]) => rows.reduce((sum, row) => sum + (row.toolUses?.length ?? 0) + (row.toolResults?.length ?? 0), 0)
 
 /** A turn's messages for the prompt: in full with its tool calls and their output, else the prose alone. */
 function renderRows(rows: TurnRow[], isFull: boolean, toolBodyMax = 0): string {
@@ -80,7 +84,9 @@ function renderRows(rows: TurnRow[], isFull: boolean, toolBodyMax = 0): string {
     const rendered: string[] = []
     if (row.text.trim()) rendered.push(row.text)
     if (isFull) {
-      for (const use of row.toolUses ?? []) rendered.push(`<tool_use name='${use.name}' id='${use.id}'>\n${JSON.stringify(use.input ?? {}, null, 2)}\n</tool_use>`)
+      for (const use of row.toolUses ?? []) {
+        rendered.push(`<tool_use name='${use.name}' id='${use.id}'>\n${capToolBody(JSON.stringify(use.input ?? {}, null, 2), toolBodyMax)}\n</tool_use>`)
+      }
       for (const result of row.toolResults ?? []) rendered.push(`<tool_result for='${result.id}'>\n${capToolBody(result.text, toolBodyMax)}\n</tool_result>`)
     }
     if (rendered.length === 0) continue
@@ -196,7 +202,7 @@ export function assemblePrompt(input: PromptInput): Prompt {
     return { record, isFull, text: renderRows(record.rows, isFull) }
   })
 
-  // When the full turn overflows what is left after the prose, its tool output is cut to a share of the budget.
+  // When the full turn overflows what is left after the prose, its tool calls and output are cut to a share of the budget.
   let isTruncated = false
   const lightWords = rendered.filter(r => !r.isFull).reduce((sum, r) => sum + estimateWords(r.text), 0)
   const budget = MAX_TRANSCRIPT_WORDS - lightWords
@@ -206,8 +212,24 @@ export function assemblePrompt(input: PromptInput): Prompt {
     for (const r of fullRows) {
       if (estimateWords(r.text) <= perTurn) continue
       isTruncated = true
-      r.text = renderRows(r.record.rows, true, Math.max(1, Math.floor(perTurn / Math.max(1, countToolResults(r.record.rows)))))
+      // The turn's own words, tags and cut notes stay; its tool calls and output share what is left.
+      const fixed = estimateWords(renderRows(r.record.rows, true, 1))
+      const share = Math.floor((perTurn - fixed) / Math.max(1, countToolParts(r.record.rows)))
+      r.text = renderRows(r.record.rows, true, Math.max(1, share))
     }
+  }
+  // Prose too long for the budget, or a turn of very many tool calls, is cut as a whole: each earlier turn to its share,
+  // then the newest to what is left.
+  const wordsOf = (rows: typeof rendered) => rows.reduce((sum, r) => sum + estimateWords(r.text), 0)
+  if (wordsOf(rendered) > MAX_TRANSCRIPT_WORDS) {
+    const cutTo = (r: (typeof rendered)[number], maxWords: number) => {
+      const text = capToolBody(r.text, Math.max(1, maxWords), TURN_CUT_NOTE)
+      if (text !== r.text) isTruncated = true
+      r.text = text
+    }
+    for (const r of rendered.filter(r => !r.isFull)) cutTo(r, MAX_LIGHT_TURN_WORDS)
+    const left = MAX_TRANSCRIPT_WORDS - wordsOf(rendered.filter(r => !r.isFull))
+    for (const r of fullRows) cutTo(r, Math.floor(left / fullRows.length))
   }
 
   const transcript = rendered

@@ -66,6 +66,17 @@ test('desktop band shows the header, the last turn and the numbered asks of this
   await ui.unmount()
 })
 
+test('a text holding control characters, as copied from coloured tool output, still draws, without them', { timeoutMs: 20_000 }, async ($, on) => {
+  const ask = { id: 'c30', text: 'Tests print \u001b[31mFAIL\u001b[0m in red; check them?', created_turn: 21 }
+  const w = world(on, { ...MODEL, cta: [...MODEL.cta, ask], last_turn: { bullets: ['Ran\u0007 the tests.'], turn: MODEL.turn } })
+  // When
+  const ui = await mountBand($, w)
+  // Then
+  expect(await ui.find({ key: 'ask-c30' })).toBeDefined()
+  expect(await markdownTexts(ui)).toEqual(['Ran the tests.', ...ASK_TEXTS, 'Tests print FAIL in red; check them?'])
+  await ui.unmount()
+})
+
 test('desktop numbers each ask in a round badge coloured by how long it has waited', { timeoutMs: 20_000 }, async ($, on) => {
   const w = world(on)
   // When

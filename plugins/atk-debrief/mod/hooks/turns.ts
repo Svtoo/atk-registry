@@ -19,9 +19,11 @@ export const tailPathOf = (dir: string, turn: number) => `${dir}/tail-${turn % T
 
 // What one text of a tail file may hold; the prompt cuts tool output further when a turn is too long for it.
 const MAX_TEXT = 200_000
-// A tail file stays far under the 4 MiB the mod can read back.
-const MAX_TAIL_CHARS = 3_000_000
-const SHORT_TOOL_TEXT = 20_000
+// A tail file stays well under the 4 MiB of UTF-8 the engine writes and reads back.
+const MAX_TAIL_BYTES = 3_000_000
+// A turn too large for a tail file keeps each of its texts shorter, step by step, until it fits.
+const SHORTEST_TEXT = 200
+const SHORTER_TEXTS = [20_000, 2_000, SHORTEST_TEXT]
 
 function cut(text: string, max: number): string {
   if (text.length <= max) return text
@@ -44,11 +46,35 @@ function rowOf(message: SessionMessage, max = MAX_TEXT): TurnRow {
   return row
 }
 
-/** The turn as a tail file holds it; a turn too large for one is kept with shorter tool output. */
+/** A text's size in UTF-8 bytes, as the engine counts a file. */
+export function bytesOf(text: string): number {
+  let bytes = 0
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0
+    bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4
+  }
+  return bytes
+}
+
+/**
+ * The turn as a tail file holds it. A turn too large for one keeps its texts shorter, step by step; a turn of so many
+ * messages that the shortest texts do not fit keeps its prompt and its newest messages that do.
+ */
 export function tailOf(turn: number, messages: SessionMessage[]): TurnRecord {
-  const record = { turn, rows: messages.map(message => rowOf(message)) }
-  if (JSON.stringify(record).length <= MAX_TAIL_CHARS) return record
-  return { turn, rows: messages.map(message => rowOf(message, SHORT_TOOL_TEXT)) }
+  for (const max of [MAX_TEXT, ...SHORTER_TEXTS]) {
+    const record = { turn, rows: messages.map(message => rowOf(message, max)) }
+    if (bytesOf(JSON.stringify(record)) <= MAX_TAIL_BYTES) return record
+  }
+  const [first, ...rest] = messages.map(message => rowOf(message, SHORTEST_TEXT))
+  const kept: TurnRow[] = []
+  let bytes = bytesOf(JSON.stringify({ turn, rows: first ? [first] : [] }))
+  for (const row of rest.reverse()) {
+    const size = bytesOf(JSON.stringify(row)) + 1
+    if (bytes + size > MAX_TAIL_BYTES) break
+    bytes += size
+    kept.unshift(row)
+  }
+  return { turn, rows: first ? [first, ...kept] : kept }
 }
 
 /** The tail file's turn when it holds turn `turn`, else null: a slot from an older turn, or a damaged one. */

@@ -72,7 +72,10 @@ const seed = (f: Fake, extra: object = {}) => {
 }
 
 const answered = (text: string) => ({ isAnswered: true, text, usage: { input_tokens: 1, output_tokens: 1 } })
-const settle = () => new Promise<void>(resolve => setTimeout(() => resolve(), 20))
+// Waits for the rebuild's next model call, however long the work before it takes on a busy machine.
+const nextCall = async (f: Fake) => {
+  for (let waited = 0; f.completes.length === 0 && waited < 2_000; waited += 5) await new Promise<void>(resolve => setTimeout(() => resolve(), 5))
+}
 
 test('a fork is found only where the new chat\'s earlier prompts line up with the other chat\'s, in order', () => {
   // The same prompt twice counts once, and two common prompts out of order are no fork.
@@ -122,7 +125,7 @@ test('an undo pressed while a rebuild runs stays undone when the rebuild saves',
   const f = fakeIo()
   seed(f, { verdicts: { 'cta:c1': { verdict: 'dismissed', at: 1, turn: 5, text: 'Ask one' } } })
   const running = rebuildChat(f.io, CHAT, { model: 'sonnet', timeoutSeconds: 180 })
-  await settle()
+  await nextCall(f)
   // When
   await setVerdict(f.io, CHAT, 'cta', 'c1', null)
   f.completes.shift()?.(answered('<update>{"ops":[]}</update>'))
@@ -136,7 +139,7 @@ test('an undo pressed while a rebuild runs stays undone when the rebuild saves',
 test('a time limit saved while a new model is checked is kept', async () => {
   const f = fakeIo()
   const picking = saveSettings(f.io, { model: 'opus' })
-  await settle()
+  await nextCall(f)
   // When
   await saveSettings(f.io, { timeoutSeconds: '300' })
   f.completes.shift()?.(answered('OK'))
@@ -149,7 +152,7 @@ test('the model check asks for as much output as a rebuild, so a model that cann
   const f = fakeIo()
   // When
   const picking = saveSettings(f.io, { model: 'opus' })
-  await settle()
+  await nextCall(f)
   f.completes.shift()?.(answered('OK'))
   await picking
   // Then
@@ -160,10 +163,10 @@ test('a rebuild and its second try share one time limit', async () => {
   const f = fakeIo()
   seed(f)
   const running = rebuildChat(f.io, CHAT, { model: 'sonnet', timeoutSeconds: 60 })
-  await settle()
+  await nextCall(f)
   // When
   f.completes.shift()?.(answered('no update here'))
-  await settle()
+  await nextCall(f)
   f.completes.shift()?.(answered('<update>{"ops":[]}</update>'))
   await running
   // Then
@@ -175,12 +178,12 @@ test('a busy model asked again, then a rejected answer, still sends the answer b
   const f = fakeIo()
   seed(f)
   const running = rebuildChat(f.io, CHAT, { model: 'sonnet', timeoutSeconds: 60 })
-  await settle()
+  await nextCall(f)
   // When
   f.completes.shift()?.({ isAnswered: false, reason: 'api-error', status: 529, error: 'overloaded', usage: { input_tokens: 0, output_tokens: 0 } })
-  await settle()
+  await nextCall(f)
   f.completes.shift()?.(answered('no update here'))
-  await settle()
+  await nextCall(f)
   f.completes.shift()?.(answered('still no update'))
   const result = await running
   // Then
@@ -244,7 +247,7 @@ test('a call switched while a rebuild runs is saved as switched', async () => {
   const f = fakeIo()
   seed(f, { verdicts: { 'todo:t1': { verdict: 'done', at: 1, turn: 5, text: 'Step' } } })
   const running = rebuildChat(f.io, CHAT, { model: 'sonnet', timeoutSeconds: 180 })
-  await settle()
+  await nextCall(f)
   // When
   await setVerdict(f.io, CHAT, 'todo', 't1', null)
   await setVerdict(f.io, CHAT, 'todo', 't1', 'dropped')
@@ -259,7 +262,7 @@ test('a busy model with too little time left to wait for shows as busy, not as o
   const f = fakeIo()
   seed(f)
   const running = rebuildChat(f.io, CHAT, { model: 'sonnet', timeoutSeconds: 6 })
-  await settle()
+  await nextCall(f)
   // When
   f.completes.shift()?.({ isAnswered: false, reason: 'api-error', status: 529, error: 'overloaded', usage: { input_tokens: 0, output_tokens: 0 } })
   const result = await running

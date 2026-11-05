@@ -44,7 +44,13 @@ const MAX_VERDICTS = 50
 type Json = Record<string, unknown>
 
 const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value)
-const str = (value: unknown, fallback = '') => (typeof value === 'string' ? value : fallback)
+// The control characters the engine refuses in drawn text, as a model copies them from coloured tool output: an ANSI
+// escape sequence whole, then every other control character but a tab and a line break.
+const ANSI_SEQUENCE = /\u001b\[[0-?]*[ -/]*[@-~]/g
+const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g
+export const withoutControls = (text: string) => text.replace(ANSI_SEQUENCE, '').replace(CONTROL, '')
+
+const str = (value: unknown, fallback = '') => (typeof value === 'string' ? withoutControls(value) : fallback)
 const int = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : 0)
 const listOf = (value: unknown): Json[] => (Array.isArray(value) ? value.filter(isObject) : [])
 const oneOf = <T extends string>(choices: readonly T[], value: unknown, fallback: T): T =>
@@ -78,7 +84,7 @@ export function boardOf(stored: unknown): Board {
     turn: int(stored.turn),
     turn_base: int(stored.turn_base),
     seq: int(stored.seq),
-    last_turn: { bullets: Array.isArray(last.bullets) ? last.bullets.filter(b => typeof b === 'string') : [], turn: int(last.turn) },
+    last_turn: { bullets: Array.isArray(last.bullets) ? last.bullets.filter(b => typeof b === 'string').map(withoutControls) : [], turn: int(last.turn) },
     links: listOf(stored.links).map(it => ({
       id: str(it.id), label: str(it.label), url: str(it.url), kind: str(it.kind), order: int(it.order), changed_turn: int(it.changed_turn), reason: str(it.reason),
     })),

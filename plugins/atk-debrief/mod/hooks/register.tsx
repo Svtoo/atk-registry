@@ -356,16 +356,28 @@ async function setFreeformOpen($: EngineInterface, isOpen: boolean, isForDismiss
 }
 
 let isPolling = false
+let isCatchingUp = false
 
 // Polling starts at the first band draw after the mod loads, so a session that never draws one (a headless run) never
-// polls, records or rebuilds. The catch-up and the first refresh wait for the drawing to end, as a drawing may not
-// write state.
-function startPolling($: EngineInterface): void {
-  if (isPolling) return
-  isPolling = true
-  // A poll that fails is tried again at the next; the band keeps what it last drew.
-  $.clock.after(0, () => void catchUp($).then(() => refresh($)).catch(() => {}))
-  $.clock.every(POLL_MS, () => void refresh($).catch(() => {}))
+// polls, records or rebuilds. The catch-up runs at the first draw of each session: the engine drops every plugin value
+// at a /clear and keeps the module loaded, so the drawing after it catches up again. The catch-up and the first refresh
+// wait for the drawing to end, as a drawing may not write state.
+async function startPolling($: EngineInterface): Promise<void> {
+  if (!isPolling) {
+    isPolling = true
+    // A poll that fails is tried again at the next; the band keeps what it last drew.
+    $.clock.every(POLL_MS, () => void refresh($).catch(() => {}))
+  }
+  if (isCatchingUp || (await read($, hasDrawnAtom))) return
+  isCatchingUp = true
+  $.clock.after(0, () =>
+    void catchUp($)
+      .then(() => refresh($))
+      .catch(() => {})
+      .finally(() => {
+        isCatchingUp = false
+      }),
+  )
 }
 
 export const register: Register = on => {
@@ -406,7 +418,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    startPolling($)
+    await startPolling($)
     const b = await read($, bandAtom)
     // A band an older build of the mod kept across a reload lacks parts this one draws; the next poll replaces it.
     if (b === null || e.props.hasSurvey || !Array.isArray(b.status.dismissedNotices)) return next(e)

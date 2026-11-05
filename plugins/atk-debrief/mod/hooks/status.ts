@@ -2,6 +2,7 @@
 // Pure, as board.ts.
 
 import type { DebriefFreshness, DebriefNotice, DebriefNoticeStep, DebriefStatus } from '../types'
+import { withoutControls } from './board'
 
 /** A failed rebuild as state.json keeps it; a repeat of an open one with the same code counts up instead of adding. */
 export type RebuildError = {
@@ -163,7 +164,7 @@ function noticeOf(error: RebuildError, nowSeconds: number): DebriefNotice {
     title: copy.title,
     what: copy.what,
     steps: copy.steps,
-    detail: error.message,
+    detail: withoutControls(error.message),
     diagnostics: [
       { label: 'Failure', value: error.code },
       { label: 'Kind', value: error.kind },

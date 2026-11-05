@@ -141,20 +141,34 @@ function svgProblem(body: string): string | null {
 export type Answer = { update: Update; bodies: Record<string, string>; notes: string[] }
 
 /**
+ * The change set's JSON and where its block ends. The model may reason before its blocks, and its reasoning may name
+ * the tags, so the block read is the last closed one whose content is JSON; with none, the last closed one's error.
+ */
+function updateBlockOf(raw: string): { data: unknown; end: number } {
+  const blocks: { body: string; end: number }[] = []
+  for (let open = raw.indexOf(UPDATE_OPEN); open !== -1; open = raw.indexOf(UPDATE_OPEN, open + 1)) {
+    const close = raw.indexOf(UPDATE_CLOSE, open + UPDATE_OPEN.length)
+    if (close !== -1) blocks.push({ body: raw.slice(open + UPDATE_OPEN.length, close).trim(), end: close + UPDATE_CLOSE.length })
+  }
+  if (blocks.length === 0) throw new AnswerError('no complete <update>…</update> block in the reply')
+  let problem = ''
+  for (const block of blocks.reverse()) {
+    try {
+      return { data: JSON.parse(block.body), end: block.end }
+    } catch (error) {
+      problem ||= (error as Error).message
+    }
+  }
+  throw new AnswerError(`<update> block is not valid JSON: ${problem}`)
+}
+
+/**
  * The answer's change set, checked, with each card's body by its ref. A card op whose body is missing, too long, or in
  * the notices' markup is dropped with a note; the rest still applies. No closed <update> block, bad JSON, a broken
  * schema or an undrawable diagram throws an AnswerError, and the board stays as it was.
  */
 export function parseAnswer(raw: string): Answer {
-  const open = raw.indexOf(UPDATE_OPEN)
-  const close = open === -1 ? -1 : raw.indexOf(UPDATE_CLOSE, open + UPDATE_OPEN.length)
-  if (close === -1) throw new AnswerError('no complete <update>…</update> block in the reply')
-  let data: unknown
-  try {
-    data = JSON.parse(raw.slice(open + UPDATE_OPEN.length, close).trim())
-  } catch (error) {
-    throw new AnswerError(`<update> block is not valid JSON: ${(error as Error).message}`)
-  }
+  const { data, end } = updateBlockOf(raw)
   let update: Update
   try {
     update = updateOf(data)
@@ -163,7 +177,7 @@ export function parseAnswer(raw: string): Answer {
     throw error
   }
 
-  const bodies = cardBodiesOf(raw)
+  const bodies = cardBodiesOf(raw.slice(end))
   const notes: string[] = []
   const kept = []
   for (const op of update.ops) {
