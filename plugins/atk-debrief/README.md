@@ -10,6 +10,15 @@ happen. After each turn, a small model call (Haiku by default, on your own accou
 
 **Beta (0.1.1).** Expect rough edges, and please [report a problem](#report-a-problem) when you find one.
 
+```bash
+claude plugin marketplace add Svtoo/atk-registry
+claude plugin install atk-debrief@atk-registry
+```
+
+Run these in a terminal; they need the `claude` command ([Claude Code setup](https://code.claude.com/docs/en/setup)).
+New chats show the band; a chat already open shows it after `/reload-plugins`. Made for the Claude desktop app (Code
+tab); for the terminal, see [Known limits](#known-limits).
+
 ![The band above the prompt: the phase and turn, a chip per section, the status dot and age, settings and rebuild, the last turn in bullets, then each open ask, numbered, with reply and dismiss](assets/band.png)
 
 ## Why
@@ -60,18 +69,16 @@ acknowledged heads-up keeps its ↶.
 
 ![The ATK Debrief pane: a card with a flowchart of the install path, drawn as SVG, and three bullets under it](assets/freeform.png)
 
-## Install
+## Install with ATK
+
+If you use [ATK](https://github.com/Svtoo/atk), install it with ATK instead of the commands at the top. Use one way
+only: each install draws its own band.
 
 ```bash
 atk add atk-debrief
 ```
 
-- Needs [ATK](https://github.com/Svtoo/atk), and the `claude` command on your PATH, which install uses to add the mod
-  to Claude Code ([Claude Code setup](https://code.claude.com/docs/en/setup)). `atk status` also needs `python3`.
-- Made for the Claude desktop app (Code tab). For the terminal, see [Known limits](#known-limits).
-- It works in every chat of every project. New chats show the band; a chat already open shows it after
-  `/reload-plugins`.
-- `atk status atk-debrief` says whether it is installed.
+`atk status atk-debrief` says whether it is installed; it needs `python3`.
 
 ## Settings
 
@@ -133,23 +140,28 @@ atk add atk-debrief
 ## Update
 
 ```bash
-atk upgrade atk-debrief
+claude plugin marketplace update atk-registry
+claude plugin update atk-debrief@atk-registry
 ```
+
+With ATK: `atk upgrade atk-debrief`.
 
 New chats run the new version; a chat already open runs it after `/reload-plugins`.
 
 ## Uninstall
 
 ```bash
-atk remove atk-debrief
+claude plugin uninstall atk-debrief@atk-registry
+claude plugin marketplace remove atk-registry
 ```
+
+With ATK: `atk remove atk-debrief`.
 
 This removes the mod. Each chat's `state.json` and tail files stay in place, as do the settings.
 
 ## Coming from claude-dashboard
 
-- ATK Debrief replaces claude-dashboard, and install refuses to run beside it. Remove it first with
-  `atk remove claude-dashboard`.
+- ATK Debrief replaces claude-dashboard. Remove it first with `atk remove claude-dashboard`, then install.
 - Each chat keeps its dashboard, as both read the same `state.json`. A card in the old HTML format shows a note until
   the next rebuild rewrites it.
 
@@ -159,7 +171,7 @@ This removes the mod. Each chat's `state.json` and tail files stay in place, as 
   parts of it may not work there.
 - In a chat that already had history when the plugin was installed, the dashboard starts from the next turn:
   earlier turns are not read.
-- The install scripts are bash: macOS and Linux.
+- The ATK install scripts are bash: macOS and Linux.
 - Claude Code reads and writes files of at most 4 MiB. A very long chat whose dashboard grows past that stops saving,
   and each press and turn says so.
 - A `state.json` that no longer parses is kept beside it as `state.json.damaged`, and the dashboard starts afresh.

@@ -1,7 +1,7 @@
 # ATK Debrief mod
 
-The Claude Code mod behind [ATK Debrief](../README.md). Install it with `atk add atk-debrief`; that README says
-what it shows, its settings, its cost and the files it keeps.
+The Claude Code mod behind [ATK Debrief](../README.md). That README says how to install it, what it shows, its
+settings, its cost and the files it keeps.
 
 ## In this folder
 
