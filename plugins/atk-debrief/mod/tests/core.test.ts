@@ -2,10 +2,10 @@ import { expect, test } from 'claude-code/testing'
 
 import { AnswerError, parseAnswer, xmlProblem } from '../hooks/answer'
 import { OUTPUT_FORMAT } from '../hooks/answer-format'
-import { applyOps, applyVerdicts, boardOf, keptBeside, updateOf, UpdateError } from '../hooks/board'
+import { applyOps, applyVerdicts, boardOf, guardOps, keptBeside, type Update, updateOf, UpdateError } from '../hooks/board'
 import { assemblePrompt, capToolBody, digestOf, estimateWords, type TurnRecord } from '../hooks/prompt'
 import { modelChoicesOf } from '../hooks/rebuild'
-import { type RebuildError, statsOf, statusOf, withError } from '../hooks/status'
+import { codeOfApiError, type RebuildError, statsOf, statusOf, withError } from '../hooks/status'
 import { earlierPromptsOf, forkPointOf, isUsersOwn, latestTurnOf, tailOf, tailRecordOf, turnsOf } from '../hooks/turns'
 
 // A board covering every part of the digest, and the digest the model reads for it at turn 13. Its essence is kept
@@ -57,14 +57,14 @@ const SERVER_DIGEST = [
   '- l2 kind=- label=main url=-',
   '  ⚠ no url, so the chip is hidden from the user: fill the real url via link.upsert, or link.remove it if none exists',
   '',
-  '## To-do (3) — full history; done steps never leave',
+  '## To-do (3) — full history; done steps are locked and never leave',
   '- t1 done [created 11t ago, done 4t ago: parity holds] Port the digest',
   '- t2 done [created 8t ago, done 2t ago: ] Wire the band',
   '- t5 open [created 1t ago: ] Delete the server',
   '',
-  '## Heads-up (2) — FULL list; update rows by id as facts change; never add a duplicate row',
-  '- h1 risk [created 9t ago, changed 5t ago: found] what=Writes are not atomic | why=no rename | where=rebuild.ts (acked turn 9)',
-  '- h2 note [13t ago: ] what=Old row | why=history | where=',
+  '## Heads-up (2) — FULL list; acked rows are locked; update an open row by id only when its facts clearly changed; never add a duplicate row',
+  '- h1 risk [created 9t ago, changed 5t ago: found] what=Writes are not atomic | why=no rename | where=rebuild.ts (acked turn 9, locked)',
+  '- h2 flag [13t ago: ] what=Old row | why=history | where=',
   '',
   '## Freeform (2) — sticky reference cards, shown in full; re-upsert a card by id ONLY when the design it shows actually changed, and then change the minimum',
   '- f1 [7t ago: drew it]',
@@ -141,7 +141,10 @@ test('an op set that breaks its schema is refused, naming the problem', () => {
     { ops: [{ op: 'todo.upsert', reason: 'no text' }] },
     { ops: [{ op: 'headsup.upsert', sev: 'note', what: 'w', why: 'y' }] },
     { ops: [{ op: 'last_turn.set', bullets: [] }] },
-    { ops: [{ op: 'link.upsert', label: 'L', kind: 'k'.repeat(41) }] },
+    { ops: [{ op: 'link.upsert', label: 'L', url: 'https://x.test', kind: 'k'.repeat(41) }] },
+    { ops: [{ op: 'link.upsert', label: 'A link with no address' }] },
+    { ops: [{ op: 'link.upsert', label: 'A link with an empty address', url: '' }] },
+    { ops: [{ op: 'link.upsert', id: 'l1', url: '  ' }] },
     { ops: [{ op: 'freeform.upsert', htmlRef: 'x' }] },
     { tldr: { essence: 'x' } },
     { title: 'x' },
@@ -179,6 +182,118 @@ test('an answer with no closed update block, bad JSON or a diagram that cannot b
   for (const raw of ['no blocks', '<update>{"ops":[]}', '<update>{ops: []}</update>', card('<svg><g></svg>'), card('<svg onload="x()"></svg>'), card('<svg><rect/>')]) {
     expect(() => parseAnswer(raw)).toThrow(AnswerError)
   }
+})
+
+const LOCK_BOARD = boardOf({
+  turn: 20,
+  seq: 30,
+  todo: [
+    { id: 't1', text: 'Done step', status: 'done', created_turn: 1, changed_turn: 5, done_turn: 5 },
+    { id: 't2', text: 'Open step', status: 'open', created_turn: 2, changed_turn: 2 },
+    { id: 't3', text: 'Another open step', status: 'open', created_turn: 2, changed_turn: 2 },
+  ],
+  cta: [{ id: 'c1', text: 'Go on?', created_turn: 3, changed_turn: 3 }],
+  headsup: [
+    { id: 'h1', sev: 'risk', what: 'Acked row', why: 'seen', where: '', created_turn: 4, changed_turn: 4 },
+    { id: 'h2', sev: 'flag', what: 'Open row', why: 'unseen', where: '', created_turn: 4, changed_turn: 4 },
+  ],
+  freeform: [{ id: 'f1', body: '## Gone', hash: 'a', changed_turn: 1, dismissed_turn: 6 }],
+})
+const guarded = (ops: unknown[], verdicts: Record<string, { verdict: string; text?: string }> = {}) =>
+  guardOps(LOCK_BOARD, { ops } as Update, { h1: { ackedAt: 100, turn: 9 } }, verdicts)
+
+test('the model cannot change what is locked: a done to-do, an acknowledged heads-up, a dismissed card', () => {
+  const result = guarded([
+    { op: 'todo.upsert', id: 't1', text: 'Rewritten', reason: 'r' },
+    { op: 'todo.upsert', id: 't1', status: 'open', reason: 'r' },
+    { op: 'todo.remove', id: 't1', reason: 'r' },
+    { op: 'headsup.upsert', id: 'h1', what: 'Rewritten', reason: 'r' },
+    { op: 'headsup.remove', id: 'h1', reason: 'r' },
+    { op: 'freeform.upsert', id: 'f1', bodyRef: 'x', reason: 'r' },
+  ])
+  expect([result.update.ops, result.ignored, result.repairs]).toEqual([[], 6, 0])
+})
+
+test('a to-do the user checked is locked before a rebuild takes the check in', () => {
+  const result = guarded([{ op: 'todo.upsert', id: 't2', text: 'Rewritten', reason: 'r' }], { 'todo:t2': { verdict: 'done' } })
+  expect([result.update.ops, result.ignored]).toEqual([[], 1])
+})
+
+test('open items carry no limit: every rewrite and removal passes, so a turn can act on whatever the user just said', () => {
+  const ops = [
+    { op: 'todo.upsert', id: 't2', text: 'Rewritten', reason: 'r' },
+    { op: 'todo.remove', id: 't3', reason: 'r' },
+    { op: 'headsup.upsert', id: 'h2', what: 'Rewritten', reason: 'r' },
+    { op: 'headsup.remove', id: 'h2', reason: 'r' },
+    { op: 'cta.upsert', id: 'c1', text: 'Reworded?', reason: 'r' },
+  ]
+  const result = guarded(ops)
+  expect([result.update.ops, result.ignored, result.repairs]).toEqual([ops, 0, 5])
+})
+
+test('progress is no repair: a status change, a resolved ask and a new item are not counted as one', () => {
+  const ops = [
+    { op: 'todo.upsert', id: 't2', status: 'done', reason: 'r' },
+    { op: 'cta.remove', id: 'c1', reason: 'r' },
+    { op: 'todo.upsert', text: 'A new step', reason: 'r' },
+    { op: 'headsup.upsert', sev: 'flag', what: 'A new row', why: 'y', reason: 'r' },
+  ]
+  const result = guarded(ops)
+  expect([result.update.ops, result.ignored, result.repairs]).toEqual([ops, 0, 0])
+})
+
+test('an upsert that changes nothing is dropped, so a stable item keeps its stamps', () => {
+  const result = guarded([
+    { op: 'todo.upsert', id: 't2', text: 'open  STEP', reason: 'r' },
+    { op: 'cta.upsert', id: 'c1', text: 'Go on?', reason: 'r' },
+    { op: 'headsup.upsert', id: 'h2', what: 'Open row', reason: 'r' },
+  ])
+  expect([result.update.ops, result.ignored, result.repairs]).toEqual([[], 0, 0])
+})
+
+test('a dropped step or a dismissed ask can come back: the user may ask for it in the chat', () => {
+  const verdicts = { 'todo:t9': { verdict: 'dropped', text: 'Old step' }, 'cta:c9': { verdict: 'dismissed', text: 'Old ask?' } }
+  const ops = [{ op: 'todo.upsert', text: 'Old step', reason: 'r' }, { op: 'cta.upsert', text: 'Old ask?', reason: 'r' }]
+  const result = guarded(ops, verdicts)
+  expect([result.update.ops, result.ignored]).toEqual([ops, 0])
+})
+
+test('an open to-do and an open heads-up can be removed, with a reason', () => {
+  const update = updateOf({ ops: [{ op: 'todo.remove', id: 't2', reason: 'never a plan step' }, { op: 'headsup.remove', id: 'h2', reason: 'proved wrong' }] })
+  // When
+  const board = applyOps(LOCK_BOARD, update, {}, 21, () => '')
+  // Then
+  expect(board.todo.map(it => it.id)).toEqual(['t1', 't3'])
+  expect(board.headsup.map(it => it.id)).toEqual(['h1'])
+  expect(() => updateOf({ ops: [{ op: 'todo.remove', id: 't2' }] })).toThrow(UpdateError)
+})
+
+test('the task keeps items stable by default', () => {
+  const { user } = assemblePrompt({ board: boardOf({}), turns: [], turn: 1, systemTemplate: '', verdicts: {}, acks: {} })
+  expect(user).toContain('Items are stable by default')
+  expect(user).toContain('or the user asks for the change')
+  expect(user).not.toContain('repairs are open')
+  expect(user).not.toContain('get consolidated, rewritten, or removed')
+})
+
+test('reasoning before the blocks that names the update or a card block changes nothing that is read', () => {
+  const raw = [
+    'I will re-upsert the card with a <freeform ref="install"> block, after an <update> that closes with </update>.',
+    '<update>',
+    '{"ops":[{"op":"freeform.upsert","bodyRef":"install"}]}',
+    '</update>',
+    '<freeform ref="install">',
+    '## Install path',
+    '',
+    'Run install.',
+    '</freeform>',
+  ].join('\n')
+  // When
+  const answer = parseAnswer(raw)
+  // Then
+  expect(answer.update.ops.map(op => op.op)).toEqual(['freeform.upsert'])
+  expect(answer.bodies).toEqual({ install: '## Install path\n\nRun install.' })
+  expect(answer.notes).toEqual([])
 })
 
 test('a diagram is well-formed XML: tags close in order, values are quoted, entities are XML\'s own', () => {
@@ -241,6 +356,21 @@ test('a newest turn too long for the prompt has its tool output cut, never the t
   expect(estimateWords('one two, three')).toBe(4)
 })
 
+test('a newest turn whose tool inputs and prose are too long still fits the transcript budget', () => {
+  const words = (count: number) => Array.from({ length: count }, (_, i) => `w${i % 10}`).join(' ')
+  const writes = Array.from({ length: 30 }, (_, i) => ({ id: `u${i}`, name: 'Write', input: { file_path: `f${i}.ts`, content: words(7_000) } }))
+  const turns: TurnRecord[] = [
+    { turn: 1, rows: [rowOfText('user', 'Write the files.'), { role: 'assistant', text: words(50_000), toolUses: writes }] },
+  ]
+  // When
+  const prompt = assemblePrompt({ board: boardOf({}), turns, turn: 1, systemTemplate: '', verdicts: {}, acks: {} })
+  // Then
+  expect(prompt.isTruncated).toBe(true)
+  expect(prompt.transcriptWords).toBeLessThan(100_100)
+  expect(estimateWords(prompt.user)).toBeLessThan(110_000)
+  expect(prompt.user).toContain('Write the files.')
+})
+
 const message = (role: 'user' | 'assistant', text: string, extra: object = {}) => ({ role, text, toolUses: [], ...extra })
 
 test('a message the user sends opens a turn; a notice, a peer or another plugin does not', () => {
@@ -284,6 +414,36 @@ test('a tail file holds its turn; a file holding another turn, or damaged, is no
   expect(tailRecordOf('{"turn": 5, "rows": [', 5)).toBeNull()
 })
 
+// UTF-8 bytes of a text, as the engine counts a file it writes.
+const bytesOf = (text: string) => [...text].reduce((sum, char) => sum + ((char.codePointAt(0) ?? 0) < 0x80 ? 1 : (char.codePointAt(0) ?? 0) < 0x800 ? 2 : (char.codePointAt(0) ?? 0) < 0x10000 ? 3 : 4), 0)
+
+test('a tail file stays under the 4 MiB the engine writes, counted in bytes, however large its turn', () => {
+  const output = 'ж'.repeat(25_000)
+  const rows = [
+    message('user', 'Read every log.'),
+    ...Array.from({ length: 220 }, (_, i) => message('user', '', { toolResults: [{ tool_use_id: `u${i}`, text: output }] })),
+    message('assistant', 'Read them all.'),
+  ]
+  // When
+  const record = tailOf(7, rows)
+  // Then
+  expect(bytesOf(JSON.stringify(record))).toBeLessThan(4 * 1024 * 1024)
+  expect(record.turn).toBe(7)
+  expect(record.rows[0]?.text).toBe('Read every log.')
+  expect(record.rows.at(-1)?.text).toBe('Read them all.')
+})
+
+test('a rate limit that outlasts its retry says what is known: a limit, short or the usage limit, and nothing lost', () => {
+  const errors: RebuildError[] = [{ id: 'err-1', at: 1, lastAt: 1, count: 1, code: codeOfApiError('rate_limit'), kind: 'rate_limit', message: 'the model call failed: rate_limit (HTTP 429)', ackedAt: null, resolvedAt: null }]
+  // When
+  const status = statusOf({ errors, rebuiltAt: 1, runningSince: null, unbuiltTurns: 0, stats: null } as never, 100)
+  // Then
+  const notice = status.notices[0]
+  expect([notice?.severity, notice?.title]).toEqual(['degraded', 'Claude is limiting requests, so this rebuild did not run.'])
+  expect(notice?.what).toContain('a short rate limit or your usage limit')
+  expect(status.label).toBe('rate limited')
+})
+
 test('a repeat of an open problem counts up; the chip names the newest and how many are open', () => {
   let errors: RebuildError[] = []
   const add = (code: string, at: number) => (errors = withError(errors, { code, kind: 'k', message: 'm' }, at, () => `err-${at}-00000000`))
@@ -307,6 +467,7 @@ test('a fork\'s earlier messages are the user\'s own before its first new prompt
     message('user', 'A'),
     message('assistant', 'a'),
     message('user', '', { toolResults: [{ tool_use_id: 'u', text: 'out', isError: false }] }),
+    message('user', '<task-notification>tests passed</task-notification>'),
     message('user', 'B'),
     message('user', 'New'),
   ]
@@ -314,7 +475,7 @@ test('a fork\'s earlier messages are the user\'s own before its first new prompt
   expect(earlierPromptsOf(messages, [])).toEqual(['A', 'B', 'New'])
   expect(forkPointOf(['ha', 'hb'], ['3:ha', '4:hb', '5:hc'])).toEqual({ turn: 4, shared: 2 })
   expect(forkPointOf(['ha', 'hx'], ['3:ha'])).toBeNull()
-  expect(forkPointOf(['ha'], ['3:ha'])).toEqual({ turn: 3, shared: 1 })
+  expect(forkPointOf(['ha'], ['3:ha'])).toBeNull()
   expect(forkPointOf([], ['3:ha'])).toBeNull()
 })
 
@@ -338,7 +499,7 @@ test('the stats line shows total tokens, and the cached part only when every reb
 
 // ─── The op-set schema the model is shown, against the board's own checks ──
 
-type FieldSchema = { type?: string; maxLength?: number; enum?: string[]; items?: FieldSchema; maxItems?: number; minItems?: number; anyOf?: FieldSchema[]; $ref?: string; const?: string }
+type FieldSchema = { type?: string; minLength?: number; maxLength?: number; enum?: string[]; items?: FieldSchema; maxItems?: number; minItems?: number; anyOf?: FieldSchema[]; $ref?: string; const?: string }
 type OpSchema = { properties: Record<string, FieldSchema>; required?: string[] }
 
 const SCHEMA = JSON.parse(OUTPUT_FORMAT.slice(OUTPUT_FORMAT.indexOf('{\n "$defs"'), OUTPUT_FORMAT.indexOf('\nOnly the content'))) as {
@@ -373,7 +534,13 @@ function casesOf(shape: FieldSchema): [string, unknown, boolean][] {
       ['an item past its limit', [`${item}x`], false],
     ]
   }
-  if (shape.maxLength !== undefined) return [[`${shape.maxLength} characters`, 'x'.repeat(shape.maxLength), true], [`${shape.maxLength + 1} characters`, 'x'.repeat(shape.maxLength + 1), false]]
+  if (shape.maxLength !== undefined) {
+    return [
+      [`${shape.maxLength} characters`, 'x'.repeat(shape.maxLength), true],
+      [`${shape.maxLength + 1} characters`, 'x'.repeat(shape.maxLength + 1), false],
+      ...(shape.minLength ? [['empty', '', false] as [string, unknown, boolean]] : []),
+    ]
+  }
   return [['text', 'text-1', true]]
 }
 

@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { bandOf } from '../hooks/band-model'
+import { boardOf } from '../hooks/board'
 import { type Io, rebuildChat, readState, recordTurns, saveSettings, setVerdict, settingsOf } from '../hooks/rebuild'
 import { forkPointOf, turnsOf } from '../hooks/turns'
 
@@ -72,13 +73,21 @@ const seed = (f: Fake, extra: object = {}) => {
 }
 
 const answered = (text: string) => ({ isAnswered: true, text, usage: { input_tokens: 1, output_tokens: 1 } })
-const settle = () => new Promise<void>(resolve => setTimeout(() => resolve(), 20))
+// Waits for the rebuild's next model call, however long the work before it takes on a busy machine.
+const nextCall = async (f: Fake) => {
+  for (let waited = 0; f.completes.length === 0 && waited < 2_000; waited += 5) await new Promise<void>(resolve => setTimeout(() => resolve(), 5))
+}
 
 test('a fork is found only where the new chat\'s earlier prompts line up with the other chat\'s, in order', () => {
   // The same prompt twice counts once, and two common prompts out of order are no fork.
   expect(forkPointOf(['hyes', 'hyes'], ['4:hyes'])).toBeNull()
   expect(forkPointOf(['ha', 'hb'], ['3:hb', '7:ha'])).toBeNull()
   expect(forkPointOf(['ha', 'hb'], ['2:hc', '3:hb', '7:ha'])).toBeNull()
+  // One shared prompt is no fork, even in a chat of one message.
+  expect(forkPointOf(['h1'], ['1:h1', '2:h2'])).toBeNull()
+  // Nor are two shared prompts in a chat of many others, while half of them is.
+  expect(forkPointOf(['h1', 'h2', 'x1', 'x2', 'x3'], ['1:h1', '2:h2', '3:h3'])).toBeNull()
+  expect(forkPointOf(['h1', 'h2', 'x1', 'x2'], ['1:h1', '2:h2', '3:h3'])).toEqual({ turn: 2, shared: 2 })
   // A real fork's prompts are the other chat's, in its order, up to the turn it left.
   expect(forkPointOf(['h1', 'h2', 'h3'], ['1:h1', '2:h2', '3:h3', '4:h4'])).toEqual({ turn: 3, shared: 3 })
   // A message that opened no turn there, such as a notice, is passed over, the last one too.
@@ -122,7 +131,7 @@ test('an undo pressed while a rebuild runs stays undone when the rebuild saves',
   const f = fakeIo()
   seed(f, { verdicts: { 'cta:c1': { verdict: 'dismissed', at: 1, turn: 5, text: 'Ask one' } } })
   const running = rebuildChat(f.io, CHAT, { model: 'sonnet', timeoutSeconds: 180 })
-  await settle()
+  await nextCall(f)
   // When
   await setVerdict(f.io, CHAT, 'cta', 'c1', null)
   f.completes.shift()?.(answered('<update>{"ops":[]}</update>'))
@@ -136,7 +145,7 @@ test('an undo pressed while a rebuild runs stays undone when the rebuild saves',
 test('a time limit saved while a new model is checked is kept', async () => {
   const f = fakeIo()
   const picking = saveSettings(f.io, { model: 'opus' })
-  await settle()
+  await nextCall(f)
   // When
   await saveSettings(f.io, { timeoutSeconds: '300' })
   f.completes.shift()?.(answered('OK'))
@@ -149,7 +158,7 @@ test('the model check asks for as much output as a rebuild, so a model that cann
   const f = fakeIo()
   // When
   const picking = saveSettings(f.io, { model: 'opus' })
-  await settle()
+  await nextCall(f)
   f.completes.shift()?.(answered('OK'))
   await picking
   // Then
@@ -160,10 +169,10 @@ test('a rebuild and its second try share one time limit', async () => {
   const f = fakeIo()
   seed(f)
   const running = rebuildChat(f.io, CHAT, { model: 'sonnet', timeoutSeconds: 60 })
-  await settle()
+  await nextCall(f)
   // When
   f.completes.shift()?.(answered('no update here'))
-  await settle()
+  await nextCall(f)
   f.completes.shift()?.(answered('<update>{"ops":[]}</update>'))
   await running
   // Then
@@ -175,18 +184,53 @@ test('a busy model asked again, then a rejected answer, still sends the answer b
   const f = fakeIo()
   seed(f)
   const running = rebuildChat(f.io, CHAT, { model: 'sonnet', timeoutSeconds: 60 })
-  await settle()
+  await nextCall(f)
   // When
   f.completes.shift()?.({ isAnswered: false, reason: 'api-error', status: 529, error: 'overloaded', usage: { input_tokens: 0, output_tokens: 0 } })
-  await settle()
+  await nextCall(f)
   f.completes.shift()?.(answered('no update here'))
-  await settle()
+  await nextCall(f)
   f.completes.shift()?.(answered('still no update'))
   const result = await running
   // Then
   expect(f.requests).toHaveLength(3)
   expect(result).toEqual({ outcome: 'failed', code: 'rebuild.bad_output' })
   expect((await readState(f.io, CHAT)).regenErrors?.[0]?.message).toBe('the corrected answer was rejected too: no complete <update>…</update> block in the reply')
+})
+
+test('a rebuild leaves locked items as they are, an ack made while it runs included, and counts what it ignored', async () => {
+  const f = fakeIo()
+  const headsup = [{ id: 'h1', sev: 'flag', what: 'Seen row', why: 'y', where: '', created_turn: 1, changed_turn: 1 }]
+  const todo = [{ id: 't9', text: 'Done step', status: 'done', created_turn: 1, changed_turn: 1, done_turn: 1 }]
+  seed(f, { model: { ...BOARD, headsup, todo } })
+  const running = rebuildChat(f.io, CHAT, { model: 'haiku', timeoutSeconds: 60 })
+  await nextCall(f)
+  // When
+  const path = `${CHAT.dir}/state.json`
+  f.files[path] = JSON.stringify({ ...JSON.parse(f.files[path] as string), acks: { h1: { ackedAt: 1, turn: 5 } } })
+  f.completes.shift()?.(answered('<update>{"ops":[{"op":"headsup.upsert","id":"h1","what":"Rewritten","reason":"r"},{"op":"todo.upsert","id":"t9","text":"Rewritten","reason":"r"}]}</update>'))
+  await running
+  // Then
+  const state = await readState(f.io, CHAT)
+  const board = boardOf(state.model)
+  expect([board.headsup[0]?.what, board.todo[0]?.text]).toEqual(['Seen row', 'Done step'])
+  expect(state.stats?.ignoredOps).toBe(2)
+  expect(state.stats?.repairOps).toBeUndefined()
+})
+
+test('a rebuild counts its repairs, for a look at how often a chat rewrites its items', async () => {
+  const f = fakeIo()
+  seed(f)
+  const running = rebuildChat(f.io, CHAT, { model: 'haiku', timeoutSeconds: 60 })
+  await nextCall(f)
+  // When
+  f.completes.shift()?.(answered('<update>{"ops":[{"op":"todo.upsert","id":"t1","text":"A real plan step","reason":"it read like a log line"}]}</update>'))
+  await running
+  // Then
+  const state = await readState(f.io, CHAT)
+  expect(boardOf(state.model).todo[0]?.text).toBe('A real plan step')
+  expect(state.stats?.repairOps).toBe(1)
+  expect(state.stats?.ignoredOps).toBeUndefined()
 })
 
 test('a call the engine refuses to send (a blocked model, an output limit) shows as a refused request', async () => {
@@ -226,6 +270,29 @@ test('a prompt typed over the running turn and not in its messages yet waits for
   expect((await readState(f.io, CHAT)).turns?.count).toBe(6)
 })
 
+test('a prompt typed over the running turn is not taken for an older copy of it in the chat', async () => {
+  const f = fakeIo()
+  seed(f)
+  const messages = [userSays('Plan it.'), assistantSays('Shall I go?'), userSays('yes'), assistantSays('Went.'), userSays('Ship it.'), assistantSays('Shipped.')]
+  // When
+  const recorded = await recordTurns(f.io, CHAT, [{ text: 'Ship it.', isMidTurn: false }, { text: 'yes', isMidTurn: true }], messages, 'yes')
+  // Then
+  expect(recorded).toBe(1)
+  expect((await readState(f.io, CHAT)).turns?.count).toBe(6)
+  expect(JSON.parse(f.files[`${CHAT.dir}/tail-0.json`] as string).rows.map((row: { text: string }) => row.text)).toEqual(['Ship it.', 'Shipped.'])
+})
+
+test('a prompt typed over the running turn that the turn already holds is recorded, after the prompt before it', async () => {
+  const f = fakeIo()
+  seed(f)
+  const messages = [userSays('yes'), assistantSays('Went.'), userSays('Ship it.'), assistantSays('On it.'), userSays('yes'), assistantSays('Shipped.')]
+  // When
+  const recorded = await recordTurns(f.io, CHAT, [{ text: 'Ship it.', isMidTurn: false }, { text: 'yes', isMidTurn: true }], messages, 'yes')
+  // Then
+  expect(recorded).toBe(2)
+  expect((await readState(f.io, CHAT)).turns?.count).toBe(7)
+})
+
 test('a code block too long for one Markdown piece is closed and opened again at each cut', () => {
   const code = Array.from({ length: 700 }, (_, i) => `line ${i} of the listing`).join('\n')
   const body = `## Listing\n\n\`\`\`ts\n${code}\n\`\`\`\n\nAfter the code.`
@@ -244,7 +311,7 @@ test('a call switched while a rebuild runs is saved as switched', async () => {
   const f = fakeIo()
   seed(f, { verdicts: { 'todo:t1': { verdict: 'done', at: 1, turn: 5, text: 'Step' } } })
   const running = rebuildChat(f.io, CHAT, { model: 'sonnet', timeoutSeconds: 180 })
-  await settle()
+  await nextCall(f)
   // When
   await setVerdict(f.io, CHAT, 'todo', 't1', null)
   await setVerdict(f.io, CHAT, 'todo', 't1', 'dropped')
@@ -259,7 +326,7 @@ test('a busy model with too little time left to wait for shows as busy, not as o
   const f = fakeIo()
   seed(f)
   const running = rebuildChat(f.io, CHAT, { model: 'sonnet', timeoutSeconds: 6 })
-  await settle()
+  await nextCall(f)
   // When
   f.completes.shift()?.({ isAnswered: false, reason: 'api-error', status: 529, error: 'overloaded', usage: { input_tokens: 0, output_tokens: 0 } })
   const result = await running

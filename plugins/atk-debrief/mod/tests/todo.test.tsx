@@ -148,6 +148,19 @@ test('the 📋 chip opens the to-do view: a title row with the bar, the counts a
   await ui.unmount()
 })
 
+test('a done step keeps a drop button: the model cannot correct it, the user can', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = world(on, { ...MODEL, todo: TODOS })
+  const ui = await mountBand($, w)
+  await ui.press({ key: 'todos' })
+  await ui.press({ key: 'done-toggle' })
+  // When
+  await ui.press({ key: `drop-${DONE_TODO.id}` })
+  await w.clock.settle()
+  // Then
+  expect(w.state.verdicts).toEqual({ [`todo:${DONE_TODO.id}`]: { verdict: 'dropped', at: NOW_S, turn: MODEL.turn, text: DONE_TODO.text } })
+  await ui.unmount()
+})
+
 test('done steps fold behind a count on the title row, and show first, with when each was done', { timeoutMs: 20_000 }, async ($, on) => {
   const w = world(on, { ...MODEL, turn_base: 100, todo: TODOS })
   const ui = await mountBand($, w)
@@ -162,7 +175,7 @@ test('done steps fold behind a count on the title row, and show first, with when
   expect(ages).toEqual(['done 17 turns ago', '19 turns ago', '16 turns ago', 'this turn', '1 turn ago'])
   expect((await ui.find({ type: 'Markdown', text: DONE_TODO.text }))?.props.dimColor).toBe(true)
   expect(await ui.find({ key: `check-${DONE_TODO.id}` })).toBeUndefined()
-  expect(await ui.find({ key: `drop-${DONE_TODO.id}` })).toBeUndefined()
+  expect((await ui.find({ key: `drop-${DONE_TODO.id}` }))?.props.label).toBe('🗑')
   expect((await ui.find({ key: 'done-toggle' }))?.props.label).toBe('▾ 2 done')
   await ui.unmount()
 })

@@ -8,7 +8,7 @@ A live dashboard for every Claude Code chat, in a band above the prompt: what th
 along the work is, and what you would otherwise miss, in structured form and a click away. You do nothing to make it
 happen. After each turn, a small model call (Haiku by default, on your own account) rebuilds it from the chat.
 
-**Beta (0.1.0).** Expect rough edges, and please [report a problem](#report-a-problem) when you find one.
+**Beta (0.1.1).** Expect rough edges, and please [report a problem](#report-a-problem) when you find one.
 
 ![The band above the prompt: the phase and turn, a chip per section, the status dot and age, settings and rebuild, the last turn in bullets, then each open ask, numbered, with reply and dismiss](assets/band.png)
 
@@ -31,7 +31,7 @@ happen. After each turn, a small model call (Haiku by default, on your own accou
   acknowledges one and it folds away.
 - **🔗 Links**: the issue, the PR, the branch or the design doc you keep going back to.
 - **🧩 Freeform cards**: designs, diagrams and key terms in a pane beside the chat, as Markdown and SVG drawn in your
-  theme's colours. The pane opens by itself when a card is new or changes.
+  theme's colours. The pane opens by itself when a chat has live cards, and again when one is new or changes.
 - **Status**: a dot and the dashboard's age: 🟢 current, 🔵 updating, 🟡 behind or 🔴 a problem. Its view holds the
   chat's rebuild totals and the steps that fix a problem.
 
@@ -93,8 +93,9 @@ atk add atk-debrief
 
 ## Cost
 
-- At most one rebuild per turn you send, plus one per ↻ press. A rebuild calls the model through your own Claude
-  Code sign-in: on a subscription it counts against your usage limits; on API billing it is charged.
+- One rebuild per turn the agent finishes, plus one per ↻ press. A turn that a task notice or `/loop` starts counts
+  too, so a `/loop` every few minutes rebuilds as often. A rebuild calls the model through your own Claude Code
+  sign-in: on a subscription it counts against your usage limits; on API billing it is charged.
 - A typical rebuild on Haiku: about 50,000 tokens in and 4,000 out, in about 20 seconds.
 - A rebuild makes at most three calls: one more after a busy or rate-limited reply, and one more to correct an
   answer the dashboard cannot use. Picking a new model in the settings makes one short check call.
@@ -106,7 +107,7 @@ atk add atk-debrief
 
 - Its only outside call is the model call, made through Claude Code to the model you set.
 - A rebuild sends the model the dashboard, the newest turn with its tool calls and output, and the two turns before
-  it as text.
+  it as text: at most about 100,000 words of the chat, with the middle of longer output cut.
 - Each chat's dashboard is `state.json` in Claude Code's folder for that chat, under `~/.claude/projects/` (or
   `$CLAUDE_CONFIG_DIR/projects/`). Beside it, `tail-0.json` to `tail-2.json` hold the chat's last three turns, tool
   input and output included.
@@ -121,6 +122,8 @@ atk add atk-debrief
   opens none; what it adds goes into the turn it lands in.
 - When a turn ends, the mod records it and rebuilds the dashboard in the background. The model's prompt is
   [`mod/SYSTEM.md`](mod/SYSTEM.md); it answers with schema-checked edits that the mod folds into the dashboard.
+- Items stay put. A done to-do and an acknowledged heads-up are locked: the model cannot change them. Open items are
+  left alone unless they are clearly wrong or useless, or you ask for a change. Your own ✓ and 🗑 always work.
 - A turn you stop is recorded but not rebuilt: the status shows 🟡 behind until your next turn, or ↻.
 - A rebuild that fails leaves the dashboard as it was and shows as a problem in the status view until a rebuild
   succeeds.

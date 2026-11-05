@@ -5,7 +5,7 @@
 import type { ModelCompleteRequest, ModelCompleteResult, SessionMessage } from 'claude-code'
 
 import { AnswerError, parseAnswer } from './answer'
-import { type Ack, applyOps, applyVerdicts, boardAt, boardOf, keptBeside, verdictKeyOf, type VerdictRecord } from './board'
+import { type Ack, applyOps, applyVerdicts, boardAt, boardOf, guardOps, keptBeside, verdictKeyOf, type VerdictRecord } from './board'
 import { assemblePrompt, retryPromptOf, type TurnRecord } from './prompt'
 import { codeOfApiError, isPassing, type RebuildError, type RebuildStats, resolvedErrors, withError } from './status'
 import { earlierPromptsOf, forkPointOf, latestTurnOf, type PendingPrompt, recordableOf, squeezed, startOf, TAIL_SLOTS, tailOf, tailPathOf, tailRecordOf, turnsOf } from './turns'
@@ -296,7 +296,7 @@ export function adoptFork(io: Io, chat: Chat, messages: SessionMessage[]): Promi
  */
 export function recordTurns(io: Io, chat: Chat, pending: PendingPrompt[], messages: SessionMessage[], lastPrompt: string | null): Promise<number> {
   return exclusive(chat, async () => {
-    const recordable = recordableOf(messages, pending)
+    const recordable = recordableOf(messages, pending, lastPrompt)
     const prompts = pending.slice(0, recordable).map(prompt => prompt.text)
     let state = await stateOrFresh(io, chat)
     if (!state.turns && !state.model && !state.parentChecked) {
@@ -432,10 +432,12 @@ export async function rebuildChat(io: Io, chat: Chat, settings: Settings): Promi
       const { update, bodies, notes } = parseAnswer(reply.text)
       const hashes = new Map<string, string>()
       for (const body of Object.values(bodies)) hashes.set(body, (await sha256Of(body)).slice(0, 12))
-      const folded = applyOps(raw, update, bodies, count, body => hashes.get(body) ?? '')
       const now = await nowSecondsOf(io)
       const wallMs = (await io.nowMs()) - firstStartedAt
       await changeState(io, chat, fresh => {
+        // What is locked is judged as the state stands now, so an ack or a check made while the model ran counts.
+        const guarded = guardOps(raw, update, fresh.acks ?? {}, fresh.verdicts ?? {})
+        const folded = applyOps(raw, guarded.update, bodies, count, body => hashes.get(body) ?? '')
         // The calls the model read, less any the user took back meanwhile; one made meanwhile waits beside the board
         // for the next rebuild, which reads it.
         const calls = Object.fromEntries(Object.entries(verdicts).filter(([key, call]) => fresh.verdicts?.[key]?.verdict === call.verdict))
@@ -446,7 +448,7 @@ export async function rebuildChat(io: Io, chat: Chat, settings: Settings): Promi
           ...keptBeside(rebuilt, fresh.acks ?? {}, fresh.verdicts ?? {}),
           regenErrors: resolvedErrors(fresh.regenErrors ?? [], now),
           rebuiltAt: now,
-          stats: withRebuild(fresh.stats, spent, wallMs, settings.model),
+          stats: withRebuild(fresh.stats, spent, wallMs, settings.model, guarded),
         }
       })
       return { outcome: 'rebuilt', ops: update.ops.length, notes }
@@ -460,8 +462,10 @@ export async function rebuildChat(io: Io, chat: Chat, settings: Settings): Promi
 
 type Spent = { input: number; cachedInput: number; output: number }
 
-function withRebuild(stats: Partial<RebuildStats> | undefined, spent: Spent, wallMs: number, model: string): RebuildStats {
+function withRebuild(stats: Partial<RebuildStats> | undefined, spent: Spent, wallMs: number, model: string, guarded: { ignored: number; repairs: number }): RebuildStats {
   const models = stats?.models ?? []
+  const ignoredOps = (stats?.ignoredOps ?? 0) + guarded.ignored
+  const repairOps = (stats?.repairOps ?? 0) + guarded.repairs
   return {
     rebuilds: (stats?.rebuilds ?? 0) + 1,
     inputTokens: (stats?.inputTokens ?? 0) + spent.input,
@@ -470,6 +474,8 @@ function withRebuild(stats: Partial<RebuildStats> | undefined, spent: Spent, wal
     outputTokens: (stats?.outputTokens ?? 0) + spent.output,
     wallMs: (stats?.wallMs ?? 0) + wallMs,
     models: models.includes(model) ? models : [...models, model],
+    ...(ignoredOps > 0 ? { ignoredOps } : {}),
+    ...(repairOps > 0 ? { repairOps } : {}),
   }
 }
 

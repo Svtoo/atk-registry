@@ -8,7 +8,7 @@ const TODO_STATUSES = ['open', 'active', 'done', 'blocked'] as const
 type TodoStatus = (typeof TODO_STATUSES)[number]
 
 // A note is a historic row only: the change set cannot raise one.
-type Sev = 'risk' | 'flag' | 'note'
+type Sev = 'risk' | 'flag'
 
 type TodoItem = { id: string; text: string; status: TodoStatus; order: number; created_turn: number; changed_turn: number; done_turn: number; reason: string }
 type LinkItem = { id: string; label: string; url: string; kind: string; order: number; changed_turn: number; reason: string }
@@ -44,7 +44,13 @@ const MAX_VERDICTS = 50
 type Json = Record<string, unknown>
 
 const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value)
-const str = (value: unknown, fallback = '') => (typeof value === 'string' ? value : fallback)
+// The control characters the engine refuses in drawn text, as a model copies them from coloured tool output: an ANSI
+// escape sequence whole, then every other control character but a tab and a line break.
+const ANSI_SEQUENCE = /\u001b\[[0-?]*[ -/]*[@-~]/g
+const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g
+export const withoutControls = (text: string) => text.replace(ANSI_SEQUENCE, '').replace(CONTROL, '')
+
+const str = (value: unknown, fallback = '') => (typeof value === 'string' ? withoutControls(value) : fallback)
 const int = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : 0)
 const listOf = (value: unknown): Json[] => (Array.isArray(value) ? value.filter(isObject) : [])
 const oneOf = <T extends string>(choices: readonly T[], value: unknown, fallback: T): T =>
@@ -78,7 +84,7 @@ export function boardOf(stored: unknown): Board {
     turn: int(stored.turn),
     turn_base: int(stored.turn_base),
     seq: int(stored.seq),
-    last_turn: { bullets: Array.isArray(last.bullets) ? last.bullets.filter(b => typeof b === 'string') : [], turn: int(last.turn) },
+    last_turn: { bullets: Array.isArray(last.bullets) ? last.bullets.filter(b => typeof b === 'string').map(withoutControls) : [], turn: int(last.turn) },
     links: listOf(stored.links).map(it => ({
       id: str(it.id), label: str(it.label), url: str(it.url), kind: str(it.kind), order: int(it.order), changed_turn: int(it.changed_turn), reason: str(it.reason),
     })),
@@ -90,7 +96,7 @@ export function boardOf(stored: unknown): Board {
       created_turn: int(it.created_turn), changed_turn: int(it.changed_turn), done_turn: int(it.done_turn), reason: str(it.reason),
     })),
     headsup: listOf(stored.headsup).map(it => ({
-      id: str(it.id), sev: oneOf<Sev>(['risk', 'flag', 'note'], it.sev, 'note'), what: str(it.what), why: str(it.why), where: str(it.where),
+      id: str(it.id), sev: oneOf<Sev>(['risk', 'flag'], it.sev, 'flag'), what: str(it.what), why: str(it.why), where: str(it.where),
       order: int(it.order), created_turn: int(it.created_turn), changed_turn: int(it.changed_turn), reason: str(it.reason),
     })),
     freeform: listOf(stored.freeform).map(it => ({
@@ -131,27 +137,30 @@ export function splitVerdictKey(key: string): [string, string] {
 
 type Op =
   | { op: 'todo.upsert'; id?: string; text?: string; status?: TodoStatus; reason: string }
+  | { op: 'todo.remove'; id: string; reason: string }
   | { op: 'cta.upsert'; id?: string; text?: string; reason: string }
   | { op: 'cta.remove'; id: string; reason: string }
   | { op: 'link.upsert'; id?: string; label?: string; url?: string; kind?: string; reason: string }
   | { op: 'link.remove'; id: string; reason: string }
   | { op: 'last_turn.set'; bullets: string[] }
   | { op: 'headsup.upsert'; id?: string; sev?: 'risk' | 'flag'; what?: string; why?: string; where?: string; reason: string }
+  | { op: 'headsup.remove'; id: string; reason: string }
   | { op: 'freeform.upsert'; id?: string; bodyRef: string; reason: string }
 
 export type Update = { phase?: Phase; essence?: string; ops: Op[] }
 
 export class UpdateError extends Error {}
 
-type FieldRule = { kind: 'text'; max?: number } | { kind: 'choice'; choices: readonly string[] } | { kind: 'bullets' }
+type FieldRule = { kind: 'text'; max?: number; isFilled?: boolean } | { kind: 'choice'; choices: readonly string[] } | { kind: 'bullets' }
 
 // Each op's fields; a field absent here is refused, so a misspelt one fails loudly instead of passing as an empty change.
 const OP_FIELDS: Record<Op['op'], Record<string, FieldRule>> = {
   'todo.upsert': { id: { kind: 'text' }, text: { kind: 'text', max: SHORT }, status: { kind: 'choice', choices: TODO_STATUSES }, reason: { kind: 'text', max: SHORT } },
+  'todo.remove': { id: { kind: 'text' }, reason: { kind: 'text', max: SHORT, isFilled: true } },
   'cta.upsert': { id: { kind: 'text' }, text: { kind: 'text', max: SHORT }, reason: { kind: 'text', max: SHORT } },
   'cta.remove': { id: { kind: 'text' }, reason: { kind: 'text', max: SHORT } },
   'link.upsert': {
-    id: { kind: 'text' }, label: { kind: 'text', max: SHORT }, url: { kind: 'text', max: SHORT }, kind: { kind: 'text', max: 40 }, reason: { kind: 'text', max: SHORT },
+    id: { kind: 'text' }, label: { kind: 'text', max: SHORT }, url: { kind: 'text', max: SHORT, isFilled: true }, kind: { kind: 'text', max: 40 }, reason: { kind: 'text', max: SHORT },
   },
   'link.remove': { id: { kind: 'text' }, reason: { kind: 'text', max: SHORT } },
   'last_turn.set': { bullets: { kind: 'bullets' } },
@@ -159,12 +168,15 @@ const OP_FIELDS: Record<Op['op'], Record<string, FieldRule>> = {
     id: { kind: 'text' }, sev: { kind: 'choice', choices: ['risk', 'flag'] }, what: { kind: 'text', max: SHORT }, why: { kind: 'text', max: SHORT },
     where: { kind: 'text', max: SHORT }, reason: { kind: 'text', max: SHORT },
   },
+  'headsup.remove': { id: { kind: 'text' }, reason: { kind: 'text', max: SHORT, isFilled: true } },
   'freeform.upsert': { id: { kind: 'text' }, bodyRef: { kind: 'text' }, reason: { kind: 'text', max: SHORT } },
 }
 
 const REQUIRED: Partial<Record<Op['op'], string[]>> = {
+  'todo.remove': ['id', 'reason'],
   'cta.remove': ['id'],
   'link.remove': ['id'],
+  'headsup.remove': ['id', 'reason'],
   'last_turn.set': ['bullets'],
   'freeform.upsert': ['bodyRef'],
 }
@@ -173,7 +185,7 @@ const REQUIRED: Partial<Record<Op['op'], string[]>> = {
 const CREATE_NEEDS: Partial<Record<Op['op'], string[]>> = {
   'todo.upsert': ['text'],
   'cta.upsert': ['text'],
-  'link.upsert': ['label'],
+  'link.upsert': ['label', 'url'],
   'headsup.upsert': ['sev', 'what', 'why'],
 }
 
@@ -189,6 +201,7 @@ function checkField(where: string, name: string, rule: FieldRule, value: unknown
   if (typeof value !== 'string') throw new UpdateError(`${where}.${name}: must be a string`)
   if (rule.kind === 'choice' && !rule.choices.includes(value)) throw new UpdateError(`${where}.${name}: must be one of ${rule.choices.join(', ')}`)
   if (rule.kind === 'text' && rule.max !== undefined && value.length > rule.max) throw new UpdateError(`${where}.${name}: at most ${rule.max} characters`)
+  if (rule.kind === 'text' && rule.isFilled && value.trim() === '') throw new UpdateError(`${where}.${name}: must not be empty`)
   return value
 }
 
@@ -273,6 +286,8 @@ export function applyOps(board: Board, update: Update, bodies: Record<string, st
       it.changed_turn = turn
       // An omitted reason keeps the stored one.
       if (op.reason) it.reason = op.reason
+    } else if (op.op === 'todo.remove') {
+      m.todo = m.todo.filter(item => item.id !== op.id)
     } else if (op.op === 'cta.upsert') {
       if (op.id === undefined) {
         m.cta.push({ id: mint('c'), text: op.text ?? '', order: m.seq, changed_turn: turn, created_turn: turn, reason: op.reason })
@@ -317,6 +332,8 @@ export function applyOps(board: Board, update: Update, bodies: Record<string, st
       if (op.where !== undefined) it.where = op.where
       it.changed_turn = turn
       if (op.reason) it.reason = op.reason
+    } else if (op.op === 'headsup.remove') {
+      m.headsup = m.headsup.filter(item => item.id !== op.id)
     } else if (op.op === 'freeform.upsert') {
       const body = bodies[op.bodyRef]
       if (body === undefined) continue
@@ -335,6 +352,65 @@ export function applyOps(board: Board, update: Update, bodies: Record<string, st
   }
   m.turn = turn
   return m
+}
+
+// ─── What the model may change ───────────────────────────────────────
+
+/** Whether the user acknowledged a heads-up row. */
+export const isAckedRow = (ack: Ack | undefined) => ack !== undefined && Object.keys(ack).length > 0
+
+const isSameText = (a: string, b: string) => a.replace(/\s+/g, ' ').trim().toLowerCase() === b.replace(/\s+/g, ' ').trim().toLowerCase()
+
+/**
+ * The ops the model may make, with how many it may not and how many rewrote or removed a listed item. The dashboard is
+ * the user's: a done to-do, an acknowledged heads-up, a dismissed card and whatever the user has just called are locked.
+ * Everything else stays the model's to change at any turn, as the user may ask for that in the chat. An op that changes
+ * nothing is dropped, so a stable item keeps its stamps. What is ignored costs only that op: the rest of the answer stands.
+ */
+export function guardOps(board: Board, update: Update, acks: Record<string, Ack>, verdicts: Record<string, VerdictRecord>) {
+  const ops: Op[] = []
+  let ignored = 0
+  let repairs = 0
+  const isCalled = (section: 'todo' | 'cta' | 'freeform', id: string) => verdicts[verdictKeyOf(section, id)] !== undefined
+  const isChanged = (text: string | undefined, stored: string) => text !== undefined && !isSameText(text, stored)
+  const repair = (op: Op) => {
+    repairs += 1
+    ops.push(op)
+  }
+
+  for (const op of update.ops) {
+    if (op.op === 'todo.upsert' && op.id !== undefined) {
+      const it = board.todo.find(item => item.id === op.id)
+      if (!it) continue
+      if (it.status === 'done' || isCalled('todo', op.id)) ignored += 1
+      else if (isChanged(op.text, it.text)) repair(op)
+      else if (op.status !== undefined && op.status !== it.status) ops.push(op)
+    } else if (op.op === 'todo.remove') {
+      const it = board.todo.find(item => item.id === op.id)
+      if (!it) continue
+      if (it.status === 'done' || isCalled('todo', op.id)) ignored += 1
+      else repair(op)
+    } else if (op.op === 'cta.upsert' && op.id !== undefined) {
+      const it = board.cta.find(item => item.id === op.id)
+      if (!it || !isChanged(op.text, it.text)) continue
+      if (isCalled('cta', op.id)) ignored += 1
+      else repair(op)
+    } else if (op.op === 'headsup.upsert' && op.id !== undefined) {
+      const it = board.headsup.find(item => item.id === op.id)
+      if (!it) continue
+      if (isAckedRow(acks[op.id])) ignored += 1
+      else if ((op.sev !== undefined && op.sev !== it.sev) || isChanged(op.what, it.what) || isChanged(op.why, it.why) || isChanged(op.where, it.where)) repair(op)
+    } else if (op.op === 'headsup.remove') {
+      if (!board.headsup.some(item => item.id === op.id)) continue
+      if (isAckedRow(acks[op.id])) ignored += 1
+      else repair(op)
+    } else if (op.op === 'freeform.upsert' && op.id !== undefined && (isCalled('freeform', op.id) || (board.freeform.find(item => item.id === op.id)?.dismissed_turn ?? 0) > 0)) {
+      ignored += 1
+    } else {
+      ops.push(op)
+    }
+  }
+  return { update: { ...update, ops }, ignored, repairs }
 }
 
 /** The user's verdicts applied to a copy of the board, without turn stamps; unknown ids are skipped. */

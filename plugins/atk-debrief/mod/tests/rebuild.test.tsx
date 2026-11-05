@@ -63,6 +63,34 @@ test('a message the user sends opens a turn; when it ends the mod records it and
   await ui.unmount()
 })
 
+test('after /clear the chat goes on recording and rebuilding: the next drawing catches up again', { timeoutMs: 20_000 }, async ($, on) => {
+  // At /clear the engine drops every plugin value and keeps the module loaded; no session.start fires.
+  const cleared = { isOn: false, written: new Set<string>() }
+  on('state.set', (_s: any, e: any, next: any) => {
+    if (cleared.isOn) cleared.written.add(e.key)
+    return next(e)
+  })
+  on('state.get', (_s: any, e: any, next: any) =>
+    cleared.isOn && !cleared.written.has(e.key) ? { value: { value: undefined, version: 0 } } : next(e),
+  )
+  const w = world(on)
+  const ui = await mountBand($, w)
+  await ui.unmount()
+  // When
+  cleared.isOn = true
+  const after = await $.ui.mount({ plugin: 'atk-debrief', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+  await w.clock.settle()
+  await w.clock.advance(4_000)
+  await $.prompt.submit(typed('After the clear.'))
+  w.messages = [userSays('After the clear.'), assistantSays('Done.')]
+  await $.turn.complete(turnEnd())
+  await w.clock.settle()
+  // Then
+  expect(w.state.turns?.count).toBe(MODEL.turn + 1)
+  expect(w.requests).toHaveLength(1)
+  await after.unmount()
+})
+
 test('a task notice or a peer\'s message opens no turn; the turn it lands in grows', { timeoutMs: 20_000 }, async ($, on) => {
   const w = world(on)
   const ui = await mountBand($, w)
@@ -396,6 +424,19 @@ test('a new chat that shares only one common prompt with another chat is no fork
   // Then
   expect(w.state.turns?.count).toBe(1)
   expect(w.state.model?.cta ?? []).toEqual([])
+  await ui.unmount()
+})
+
+test('a new chat whose one message is a prompt another chat recorded is no fork of it', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = world(on, null)
+  w.state.turns = null
+  w.files[`${PARENT_DIR}/state.json`] = JSON.stringify({ model: MODEL, turns: { count: 9, endedAt: 1, prompts: [`4:${await fingerprintOf('continue')}`] } })
+  w.messages = [userSays('continue')]
+  // When
+  const ui = await mountBand($, w)
+  // Then
+  expect(w.state.model ?? null).toBeNull()
+  expect(await ui.find({ key: `reply-${MODEL.cta[0]!.id}` })).toBeUndefined()
   await ui.unmount()
 })
 

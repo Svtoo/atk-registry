@@ -43,7 +43,7 @@ export type Model = {
   freeform?: Freeform[]
 }
 
-export type Freeform = { id: string; body: string; changed_turn: number; dismissed_turn: number }
+export type Freeform = { id: string; body: string; hash?: string; changed_turn: number; dismissed_turn: number }
 
 export type Headsup = { id: string; sev: 'risk' | 'flag'; what: string; why: string; where: string; created_turn: number }
 

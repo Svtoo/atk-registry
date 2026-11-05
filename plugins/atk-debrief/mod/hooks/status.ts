@@ -2,6 +2,7 @@
 // Pure, as board.ts.
 
 import type { DebriefFreshness, DebriefNotice, DebriefNoticeStep, DebriefStatus } from '../types'
+import { withoutControls } from './board'
 
 /** A failed rebuild as state.json keeps it; a repeat of an open one with the same code counts up instead of adding. */
 export type RebuildError = {
@@ -37,12 +38,12 @@ const COPY: Record<string, Copy> = {
     steps: [step('Sign in again in Claude Code, with /login.'), step('Then keep working: the next reply rebuilds it.')],
     dismiss: 'none',
   },
-  'account.usage_limit': {
-    severity: 'blocked',
-    title: 'Your Claude usage limit is reached, so rebuilds have paused.',
-    what: 'The dashboard is written with your Claude subscription, which is refusing new work until its limit resets. Nothing is broken and nothing was lost.',
-    label: 'usage limit',
-    steps: [step('Wait for the limit to reset, then keep working: the next reply rebuilds it.')],
+  'account.rate_limited': {
+    severity: 'degraded',
+    title: 'Claude is limiting requests, so this rebuild did not run.',
+    what: 'Claude turned the request down for now: a short rate limit or your usage limit. Nothing is broken and nothing was lost.',
+    label: 'rate limited',
+    steps: [step('Keep working: your next reply rebuilds it. If your usage limit is reached, that works once it resets.')],
     dismiss: 'none',
   },
   'account.no_credit': {
@@ -113,14 +114,14 @@ const ACCOUNT_REFUSALS = new Set(['oauth_org_not_allowed', 'account_on_hold', 'v
 export function codeOfApiError(kind: string): string {
   if (kind === 'authentication_failed') return 'account.signed_out'
   if (kind === 'billing_error') return 'account.no_credit'
-  if (kind === 'rate_limit') return 'account.usage_limit'
+  if (kind === 'rate_limit') return 'account.rate_limited'
   if (kind === 'model_not_found') return 'account.model_denied'
   if (ACCOUNT_REFUSALS.has(kind)) return 'account.refused'
   if (kind === 'invalid_request') return 'rebuild.refused'
   return FALLBACK_CODE
 }
 
-/** An API error that may clear on its own within seconds, worth one more try; a rate limit that stays is a usage limit. */
+/** An API error that may clear on its own within seconds, worth one more try. */
 export const isPassing = (kind: string) => kind === 'overloaded' || kind === 'server_error' || kind === 'rate_limit'
 
 const isOpen = (error: RebuildError) => error.ackedAt === null && error.resolvedAt === null
@@ -163,7 +164,7 @@ function noticeOf(error: RebuildError, nowSeconds: number): DebriefNotice {
     title: copy.title,
     what: copy.what,
     steps: copy.steps,
-    detail: error.message,
+    detail: withoutControls(error.message),
     diagnostics: [
       { label: 'Failure', value: error.code },
       { label: 'Kind', value: error.kind },
@@ -191,6 +192,9 @@ export type RebuildStats = {
   outputTokens: number
   wallMs: number
   models: string[]
+  // Kept to see how a chat behaves, never shown: the model's ops on locked items, and its rewrites and removals of listed ones.
+  ignoredOps?: number
+  repairOps?: number
 }
 
 type StatusFacts = {

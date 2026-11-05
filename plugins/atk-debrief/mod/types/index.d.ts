@@ -4,7 +4,7 @@ export type DebriefLastTurn = { bullets: string[] }
 
 export type DebriefHeadsup = {
   id: string
-  sev: 'risk' | 'flag' | 'note'
+  sev: 'risk' | 'flag'
   what: string
   why: string
   where: string
@@ -69,6 +69,8 @@ export type DebriefFreeform = {
   title: string
   parts: DebriefFreeformPart[]
   changedTurn: number | null
+  /** Its body's fingerprint: a change in the same turn moves this and not `changedTurn`. */
+  hash: string
   dismissedTurn: number | null
   isDismissed: boolean
   isRetired: boolean

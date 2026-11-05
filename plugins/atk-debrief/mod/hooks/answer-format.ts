@@ -118,6 +118,31 @@ The op-set JSON matches this schema:
    ],
    "type": "object"
   },
+  "HeadsupRemove": {
+   "additionalProperties": false,
+   "properties": {
+    "op": {
+     "const": "headsup.remove",
+     "type": "string"
+    },
+    "id": {
+     "description": "id of the open row to remove; acknowledged rows are locked",
+     "type": "string"
+    },
+    "reason": {
+     "description": "what is clearly wrong or useless about it",
+     "maxLength": 400,
+     "minLength": 1,
+     "type": "string"
+    }
+   },
+   "required": [
+    "op",
+    "id",
+    "reason"
+   ],
+   "type": "object"
+  },
   "HeadsupUpsert": {
    "additionalProperties": false,
    "properties": {
@@ -284,6 +309,7 @@ The op-set JSON matches this schema:
      "anyOf": [
       {
        "maxLength": 400,
+       "minLength": 1,
        "type": "string"
       },
       {
@@ -291,7 +317,7 @@ The op-set JSON matches this schema:
       }
      ],
      "default": null,
-     "description": "destination; empty string for a plain reference such as a branch name"
+     "description": "destination, a real URL; a new link needs one"
     },
     "kind": {
      "anyOf": [
@@ -334,6 +360,31 @@ The op-set JSON matches this schema:
     "shipped"
    ],
    "type": "string"
+  },
+  "TodoRemove": {
+   "additionalProperties": false,
+   "properties": {
+    "op": {
+     "const": "todo.remove",
+     "type": "string"
+    },
+    "id": {
+     "description": "id of the open step to remove; done steps are locked",
+     "type": "string"
+    },
+    "reason": {
+     "description": "what is clearly wrong or useless about it",
+     "maxLength": 400,
+     "minLength": 1,
+     "type": "string"
+    }
+   },
+   "required": [
+    "op",
+    "id",
+    "reason"
+   ],
+   "type": "object"
   },
   "TodoStatus": {
    "enum": [
@@ -437,10 +488,12 @@ The op-set JSON matches this schema:
       "cta.remove": "#/$defs/CtaRemove",
       "cta.upsert": "#/$defs/CtaUpsert",
       "freeform.upsert": "#/$defs/FreeformUpsert",
+      "headsup.remove": "#/$defs/HeadsupRemove",
       "headsup.upsert": "#/$defs/HeadsupUpsert",
       "last_turn.set": "#/$defs/LastTurnSet",
       "link.remove": "#/$defs/LinkRemove",
       "link.upsert": "#/$defs/LinkUpsert",
+      "todo.remove": "#/$defs/TodoRemove",
       "todo.upsert": "#/$defs/TodoUpsert"
      },
      "propertyName": "op"
@@ -448,6 +501,9 @@ The op-set JSON matches this schema:
     "oneOf": [
      {
       "$ref": "#/$defs/TodoUpsert"
+     },
+     {
+      "$ref": "#/$defs/TodoRemove"
      },
      {
       "$ref": "#/$defs/CtaUpsert"
@@ -466,6 +522,9 @@ The op-set JSON matches this schema:
      },
      {
       "$ref": "#/$defs/HeadsupUpsert"
+     },
+     {
+      "$ref": "#/$defs/HeadsupRemove"
      },
      {
       "$ref": "#/$defs/FreeformUpsert"

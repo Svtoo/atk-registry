@@ -35,12 +35,27 @@ if [ "$(printf '%s\n%s\n' "$MIN_VERSION" "$CLAUDE_VERSION" | sort -V | head -1)"
   TERMINAL_NOTE="claude ${CLAUDE_VERSION:-of an unknown version} is older than $MIN_VERSION, so a terminal session does not run the mod; the desktop app, where it is supported, does. For the terminal too: claude update"
 fi
 
+# A mod the user paused (claude plugin disable atk-debrief) stays paused through an update, as installing enables it.
+# Without python3 to read the plugin list, an update turns it back on.
+IS_PAUSED=false
+if command -v python3 >/dev/null 2>&1 && claude plugin list --json 2>/dev/null | python3 -c '
+import json, sys
+plugins = json.load(sys.stdin)
+sys.exit(0 if any(p.get("id") == "atk-debrief@atk-debrief" and not p.get("enabled") for p in plugins) else 1)
+' 2>/dev/null; then
+  IS_PAUSED=true
+fi
+
 # Install the ATK Debrief mod for every session. Its marketplace is the mod's
 # own folder, so Claude Code reads the mod in place from $PLUGIN_DIR/mod.
 claude plugin marketplace add "$PLUGIN_DIR/mod" >/dev/null
 claude plugin install atk-debrief@atk-debrief --scope user >/dev/null
+if [ "$IS_PAUSED" = true ]; then
+  claude plugin disable atk-debrief@atk-debrief --scope user >/dev/null
+fi
 
 echo "✓ atk-debrief installed"
 echo "  mod: ATK Debrief (atk-debrief@atk-debrief), read from $PLUGIN_DIR/mod"
 echo "  settings: /debrief-settings in any chat"
+if [ "$IS_PAUSED" = true ]; then echo "  paused, as you left it: claude plugin enable atk-debrief turns it back on"; fi
 if [ -n "${TERMINAL_NOTE:-}" ]; then echo "  note: $TERMINAL_NOTE"; fi

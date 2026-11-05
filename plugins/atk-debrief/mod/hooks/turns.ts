@@ -19,9 +19,11 @@ export const tailPathOf = (dir: string, turn: number) => `${dir}/tail-${turn % T
 
 // What one text of a tail file may hold; the prompt cuts tool output further when a turn is too long for it.
 const MAX_TEXT = 200_000
-// A tail file stays far under the 4 MiB the mod can read back.
-const MAX_TAIL_CHARS = 3_000_000
-const SHORT_TOOL_TEXT = 20_000
+// A tail file stays well under the 4 MiB of UTF-8 the engine writes and reads back.
+const MAX_TAIL_BYTES = 3_000_000
+// A turn too large for a tail file keeps each of its texts shorter, step by step, until it fits.
+const SHORTEST_TEXT = 200
+const SHORTER_TEXTS = [20_000, 2_000, SHORTEST_TEXT]
 
 function cut(text: string, max: number): string {
   if (text.length <= max) return text
@@ -44,11 +46,35 @@ function rowOf(message: SessionMessage, max = MAX_TEXT): TurnRow {
   return row
 }
 
-/** The turn as a tail file holds it; a turn too large for one is kept with shorter tool output. */
+/** A text's size in UTF-8 bytes, as the engine counts a file. */
+export function bytesOf(text: string): number {
+  let bytes = 0
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0
+    bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4
+  }
+  return bytes
+}
+
+/**
+ * The turn as a tail file holds it. A turn too large for one keeps its texts shorter, step by step; a turn of so many
+ * messages that the shortest texts do not fit keeps its prompt and its newest messages that do.
+ */
 export function tailOf(turn: number, messages: SessionMessage[]): TurnRecord {
-  const record = { turn, rows: messages.map(message => rowOf(message)) }
-  if (JSON.stringify(record).length <= MAX_TAIL_CHARS) return record
-  return { turn, rows: messages.map(message => rowOf(message, SHORT_TOOL_TEXT)) }
+  for (const max of [MAX_TEXT, ...SHORTER_TEXTS]) {
+    const record = { turn, rows: messages.map(message => rowOf(message, max)) }
+    if (bytesOf(JSON.stringify(record)) <= MAX_TAIL_BYTES) return record
+  }
+  const [first, ...rest] = messages.map(message => rowOf(message, SHORTEST_TEXT))
+  const kept: TurnRow[] = []
+  let bytes = bytesOf(JSON.stringify({ turn, rows: first ? [first] : [] }))
+  for (const row of rest.reverse()) {
+    const size = bytesOf(JSON.stringify(row)) + 1
+    if (bytes + size > MAX_TAIL_BYTES) break
+    bytes += size
+    kept.unshift(row)
+  }
+  return { turn, rows: first ? [first, ...kept] : kept }
 }
 
 /** The tail file's turn when it holds turn `turn`, else null: a slot from an older turn, or a damaged one. */
@@ -128,13 +154,18 @@ export type PendingPrompt = { text: string; isMidTurn: boolean }
 
 /**
  * How many of the pending prompts a turn's end can record: all but the newest typed over the running turn that the
- * messages do not hold yet, since that one still waits for its own turn.
+ * messages do not hold yet, since that one still waits for its own turn. Only a copy after the prompt before it counts:
+ * "yes" or "continue" may well stand earlier in the chat.
  */
-export function recordableOf(messages: SessionMessage[], pending: PendingPrompt[]): number {
+export function recordableOf(messages: SessionMessage[], pending: PendingPrompt[], lastPrompt: string | null = null): number {
   let count = pending.length
   while (count > 0) {
     const newest = pending[count - 1] as PendingPrompt
-    if (!newest.isMidTurn || promptIndexesOf(messages, [newest.text])[0] !== -1) break
+    if (!newest.isMidTurn) break
+    const previous = count > 1 ? (pending[count - 2] as PendingPrompt).text : lastPrompt
+    const isSameText = previous !== null && squeezed(previous) === squeezed(newest.text)
+    const after = previous === null ? -1 : isSameText ? (promptIndexesOf(messages, [previous, newest.text])[0] ?? -1) : startOf(messages, previous)
+    if (startOf(messages, newest.text) > after) break
     count -= 1
   }
   return count
@@ -149,11 +180,14 @@ export function latestTurnOf(messages: SessionMessage[], prompt: string): Sessio
   return start === -1 ? null : messages.slice(start)
 }
 
-/** The user's messages before the first of `prompts`: what a fork brought from the chat it left. */
+/** What the user typed before the first of `prompts`, less task notices and commands: what a fork brought from the chat it left. */
 export function earlierPromptsOf(messages: SessionMessage[], prompts: string[]): string[] {
   const [first = -1] = prompts.length > 0 ? promptIndexesOf(messages, prompts) : [messages.length]
   const end = first === -1 ? messages.length : first
-  return messages.slice(0, end).filter(m => m.role === 'user' && !m.toolResults?.length && m.text.trim() !== '').map(m => m.text)
+  return messages
+    .slice(0, end)
+    .filter(m => m.role === 'user' && !m.toolResults?.length && m.text.trim() !== '' && !m.text.trimStart().startsWith('<'))
+    .map(m => m.text)
 }
 
 /**
@@ -183,6 +217,7 @@ export function forkPointOf(earlier: string[], prompts: string[]): { turn: numbe
     bound = turn
     shared += 1
   }
-  if (forkTurn === null || shared < Math.min(2, earlier.length)) return null
+  // Common prompts ("continue", "yes") repeat across chats, so a fork shares at least two and half of what it holds.
+  if (forkTurn === null || shared < 2 || shared * 2 < earlier.length) return null
   return { turn: forkTurn, shared }
 }

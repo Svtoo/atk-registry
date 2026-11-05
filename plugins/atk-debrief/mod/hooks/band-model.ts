@@ -81,7 +81,7 @@ const LINK_ICONS: Record<string, string> = { issue: '🎫', pr: '🔀', branch: 
 
 export const linkIconOf = (kind: string) => LINK_ICONS[kind] ?? '🔗'
 
-const SEVERITY_RANK: Record<DebriefHeadsup['sev'], number> = { risk: 0, flag: 1, note: 2 }
+const SEVERITY_RANK: Record<DebriefHeadsup['sev'], number> = { risk: 0, flag: 1 }
 
 const agoOf = (turns: number) => (turns === 0 ? 'this turn' : `${turns} turn${turns === 1 ? '' : 's'} ago`)
 
@@ -320,6 +320,7 @@ export function bandOf(stored: StoredState, status: DebriefStatus): DebriefBand 
         title,
         parts,
         changedTurn: absoluteTurnOf(slot.changed_turn),
+        hash: slot.hash,
         dismissedTurn: absoluteTurnOf(slot.dismissed_turn),
         isDismissed: verdictOf(verdictKeyOf('freeform', slot.id)) === 'dismissed',
         isRetired: slot.dismissed_turn > 0,
