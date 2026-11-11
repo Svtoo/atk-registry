@@ -3,7 +3,7 @@
 // the atoms and builds the presses, and this file draws with the kit.
 import type { ElementTable, RenderElement, RenderSurface } from 'claude-code'
 
-import type { DebriefBand, DebriefBandView, DebriefFreshness, DebriefHeadsup, DebriefNotice, DebriefPhase, DebriefTodo } from '../types'
+import type { DebriefBand, DebriefBandView, DebriefFreshness, DebriefHeadsup, DebriefLink, DebriefNotice, DebriefPhase, DebriefTodo } from '../types'
 import { agoSince, barOf, isLiveCard, linkIconOf, markdownLinkOf, noticeReplyOf, plainOf, replyOf, stepOf, todoAgeOf, whereOf } from './band-model'
 import { ageColor, COLORS, textColorOf } from './colors'
 import { GLYPHS, kitOf } from './kit'
@@ -35,6 +35,7 @@ export type BandLook = {
   openView: DebriefBandView | null
   isFolded: boolean
   isAckedOpen: boolean
+  isDismissedLinksOpen: boolean
   isDoneOpen: boolean
   isResolvedOpen: boolean
   isFreeformOpen: boolean
@@ -50,6 +51,8 @@ export type BandActs = {
   reply: (text: string) => void
   setAsk: (id: string, call: CallOf<'cta'> | null) => void
   setStep: (id: string, call: CallOf<'todo'> | null) => void
+  setLink: (id: string, call: CallOf<'links'> | null) => void
+  toggleDismissedLinks: () => void
   acknowledge: (id: string, isAcknowledged: boolean) => void
   toggleAcked: () => void
   toggleDone: () => void
@@ -62,7 +65,7 @@ export type BandActs = {
 /** Which views have anything to show: a chip shows only for those, and a view opens only while it does. */
 export function viewsOf(b: DebriefBand): Record<DebriefBandView, boolean> {
   return {
-    links: b.links.length > 0,
+    links: b.links.length + b.dismissedLinks.length > 0,
     headsups: b.headsups.length + b.ackedHeadsups.length > 0,
     todos: b.todos.length > 0,
     status: b.hasDashboard || b.status.freshness !== 'current',
@@ -73,7 +76,7 @@ export function drawBand(ui: ElementTable, surface: RenderSurface, b: DebriefBan
   const { Box, Text, Markdown } = ui
   const k = kitOf(ui, surface)
   // ❝ quotes the item into the prompt box, to answer it; the one act on a row drawn bright.
-  const replyTo = (key: string, text: string) => k.action(key, GLYPHS.reply, 'Reply: quote it in the prompt box', () => acts.reply(text), { isDim: false })
+  const replyTo = (key: string, text: string) => k.action(key, GLYPHS.reply, () => acts.reply(text), { isDim: false })
 
   const plan = b.todos.filter(todo => !todo.isDropped)
   const bar = barOf(plan)
@@ -98,7 +101,7 @@ export function drawBand(ui: ElementTable, surface: RenderSurface, b: DebriefBan
         age: agoSince(headsup.raisedTurn, b.turn),
         actions: [
           replyTo(`reply-headsup-${headsup.id}`, replyOf(headsup)),
-          k.action(`ack-${headsup.id}`, GLYPHS.done, 'Acknowledge', () => acts.acknowledge(headsup.id, true)),
+          k.action(`ack-${headsup.id}`, GLYPHS.done, () => acts.acknowledge(headsup.id, true)),
         ],
       },
     )
@@ -129,8 +132,8 @@ export function drawBand(ui: ElementTable, surface: RenderSurface, b: DebriefBan
       mark: k.cell(todo.status),
       age: todoAgeOf(todo, b.turn),
       actions: [
-        !isDone && isCheckable && k.action(`check-${todo.id}`, GLYPHS.done, 'Mark the step done', () => acts.setStep(todo.id, 'done')),
-        k.action(`drop-${todo.id}`, GLYPHS.dismiss, 'Drop the step', () => acts.setStep(todo.id, 'dropped')),
+        !isDone && isCheckable && k.action(`check-${todo.id}`, GLYPHS.done, () => acts.setStep(todo.id, 'done')),
+        k.action(`drop-${todo.id}`, GLYPHS.dismiss, () => acts.setStep(todo.id, 'dropped')),
       ],
     })
   }
@@ -151,11 +154,11 @@ export function drawBand(ui: ElementTable, surface: RenderSurface, b: DebriefBan
         mark: k.warning(PROBLEM_COLORS[problem.severity], problem.severity),
         age: problem.count > 1 ? `× ${problem.count} · ${problem.ago}` : problem.ago,
         actions: [
-          k.action(`notice-details-${problem.id}`, isDetailOpen ? GLYPHS.open : GLYPHS.closed, isDetailOpen ? 'Hide the details' : 'Show the details', () =>
+          k.action(`notice-details-${problem.id}`, isDetailOpen ? GLYPHS.open : GLYPHS.closed, () =>
             acts.toggleDetail(problem.id),
           ),
           replyTo(`reply-notice-${problem.id}`, noticeReplyOf(problem)),
-          problem.dismiss === 'ack' && k.action(`dismiss-notice-${problem.id}`, GLYPHS.dismiss, 'Dismiss the problem', () => acts.dismissProblem(problem.id, true)),
+          problem.dismiss === 'ack' && k.action(`dismiss-notice-${problem.id}`, GLYPHS.dismiss, () => acts.dismissProblem(problem.id, true)),
         ],
       }),
       <Text dimColor>{problem.what}</Text>,
@@ -199,21 +202,30 @@ export function drawBand(ui: ElementTable, surface: RenderSurface, b: DebriefBan
       ],
     )
 
+  const linkRow = (link: DebriefLink) =>
+    k.row(
+      `link-${link.id}`,
+      <Box key={`kind-link-${link.id}`} flexDirection="row" gap={1}>
+        <Text dimColor>{link.kind}</Text>
+        <Markdown text={markdownLinkOf(link.label, link.url)} />
+      </Box>,
+      {
+        mark: <Text>{linkIconOf(link.kind)}</Text>,
+        actions: [k.action(`dismiss-${link.id}`, GLYPHS.dismiss, () => acts.setLink(link.id, 'dismissed'))],
+      },
+    )
   const linksView = () =>
     k.view(
       'view-links',
       k.title('🔗 Links', `· ${b.links.length}`),
-      [],
-      b.links.map(link =>
-        k.row(
-          `link-${link.id}`,
-          <Box key={`kind-link-${link.id}`} flexDirection="row" gap={1}>
-            <Text dimColor>{link.kind}</Text>
-            <Markdown text={markdownLinkOf(link.label, link.url)} />
-          </Box>,
-          { mark: <Text>{linkIconOf(link.kind)}</Text> },
-        ),
-      ),
+      [b.dismissedLinks.length > 0 && k.disclosure('dismissed-links-toggle', `${b.dismissedLinks.length} dismissed`, look.isDismissedLinksOpen, acts.toggleDismissedLinks)],
+      [
+        b.links.length === 0 && !look.isDismissedLinksOpen && k.empty('links-empty', 'Every link dismissed'),
+        ...b.links.map(linkRow),
+        ...(look.isDismissedLinksOpen
+          ? b.dismissedLinks.map(link => k.stub(`dismissed-link-${link.id}`, link.label, `undismiss-${link.id}`, () => acts.setLink(link.id, null)))
+          : []),
+      ],
     )
   const views: Record<DebriefBandView, () => RenderElement> = { links: linksView, headsups: headsupsView, todos: todosView, status: statusView }
   const hasView = viewsOf(b)
@@ -240,7 +252,7 @@ export function drawBand(ui: ElementTable, surface: RenderSurface, b: DebriefBan
             <Text color={textColorOf(phase.color)} wrap="truncate">
               {phase.label}
             </Text>,
-            { key: 'phase-label', text: `Phase: ${phase.label}`, at: 'below' },
+            'phase-label',
           )}
           {k.count('turn', `· ${TURN_GLYPH} ${b.turn}`)}
         </Box>
@@ -260,9 +272,9 @@ export function drawBand(ui: ElementTable, surface: RenderSurface, b: DebriefBan
         {chipOf('todos', `📋 ${doneCount}/${plan.length}`)}
         {statusChip}
         <Box flexDirection="row" gap={1} marginLeft={1}>
-          {k.action('settings', GLYPHS.settings, 'Open the settings', acts.openSettings, { hintAt: 'below' })}
-          {k.action('rebuild', GLYPHS.rebuild, 'Rebuild the dashboard', acts.rebuild, { hotkey: 'r', hintAt: 'below' })}
-          {k.action('band-fold', look.isFolded ? GLYPHS.closed : GLYPHS.open, look.isFolded ? 'Unfold the band' : 'Fold the band', acts.toggleFold, { hintAt: 'below' })}
+          {k.action('settings', GLYPHS.settings, acts.openSettings, { hint: 'Open the settings' })}
+          {k.action('rebuild', GLYPHS.rebuild, acts.rebuild, { hotkey: 'r', hint: 'Rebuild the dashboard' })}
+          {k.action('band-fold', look.isFolded ? GLYPHS.closed : GLYPHS.open, acts.toggleFold, { hint: look.isFolded ? 'Unfold the band' : 'Fold the band' })}
         </Box>
       </Box>
     </Box>
@@ -297,7 +309,7 @@ export function drawBand(ui: ElementTable, surface: RenderSurface, b: DebriefBan
             if (ask.isDismissed) return k.stub(`ask-${ask.id}`, plainOf(ask.text), `undo-${ask.id}`, () => acts.setAsk(ask.id, null))
             return k.row(`ask-${ask.id}`, <Markdown text={ask.text} />, {
               mark: k.badge(index + 1, ageColor(ask.age)),
-              actions: [replyTo(`reply-${ask.id}`, plainOf(ask.text)), k.action(`dismiss-${ask.id}`, GLYPHS.dismiss, 'Dismiss the ask', () => acts.setAsk(ask.id, 'dismissed'))],
+              actions: [replyTo(`reply-${ask.id}`, plainOf(ask.text)), k.action(`dismiss-${ask.id}`, GLYPHS.dismiss, () => acts.setAsk(ask.id, 'dismissed'))],
             })
           }),
         ])}

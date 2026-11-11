@@ -35,6 +35,7 @@ const bandAtom = atom({ plugin: 'atk-debrief', key: 'band' } as const, null)
 // The view open under the header, one at a time.
 const openViewAtom = atom({ plugin: 'atk-debrief', key: 'openView' } as const, null)
 const isAckedOpenAtom = atom({ plugin: 'atk-debrief', key: 'isAckedOpen' } as const, false)
+const isDismissedLinksOpenAtom = atom({ plugin: 'atk-debrief', key: 'isDismissedLinksOpen' } as const, false)
 const isDoneOpenAtom = atom({ plugin: 'atk-debrief', key: 'isDoneOpen' } as const, false)
 // Whether the band shows only its header line.
 const isBandFoldedAtom = atom({ plugin: 'atk-debrief', key: 'isBandFolded' } as const, false)
@@ -428,6 +429,7 @@ export const register: Register = on => {
       openView: await read($, openViewAtom),
       isFolded,
       isAckedOpen: await read($, isAckedOpenAtom),
+      isDismissedLinksOpen: await read($, isDismissedLinksOpenAtom),
       isDoneOpen: await read($, isDoneOpenAtom),
       isResolvedOpen: await read($, isResolvedOpenAtom),
       isFreeformOpen,
@@ -447,6 +449,14 @@ export const register: Register = on => {
       reply: text => void quote($, text).catch(toastOf('Not quoted')),
       setAsk: (id, call) => void saveVerdict($, 'cta', id, call).catch(toastOf('Ask not updated')),
       setStep: (id, call) => void saveVerdict($, 'todo', id, call).catch(toastOf('Step not updated')),
+      // A dismissed link joins the dismissed group, opened to show it there, once the save is done.
+      setLink: (id, call) =>
+        call
+          ? void saveVerdict($, 'links', id, call)
+              .then(() => update($, isDismissedLinksOpenAtom, () => true))
+              .catch(toastOf('Link not dismissed'))
+          : void saveVerdict($, 'links', id, null).catch(toastOf('Link not restored')),
+      toggleDismissedLinks: () => void update($, isDismissedLinksOpenAtom, open => !open),
       // An acknowledged heads-up joins the acknowledged group, opened to show it there, once the save is done.
       acknowledge: (id, isAcknowledged) =>
         isAcknowledged

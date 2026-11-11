@@ -3,6 +3,7 @@ import type {
   DebriefFreeform,
   DebriefFreeformPart,
   DebriefHeadsup,
+  DebriefLink,
   DebriefNotice,
   DebriefStatus,
   DebriefTodo,
@@ -133,7 +134,7 @@ export function noticeReplyOf(notice: DebriefNotice): string {
 }
 
 export function firstBuildOf(status: DebriefStatus): DebriefBand {
-  return { status, hasDashboard: false, phase: null, turn: 0, lastTurn: null, asks: [], headsups: [], ackedHeadsups: [], todos: [], links: [], freeform: [] }
+  return { status, hasDashboard: false, phase: null, turn: 0, lastTurn: null, asks: [], headsups: [], ackedHeadsups: [], todos: [], links: [], dismissedLinks: [], freeform: [] }
 }
 
 // Light and dark values for the theme colours a card's diagram uses.
@@ -264,6 +265,11 @@ export function bandOf(stored: StoredState, status: DebriefStatus): DebriefBand 
   const acks = stored.acks ?? {}
   const verdictOf = (key: string) => stored.verdicts?.[key]?.verdict
   const absoluteTurnOf = (relativeTurn: number) => (relativeTurn ? model.turn_base + relativeTurn : null)
+  // A link needs an address to open; one the user dismissed folds away.
+  const openable = model.links.filter(link => link.url)
+  const isDismissedLink = (link: Board['links'][number]) => verdictOf(verdictKeyOf('links', link.id)) === 'dismissed'
+  const dismissedAtOf = (link: Board['links'][number]) => stored.verdicts?.[verdictKeyOf('links', link.id)]?.at ?? 0
+  const linkOf = (link: Board['links'][number]): DebriefLink => ({ id: link.id, label: plainOf(markdownOf(link.label)), url: link.url, kind: link.kind })
   const headsupOf = (item: Board['headsup'][number]): DebriefHeadsup => ({
     id: item.id,
     sev: item.sev,
@@ -308,9 +314,11 @@ export function bandOf(stored: StoredState, status: DebriefStatus): DebriefBand 
         isDropped: verdict === 'dropped',
       }
     }),
-    links: model.links
-      .filter(link => link.url)
-      .map(link => ({ id: link.id, label: plainOf(markdownOf(link.label)), url: link.url, kind: link.kind })),
+    links: openable.filter(link => !isDismissedLink(link)).map(linkOf),
+    dismissedLinks: openable
+      .filter(isDismissedLink)
+      .sort((a, b) => dismissedAtOf(a) - dismissedAtOf(b))
+      .map(linkOf),
     freeform: model.freeform.map((slot): DebriefFreeform => {
       const body = slot.body
       const isOld = isOldFormat(body)

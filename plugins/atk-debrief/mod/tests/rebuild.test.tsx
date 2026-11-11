@@ -8,6 +8,9 @@ import {
   DESIGN_CARD,
   HEADSUPS,
   HOME,
+  dismissedLinkRows,
+  ISSUE_LINK,
+  linkRows,
   markdownTexts,
   MODEL,
   mountBand,
@@ -15,6 +18,7 @@ import {
   NOW_S,
   OLD_ASK,
   OLD_RISK,
+  PR_LINK,
   PROJECT,
   START,
   TIMEOUT_ERROR,
@@ -585,6 +589,32 @@ test('a press made while a rebuild runs is kept when the rebuild saves', { timeo
   expect(w.state.model?.last_turn.bullets).toEqual(['Rebuilt.'])
   expect(w.state.verdicts[`cta:${OLD_ASK.id}`]?.verdict).toBe('dismissed')
   expect((await ui.find({ key: `undo-${OLD_ASK.id}` }))?.props.label).toBe('↶')
+  await ui.unmount()
+})
+
+test('a dismissed link stays in the dismissed group through a rebuild, which reads it as dismissed and locked', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = world(on, { ...MODEL, links: [ISSUE_LINK, PR_LINK] })
+  w.files[`${CHAT_DIR}/tail-${MODEL.turn % 3}.json`] = JSON.stringify({ turn: MODEL.turn, rows: [{ role: 'user', text: 'Check.' }] })
+  w.answers.push('<update>{"ops":[{"op":"last_turn.set","bullets":["Rebuilt."]}]}</update>')
+  const ui = await mountBand($, w)
+  await ui.press({ key: 'links' })
+  await ui.press({ key: `dismiss-${ISSUE_LINK.id}` })
+  await w.clock.settle()
+  // When
+  await ui.press({ key: 'rebuild' })
+  await w.clock.settle()
+  await w.clock.advance(2_000)
+  // Then
+  const linesNamingIt = (w.requests.at(-1)?.prompt ?? '').split('\n').filter(line => line.includes(ISSUE_LINK.url))
+  expect(linesNamingIt).toEqual([
+    `- ${ISSUE_LINK.id} kind=${ISSUE_LINK.kind} label=${ISSUE_LINK.label} url=${ISSUE_LINK.url} (dismissed turn ${MODEL.turn}, locked)`,
+    `- user dismissed (turn ${MODEL.turn}): "${ISSUE_LINK.label} ${ISSUE_LINK.url}" (links ${ISSUE_LINK.id})`,
+  ])
+  expect(w.state.model?.last_turn.bullets).toEqual(['Rebuilt.'])
+  expect(w.state.model?.links?.map(link => link.id)).toEqual([ISSUE_LINK.id, PR_LINK.id])
+  expect(await linkRows(ui)).toEqual([`link-${PR_LINK.id}`])
+  expect(await dismissedLinkRows(ui)).toEqual([`dismissed-link-${ISSUE_LINK.id}`])
+  expect(w.state.verdicts[`links:${ISSUE_LINK.id}`]?.verdict).toBe('dismissed')
   await ui.unmount()
 })
 

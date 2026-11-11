@@ -8,6 +8,7 @@ import {
   BULLETS,
   CHAT_DIR,
   circleFillOf,
+  dismissedLinkRows,
   DONE_TODO,
   ERRORS,
   FLAG,
@@ -552,6 +553,9 @@ test('the peek lines, the step in progress and the worst heads-up, sit together 
   await ui.unmount()
 })
 
+// A row's text ends with its 🗑.
+const DISMISS_LINK_ACTION = '🗑'
+
 test('the header counts the links that have an address, and the chip opens them as a view', { timeoutMs: 20_000 }, async ($, on) => {
   const w = world(on, { ...MODEL, links: LINKS })
   const ui = await mountBand($, w)
@@ -565,8 +569,8 @@ test('the header counts the links that have an address, and the chip opens them 
   expect(await linkRows(ui)).toEqual([`link-${ISSUE_LINK.id}`, `link-${PR_LINK.id}`, `link-${NOTEBOOK_LINK.id}`])
   expect((await ui.find({ key: 'links' }))?.props.variant).toBe('primary')
   expect(await markdownTexts(ui)).toEqual([ISSUE_MARKDOWN, PR_MARKDOWN, NOTEBOOK_MARKDOWN, ...BULLETS, ...ASK_TEXTS])
-  expect((await ui.find({ key: `link-${ISSUE_LINK.id}` }))?.text).toBe(`🎫${ISSUE_LINK.kind}${ISSUE_MARKDOWN}`)
-  expect((await ui.find({ key: `link-${NOTEBOOK_LINK.id}` }))?.text).toBe(`🔗${NOTEBOOK_LINK.kind}${NOTEBOOK_MARKDOWN}`)
+  expect((await ui.find({ key: `link-${ISSUE_LINK.id}` }))?.text).toBe(`🎫${ISSUE_LINK.kind}${ISSUE_MARKDOWN}${DISMISS_LINK_ACTION}`)
+  expect((await ui.find({ key: `link-${NOTEBOOK_LINK.id}` }))?.text).toBe(`🔗${NOTEBOOK_LINK.kind}${NOTEBOOK_MARKDOWN}${DISMISS_LINK_ACTION}`)
   // The kind and the link read as one line.
   expect((await ui.find({ key: `kind-link-${ISSUE_LINK.id}` }))?.props.flexDirection).toBe('row')
   expect((await ui.find({ key: `kind-link-${ISSUE_LINK.id}` }))?.text).toBe(`${ISSUE_LINK.kind}${ISSUE_MARKDOWN}`)
@@ -574,6 +578,82 @@ test('the header counts the links that have an address, and the chip opens them 
   await ui.press({ key: 'links' })
   // Then
   expect(await linkRows(ui)).toEqual([])
+  await ui.unmount()
+})
+
+test('🗑 moves the link into the open dismissed group, and ↶ brings it back', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = world(on, { ...MODEL, links: LINKS })
+  const ui = await mountBand($, w)
+  await ui.press({ key: 'links' })
+  expect((await ui.find({ key: `dismiss-${ISSUE_LINK.id}` }))?.props.label).toBe('🗑')
+  // When
+  await ui.press({ key: `dismiss-${ISSUE_LINK.id}` })
+  await w.clock.settle()
+  // Then
+  expect(w.state.verdicts).toEqual({ [`links:${ISSUE_LINK.id}`]: { verdict: 'dismissed', at: NOW_S, turn: MODEL.turn, text: `${ISSUE_LINK.label} ${ISSUE_LINK.url}` } })
+  expect(await linkRows(ui)).toEqual([`link-${PR_LINK.id}`, `link-${NOTEBOOK_LINK.id}`])
+  expect(await dismissedLinkRows(ui)).toEqual([`dismissed-link-${ISSUE_LINK.id}`])
+  expect((await ui.find({ key: 'dismissed-links-toggle' }))?.props.label).toBe('▾ 1 dismissed')
+  expect((await ui.find({ key: 'links' }))?.props.label).toBe('🔗 2')
+  // When
+  await ui.press({ key: `undismiss-${ISSUE_LINK.id}` })
+  await w.clock.settle()
+  // Then
+  expect(w.state.verdicts).toEqual({})
+  expect(await linkRows(ui)).toEqual([`link-${ISSUE_LINK.id}`, `link-${PR_LINK.id}`, `link-${NOTEBOOK_LINK.id}`])
+  expect(await dismissedLinkRows(ui)).toEqual([])
+  expect((await ui.find({ key: 'links' }))?.props.label).toBe('🔗 3')
+  await ui.unmount()
+})
+
+test('dismissed links wait folded behind a count on the title row, and show oldest dismissal first with ↶ on request', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = world(on, { ...MODEL, links: LINKS })
+  w.state.verdicts = { [`links:${ISSUE_LINK.id}`]: { verdict: 'dismissed', at: 2 }, [`links:${PR_LINK.id}`]: { verdict: 'dismissed', at: 1 } }
+  const ui = await mountBand($, w)
+  await ui.press({ key: 'links' })
+  expect(await linkRows(ui)).toEqual([`link-${NOTEBOOK_LINK.id}`])
+  expect(await dismissedLinkRows(ui)).toEqual([])
+  expect((await ui.find({ key: 'dismissed-links-toggle' }))?.props.label).toBe('▸ 2 dismissed')
+  // When
+  await ui.press({ key: 'dismissed-links-toggle' })
+  // Then
+  expect(await dismissedLinkRows(ui)).toEqual([`dismissed-link-${PR_LINK.id}`, `dismissed-link-${ISSUE_LINK.id}`])
+  expect((await ui.find({ key: `undismiss-${PR_LINK.id}` }))?.props.label).toBe('↶')
+  expect((await ui.find({ key: 'dismissed-links-toggle' }))?.props.label).toBe('▾ 2 dismissed')
+  await ui.unmount()
+})
+
+test('a dismiss whose save fails leaves the dismissed group as it was', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = world(on, { ...MODEL, links: LINKS })
+  w.state.verdicts = { [`links:${PR_LINK.id}`]: { verdict: 'dismissed', at: 1 } }
+  const ui = await mountBand($, w)
+  await ui.press({ key: 'links' })
+  // When
+  w.writeError = 'EACCES: permission denied'
+  await ui.press({ key: `dismiss-${ISSUE_LINK.id}` })
+  await w.clock.settle()
+  // Then
+  expect((await ui.find({ key: 'dismissed-links-toggle' }))?.props.label).toBe('▸ 1 dismissed')
+  await ui.unmount()
+})
+
+test('with every link dismissed the view stays open, ↶ in reach, and folded it says every link is dismissed', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = world(on, { ...MODEL, links: [ISSUE_LINK] })
+  const ui = await mountBand($, w)
+  await ui.press({ key: 'links' })
+  // When
+  await ui.press({ key: `dismiss-${ISSUE_LINK.id}` })
+  await w.clock.settle()
+  // Then
+  expect((await ui.find({ key: 'links' }))?.props.label).toBe('🔗 0')
+  expect((await ui.find({ key: 'links' }))?.props.variant).toBe('primary')
+  expect((await ui.find({ key: `undismiss-${ISSUE_LINK.id}` }))?.props.label).toBe('↶')
+  expect(await ui.find({ key: 'links-empty' })).toBeUndefined()
+  // When
+  await ui.press({ key: 'dismissed-links-toggle' })
+  // Then
+  expect((await ui.find({ key: 'view-links-title' }))?.text).toBe('🔗 Links· 0▸ 1 dismissed')
+  expect((await ui.find({ key: 'links-empty' }))?.text).toBe('✓ Every link dismissed')
   await ui.unmount()
 })
 

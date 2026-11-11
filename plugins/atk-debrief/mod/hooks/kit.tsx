@@ -38,10 +38,6 @@ function chromeOf(surface: RenderSurface): { plain?: true } {
 
 type Node = RenderElement | string | null | false | undefined | Node[]
 
-// Where a control's hint shows: above it, or below it on a site's first row (the band's header, a card's title row),
-// where a hint above would be cut off at the site's edge.
-type HintAt = 'above' | 'below'
-
 /** The parts, drawn with the surface's own elements. */
 export function kitOf(ui: ElementTable, surface: RenderSurface) {
   const { Box, Text, Button } = ui
@@ -50,31 +46,19 @@ export function kitOf(ui: ElementTable, surface: RenderSurface) {
   const Svg = surface === 'terminal' || !('Svg' in ui) ? null : ui.Svg
   // A desktop button stands taller than a line of text, so rows that end in buttons sit a gap apart there.
   const rowGap = surface === 'terminal' ? undefined : 1
-  // A hint: a hidden label that shows while the pointer is over the keyed box that holds it, out of the flow, so it
-  // moves nothing as it shows. It lines up with the edge of what it names: a control's right edge, a line's left. The
-  // terminal has no pointer to show it; its buttons show their hotkeys.
-  const hasHints = surface !== 'terminal'
-  const hintOf = (hint: string, at: HintAt, edge: 'left' | 'right') => (
-    <Box
-      position="absolute"
-      top={at === 'above' ? -2 : 2}
-      {...(edge === 'left' ? { left: 0 } : { right: 0 })}
-      width={hint.length + 2}
-      justifyContent={edge === 'left' ? 'flex-start' : 'flex-end'}
-      display="none"
-      hover={{ display: 'flex' }}
-    >
-      <Text inverse>{` ${hint} `}</Text>
-    </Box>
-  )
-  // What a control does, in the control's own keyed box.
-  const hinted = (key: string, hint: string | null, at: HintAt, control: RenderElement) =>
-    !hint || !hasHints ? (
+  // A hint: a hidden label below a header control, shown while the pointer is over the keyed box that holds it, out of
+  // the flow, so it moves nothing as it shows; it lines up with the control's right edge. Only the header's controls
+  // have one: below the header a hint would cover the buttons under it. The terminal has no pointer to show it; its
+  // buttons show their hotkeys.
+  const hinted = (key: string, hint: string | null, control: RenderElement) =>
+    !hint || surface === 'terminal' ? (
       control
     ) : (
       <Box key={`hint-${key}`} flexShrink={0}>
         {control}
-        {hintOf(hint, at, 'right')}
+        <Box position="absolute" top={2} right={0} width={hint.length + 2} justifyContent="flex-end" display="none" hover={{ display: 'flex' }}>
+          <Text inverse>{` ${hint} `}</Text>
+        </Box>
       </Box>
     )
   /** A heading row: what it is on the left, its controls on the right, as a view's title row and the pager have. */
@@ -103,7 +87,7 @@ export function kitOf(ui: ElementTable, surface: RenderSurface) {
      * says what it is, so it has no hint, unless the label is too short to say it, as the status chip's dot and time.
      */
     chip: ({ key, label, isOpen, onPress, hint = null }: { key: string; label: string; isOpen: boolean; onPress: () => void; hint?: string | null }) =>
-      hinted(key, hint, 'below', <Button key={key} {...chrome} {...(isOpen ? { variant: 'primary' as const } : { dimColor: true })} label={label} onPress={onPress} />),
+      hinted(key, hint, <Button key={key} {...chrome} {...(isOpen ? { variant: 'primary' as const } : { dimColor: true })} label={label} onPress={onPress} />),
     /** A count on the header with no view of its own: text, never a button, kept whole on a narrow band. */
     count: (key: string, label: string) => (
       <Box key={key} flexShrink={0}>
@@ -111,28 +95,23 @@ export function kitOf(ui: ElementTable, surface: RenderSurface) {
       </Box>
     ),
     /**
-     * One act, one glyph, and a hint that says what it does (none for a label in words): dim unless it is the act a
-     * row is for, and with a hotkey where the terminal offers one.
+     * One act, one glyph: dim unless it is the act a row is for, with a hotkey where the terminal offers one, and on the
+     * header a hint that says what it does.
      */
     action: (
       key: string,
       glyph: string,
-      hint: string | null,
       onPress: () => void,
-      { isDim = true, hotkey, hintAt = 'above' }: { isDim?: boolean; hotkey?: string; hintAt?: HintAt } = {},
-    ) => hinted(key, hint, hintAt, <Button key={key} {...chrome} dimColor={isDim} {...(hotkey ? { hotkey } : {})} label={glyph} onPress={onPress} />),
+      { isDim = true, hotkey, hint = null }: { isDim?: boolean; hotkey?: string; hint?: string | null } = {},
+    ) => hinted(key, hint, <Button key={key} {...chrome} dimColor={isDim} {...(hotkey ? { hotkey } : {})} label={glyph} onPress={onPress} />),
     /** A control labelled in words, which says what it does itself, so it has no hint. */
     button: (key: string, label: string, onPress: () => void, { isDim = true }: { isDim?: boolean } = {}) => (
       <Button key={key} {...chrome} dimColor={isDim} label={label} onPress={onPress} />
     ),
-    /**
-     * A line that gives way on a narrow row: as wide as its text, cut to fit when the row runs short, so what follows it
-     * keeps its width; its hint can say in full what the cut line says.
-     */
-    fit: (line: Node, hint: { key: string; text: string; at: HintAt }) => (
-      <Box key={hint.key} flexShrink={1} minWidth={0}>
+    /** A line that gives way on a narrow row: as wide as its text, cut to fit when the row runs short, so what follows it keeps its width. */
+    fit: (line: Node, key: string) => (
+      <Box key={key} flexShrink={1} minWidth={0}>
         {line}
-        {hasHints && hintOf(hint.text, hint.at, 'left')}
       </Box>
     ),
     /** Folds a part of a view in place: ▸ closed, ▾ open. */
@@ -194,7 +173,7 @@ export function kitOf(ui: ElementTable, surface: RenderSurface) {
             {text}
           </Text>
         </Box>
-        {hinted(undoKey, 'Undo', 'above', <Button key={undoKey} {...chrome} label={GLYPHS.undo} onPress={onUndo} />)}
+        <Button key={undoKey} {...chrome} label={GLYPHS.undo} onPress={onUndo} />
       </Box>
     ),
     /** A dim rule across the body: the desktop fits fewer dashes than the columns, so it draws twice as many, cut at the edge. */

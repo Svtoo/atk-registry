@@ -363,15 +363,18 @@ const isSameText = (a: string, b: string) => a.replace(/\s+/g, ' ').trim().toLow
 
 /**
  * The ops the model may make, with how many it may not and how many rewrote or removed a listed item. The dashboard is
- * the user's: a done to-do, an acknowledged heads-up, a dismissed card and whatever the user has just called are locked.
- * Everything else stays the model's to change at any turn, as the user may ask for that in the chat. An op that changes
- * nothing is dropped, so a stable item keeps its stamps. What is ignored costs only that op: the rest of the answer stands.
+ * the user's: a done to-do, an acknowledged heads-up, a dismissed card or link and whatever the user has just called are
+ * locked, and a dismissed link's address does not come back as a new link. Everything else stays the model's to change at
+ * any turn, as the user may ask for that in the chat. An op that changes nothing is dropped, so a stable item keeps its
+ * stamps. What is ignored costs only that op: the rest of the answer stands.
  */
 export function guardOps(board: Board, update: Update, acks: Record<string, Ack>, verdicts: Record<string, VerdictRecord>) {
   const ops: Op[] = []
   let ignored = 0
   let repairs = 0
   const isCalled = (section: 'todo' | 'cta' | 'freeform', id: string) => verdicts[verdictKeyOf(section, id)] !== undefined
+  const isDismissedLink = (id: string) => verdicts[verdictKeyOf('links', id)]?.verdict === 'dismissed'
+  const dismissedUrls = new Set(board.links.filter(link => isDismissedLink(link.id)).map(link => link.url))
   const isChanged = (text: string | undefined, stored: string) => text !== undefined && !isSameText(text, stored)
   const repair = (op: Op) => {
     repairs += 1
@@ -406,6 +409,10 @@ export function guardOps(board: Board, update: Update, acks: Record<string, Ack>
       else repair(op)
     } else if (op.op === 'freeform.upsert' && op.id !== undefined && (isCalled('freeform', op.id) || (board.freeform.find(item => item.id === op.id)?.dismissed_turn ?? 0) > 0)) {
       ignored += 1
+    } else if (op.op === 'link.upsert' && (op.id === undefined ? dismissedUrls.has(op.url ?? '') : isDismissedLink(op.id))) {
+      ignored += 1
+    } else if (op.op === 'link.remove' && isDismissedLink(op.id)) {
+      ignored += 1
     } else {
       ops.push(op)
     }
@@ -436,23 +443,28 @@ export function applyVerdicts(board: Board, verdicts: Record<string, VerdictReco
 }
 
 /**
- * The acks and verdicts to keep beside a new board: an ack while its heads-up row lives; a verdict until the board
- * itself carries its effect, the newest 50. A dropped or dismissed item's verdict stays as the never-re-add memory.
+ * The acks and verdicts to keep beside a new board: an ack while its heads-up row lives, and a dismissed link's verdict
+ * while its link lives; any other verdict until the board itself carries its effect, the newest 50. A dropped or
+ * dismissed item's verdict stays as the never-re-add memory.
  */
 export function keptBeside(board: Board, acks: Record<string, Ack>, verdicts: Record<string, VerdictRecord>) {
   const liveRows = new Set(board.headsup.map(it => it.id))
+  const liveLinks = new Set(board.links.map(it => it.id))
   const todoStatus = new Map(board.todo.map(it => [it.id, it.status]))
   const cardDismissed = new Map(board.freeform.map(it => [it.id, it.dismissed_turn]))
+  const isLinkKey = (key: string) => splitVerdictKey(key)[0] === 'links'
   const isAbsorbed = (key: string, entry: VerdictRecord) => {
     const [section, id] = splitVerdictKey(key)
     if (entry.verdict === 'done') return !todoStatus.has(id) || todoStatus.get(id) === 'done'
     if (section === 'freeform') return !cardDismissed.has(id) || (cardDismissed.get(id) ?? 0) > 0
     return false
   }
-  const kept = Object.entries(verdicts).filter(([key, entry]) => !isAbsorbed(key, entry))
+  const entries = Object.entries(verdicts)
+  const links = entries.filter(([key]) => isLinkKey(key) && liveLinks.has(splitVerdictKey(key)[1]))
+  const kept = entries.filter(([key, entry]) => !isLinkKey(key) && !isAbsorbed(key, entry))
   const newest = kept.sort(([, a], [, b]) => (a.at ?? 0) - (b.at ?? 0)).slice(-MAX_VERDICTS)
   return {
     acks: Object.fromEntries(Object.entries(acks).filter(([id]) => liveRows.has(id))),
-    verdicts: Object.fromEntries(newest),
+    verdicts: Object.fromEntries([...links, ...newest]),
   }
 }

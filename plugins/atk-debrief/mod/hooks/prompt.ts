@@ -1,7 +1,7 @@
 // The rebuild prompt: the board as the model reads it, the last turns of the chat, and the task. Pure, as board.ts.
 
 import { OUTPUT_FORMAT } from './answer-format'
-import { type Ack, type Board, isAckedRow, isOldFormat, splitVerdictKey, type VerdictRecord } from './board'
+import { type Ack, type Board, isAckedRow, isOldFormat, splitVerdictKey, type VerdictRecord, verdictKeyOf } from './board'
 
 /** One message of a turn as the mod keeps it: what `$.session.messages()` gives, less the tools' stored records. */
 export type TurnRow = {
@@ -127,7 +127,9 @@ export function digestOf(m: Board, now: number, verdicts: Record<string, Verdict
 
   lines.push('', `## Links (${m.links.length}) — the nav chips; upsert by id, remove what stopped mattering`)
   for (const link of m.links) {
-    lines.push(`- ${link.id} kind=${link.kind || '-'} label=${link.label} url=${link.url || '-'}`)
+    const dismissal = verdicts[verdictKeyOf('links', link.id)]
+    const dismissed = dismissal?.verdict !== 'dismissed' ? '' : dismissal.turn ? ` (dismissed turn ${dismissal.turn}, locked)` : ' (dismissed, locked)'
+    lines.push(`- ${link.id} kind=${link.kind || '-'} label=${link.label} url=${link.url || '-'}${dismissed}`)
     if (!link.url) lines.push('  ⚠ no url, so the chip is hidden from the user: fill the real url via link.upsert, or link.remove it if none exists')
   }
 

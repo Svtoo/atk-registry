@@ -186,8 +186,8 @@ Card rules:
 ## Rules
 
 - User verdicts are final. The user can click items on the dashboard: mark a
-  to-do done, drop a to-do, dismiss a call to action. The digest lists these
-  under "User verdicts", already applied to the state. Never re-add a dropped
+  to-do done, drop a to-do, dismiss a call to action or a link. The digest lists
+  these under "User verdicts", already applied to the state. Never re-add a dropped
   or dismissed item (under the old id, a new id, or reworded), and never
   uncheck a user-done to-do.
 - Emit ops only for what changed; an empty ops list is a valid and common
@@ -201,8 +201,9 @@ Card rules:
   repair's `reason` says what is wrong.
 - The user's word overrides that: when they ask in the chat for an item to
   change, or say a list is wrong, make the change that turn.
-- Locked items: a done to-do, an acknowledged heads-up, a dismissed card. The
-  dashboard ignores any op on them, and the state marks them. Send none.
+- Locked items: a done to-do, an acknowledged heads-up, a dismissed card or
+  link. The dashboard ignores any op on them, and the state marks them. Send
+  none. A dismissed link's address never comes back as a new link.
 - A gap is a defect too: when the transcript holds something a section's
   definition calls for and no item carries it, create the missing item.
 - Write for a human skimming: plain words, concrete, one tight line per field.
