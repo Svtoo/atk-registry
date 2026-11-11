@@ -8,7 +8,7 @@ A live dashboard for every Claude Code chat, in a band above the prompt: what th
 along the work is, and what you would otherwise miss, in structured form and a click away. You do nothing to make it
 happen. After each turn, a small model call (Haiku by default, on your own account) rebuilds it from the chat.
 
-**Beta (0.1.1).** Expect rough edges, and please [report a problem](#report-a-problem) when you find one.
+**Beta (0.1.2).** Expect rough edges, and please [report a problem](#report-a-problem) when you find one.
 
 ```bash
 claude plugin marketplace add Svtoo/atk-registry
@@ -38,7 +38,8 @@ tab); for the terminal, see [Known limits](#known-limits).
 - **📋 To-do**: the plan's progress bar and its steps. ✓ checks one off, 🗑 drops it.
 - **⚠️ Heads-up**: silent changes and risks the chat buried, most severe first, each with where to look. ✓
   acknowledges one and it folds away.
-- **🔗 Links**: the issue, the PR, the branch or the design doc you keep going back to.
+- **🔗 Links**: the issue, the PR, the branch or the design doc you keep going back to. 🗑 dismisses one and it
+  folds away.
 - **🧩 Freeform cards**: designs, diagrams and key terms in a pane beside the chat, as Markdown and SVG drawn in your
   theme's colours. The pane opens by itself when a chat has live cards, and again when one is new or changes.
 - **Status**: a dot and the dashboard's age: 🟢 current, 🔵 updating, 🟡 behind or 🔴 a problem. Its view holds the

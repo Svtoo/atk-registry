@@ -87,6 +87,7 @@ export type DebriefBand = {
   ackedHeadsups: DebriefHeadsup[]
   todos: DebriefTodo[]
   links: DebriefLink[]
+  dismissedLinks: DebriefLink[]
   freeform: DebriefFreeform[]
   status: DebriefStatus
 }
@@ -109,6 +110,7 @@ declare module 'claude-code' {
       band: DebriefBand | null
       openView: DebriefBandView | null
       isAckedOpen: boolean
+      isDismissedLinksOpen: boolean
       isDoneOpen: boolean
       openNoticeIds: string[]
       isResolvedOpen: boolean

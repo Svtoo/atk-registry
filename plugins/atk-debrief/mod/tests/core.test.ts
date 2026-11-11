@@ -184,9 +184,14 @@ test('an answer with no closed update block, bad JSON or a diagram that cannot b
   }
 })
 
+const DISMISSED_LINK_URL = 'https://example.com/pull/1'
 const LOCK_BOARD = boardOf({
   turn: 20,
   seq: 30,
+  links: [
+    { id: 'l1', label: 'Dismissed link', url: DISMISSED_LINK_URL, kind: 'pr' },
+    { id: 'l2', label: 'Live link', url: 'https://example.com/doc/2', kind: 'doc' },
+  ],
   todo: [
     { id: 't1', text: 'Done step', status: 'done', created_turn: 1, changed_turn: 5, done_turn: 5 },
     { id: 't2', text: 'Open step', status: 'open', created_turn: 2, changed_turn: 2 },
@@ -212,6 +217,20 @@ test('the model cannot change what is locked: a done to-do, an acknowledged head
     { op: 'freeform.upsert', id: 'f1', bodyRef: 'x', reason: 'r' },
   ])
   expect([result.update.ops, result.ignored, result.repairs]).toEqual([[], 6, 0])
+})
+
+test('a dismissed link is locked: the model cannot change or remove it, nor add its address as a new link', () => {
+  const liveRename = { op: 'link.upsert', id: 'l2', label: 'Live link, renamed', reason: 'r' }
+  const result = guarded(
+    [
+      { op: 'link.upsert', id: 'l1', label: 'Rewritten', reason: 'r' },
+      { op: 'link.remove', id: 'l1', reason: 'r' },
+      { op: 'link.upsert', label: 'Same address, new link', url: DISMISSED_LINK_URL, kind: 'pr', reason: 'r' },
+      liveRename,
+    ],
+    { 'links:l1': { verdict: 'dismissed' } },
+  )
+  expect([result.update.ops, result.ignored]).toEqual([[liveRename], 3])
 })
 
 test('a to-do the user checked is locked before a rebuild takes the check in', () => {
@@ -313,6 +332,16 @@ test('the user\'s verdicts apply to the board, and stay beside it until the boar
   // Then
   expect(kept.verdicts).toEqual({ 'todo:t5': { verdict: 'dropped', at: 2 } })
   expect(kept.acks).toEqual(ACKS)
+})
+
+test('a dismissed link\'s verdict stays beside the board while the link lives, past any count of newer verdicts, and goes with it', () => {
+  const board = boardOf({ links: [{ id: 'l1', label: 'Dismissed link', url: DISMISSED_LINK_URL, kind: 'pr' }] })
+  const dismissal = { verdict: 'dismissed', at: 1 }
+  const newer = Object.fromEntries(Array.from({ length: 50 }, (_, n) => [`cta:c${n}`, { verdict: 'dismissed', at: 10 + n }]))
+  // When
+  const kept = keptBeside(board, {}, { 'links:l1': dismissal, 'links:l9': { verdict: 'dismissed', at: 2 }, ...newer })
+  // Then
+  expect(kept.verdicts).toEqual({ 'links:l1': dismissal, ...newer })
 })
 
 const rowOfText = (role: 'user' | 'assistant', text: string) => ({ role, text })

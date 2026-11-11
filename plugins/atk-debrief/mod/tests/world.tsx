@@ -242,6 +242,7 @@ export const ackedRows = rowsKeyed('acked-')
 export const todoRows = rowsKeyed('todo-')
 export const doneRows = rowsKeyed('done-')
 export const linkRows = rowsKeyed('link-')
+export const dismissedLinkRows = rowsKeyed('dismissed-link-')
 export const noticeRows = rowsKeyed('notice-err')
 
 export const EMPTY_ANSWER = '<update>{"ops":[]}</update>'

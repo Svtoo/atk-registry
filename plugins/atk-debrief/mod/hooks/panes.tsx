@@ -52,7 +52,7 @@ export function drawCards(ui: ElementTable, surface: RenderSurface, b: DebriefBa
       </Text>
     )
     // A card a rebuild took in as dismissed has no 🗑 of its own.
-    const actions = card.isRetired ? [] : [k.action(`dismiss-${card.id}`, GLYPHS.dismiss, 'Dismiss the card', () => acts.setCard(card.id, true), { hintAt: 'below' })]
+    const actions = card.isRetired ? [] : [k.action(`dismiss-${card.id}`, GLYPHS.dismiss, () => acts.setCard(card.id, true))]
     return k.stack(`card-${card.id}`, [
       k.row(`card-head-${card.id}`, title, { age: freeformAgeOf(card, b.turn), actions }),
       <Box flexDirection="column">
@@ -86,8 +86,8 @@ export function drawCards(ui: ElementTable, surface: RenderSurface, b: DebriefBa
     current.length === 0 && <Text dimColor>Every card in this chat is dismissed.</Text>,
     pages.length > 1 &&
       k.heading('freeform-pager', <Text dimColor>{first === last ? `Card ${first} of ${listed.length}` : `Cards ${first}–${last} of ${listed.length}`}</Text>, [
-        page > 0 && k.action('freeform-previous', GLYPHS.previous, 'Previous cards', () => acts.toPage(page - 1), { hintAt: 'below' }),
-        page < pages.length - 1 && k.action('freeform-next', GLYPHS.next, 'Next cards', () => acts.toPage(page + 1), { hintAt: 'below' }),
+        page > 0 && k.action('freeform-previous', GLYPHS.previous, () => acts.toPage(page - 1)),
+        page < pages.length - 1 && k.action('freeform-next', GLYPHS.next, () => acts.toPage(page + 1)),
       ]),
     ...rows,
     ...(isToggleAtEnd ? toggle(shown.length === 0) : []),

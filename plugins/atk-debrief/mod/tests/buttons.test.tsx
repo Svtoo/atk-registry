@@ -116,12 +116,7 @@ function hintsOf(node: any): [string, string, number][] {
   return [...own, ...children.flatMap(hintsOf)]
 }
 
-// A button that says what it does in words needs no hint; a glyph, a count or a chip does.
-const isWordless = (label: string) => !/\p{L}{2,}/u.test(label)
-const CHIPS = ['links', 'freeform', 'headsups', 'todos', 'status']
-const WORDED_CHIPS = ['links', 'freeform', 'headsups', 'todos']
-
-test('on the desktop every glyph button names what it does while the pointer is over it, and the status chip its state; a chip or a count, which says what it is, has no hint', { timeoutMs: 20_000 }, async ($, on) => {
+test('on the desktop only the header\'s buttons carry a hint: the status chip its state, each glyph what it does; no row, line or pane control has one', { timeoutMs: 20_000 }, async ($, on) => {
   const w = world(on, EVERY_PART_MODEL)
   w.state.regenErrors = ERRORS
   w.state.verdicts = { [`cta:${MODEL.cta[0]!.id}`]: { verdict: 'dismissed' } }
@@ -130,32 +125,22 @@ test('on the desktop every glyph button names what it does while the pointer is 
   // Then
   const trees = [await band.drawn(), ...(await eachViewOf(band, async ui => [await ui.drawn()])), await pane.drawn()]
   const hints = new Map(trees.flatMap(hintsOf).map(([key, text]) => [key, text]))
-  const buttons = (await eachViewOf(band, ui => ui.findAll({ type: 'Button' }))).concat(await pane.findAll({ type: 'Button' }))
-  const glyphs = buttons.filter((button: any) => isWordless(button.props.label) && !CHIPS.includes(button.key))
-  expect(glyphs.length).toBeGreaterThan(20)
-  expect(glyphs.filter((button: any) => !hints.get(button.key)).map((button: any) => button.key)).toEqual([])
-  expect([...WORDED_CHIPS, 'turn', 'asks-count'].filter(key => hints.has(key))).toEqual([])
-  // As first drawn, with no view open.
-  const firstHints = new Map(hintsOf(trees[0]).map(([key, text]) => [key, text]))
-  expect(['phase-label', 'status', 'settings', 'rebuild', 'band-fold', `reply-${MODEL.cta[1]!.id}`, `undo-${MODEL.cta[0]!.id}`].map(key => firstHints.get(key))).toEqual([
-    'Phase: Awaiting review',
-    '2 × signed out',
-    'Open the settings',
-    'Rebuild the dashboard',
-    'Fold the band',
-    'Reply: quote it in the prompt box',
-    'Undo',
+  expect([...hints.entries()]).toEqual([
+    ['status', '2 × signed out'],
+    ['settings', 'Open the settings'],
+    ['rebuild', 'Rebuild the dashboard'],
+    ['band-fold', 'Fold the band'],
   ])
   await unmountAll(pane, band)
 })
 
-test('a hint shows below the header, where the band begins, and above any other row', { timeoutMs: 20_000 }, async ($, on) => {
+test('a header hint shows below the header, where the band begins', { timeoutMs: 20_000 }, async ($, on) => {
   const w = world(on, EVERY_PART_MODEL)
   // When
   const band = await mountBand($, w)
   // Then
   const tops = new Map(hintsOf(await band.drawn()).map(([key, , top]) => [key, top]))
-  expect([tops.get('rebuild')! > 0, tops.get('band-fold')! > 0, tops.get(`reply-${MODEL.cta[1]!.id}`)! < 0]).toEqual([true, true, true])
+  expect([tops.get('rebuild')! > 0, tops.get('band-fold')! > 0]).toEqual([true, true])
   await band.unmount()
 })
 

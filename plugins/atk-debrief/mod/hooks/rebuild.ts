@@ -481,13 +481,18 @@ function withRebuild(stats: Partial<RebuildStats> | undefined, spent: Spent, wal
 
 // ─── The user's presses ──────────────────────────────────────────────
 
-export type Section = 'cta' | 'todo' | 'freeform'
+export type Section = 'cta' | 'todo' | 'freeform' | 'links'
 
 // The calls the user can make on an item of each section.
-const CALLS = { todo: ['done', 'dropped'], cta: ['dismissed'], freeform: ['dismissed'] } as const satisfies Record<Section, readonly string[]>
+const CALLS = { todo: ['done', 'dropped'], cta: ['dismissed'], freeform: ['dismissed'], links: ['dismissed'] } as const satisfies Record<Section, readonly string[]>
 
-/** A call on an item of the section: a dismissed ask or card, a step done or dropped. */
+/** A call on an item of the section: a dismissed ask, card or link, a step done or dropped. */
 export type CallOf<S extends Section> = (typeof CALLS)[S][number]
+
+type CalledItem = { id: string; text?: string; label?: string; url?: string; reason: string }
+
+// A link has no text of its own: the rebuild knows it by its label and address.
+const wordingOf = (item: CalledItem | undefined) => (item?.label ? `${item.label} ${item.url}` : item?.text) || item?.reason || ''
 
 /**
  * The user's call on an item, kept with its wording and the board's turn so the next rebuild reads it as a fact;
@@ -503,8 +508,8 @@ export async function setVerdict<S extends Section>(io: Io, chat: Chat, section:
       delete verdicts[key]
     } else {
       const board = boardOf(fresh.model)
-      const item: { text?: string; reason: string } | undefined = (board[section] as { id: string; text?: string; reason: string }[]).find(it => it.id === id)
-      verdicts[key] = { verdict, at: now, turn: board.turn, text: item?.text || item?.reason || '' }
+      const item = (board[section] as CalledItem[]).find(it => it.id === id)
+      verdicts[key] = { verdict, at: now, turn: board.turn, text: wordingOf(item) }
     }
     return { ...fresh, verdicts }
   })
